@@ -1,0 +1,1193 @@
+# بسم الله الرحمان الرحيم
+import copy
+import os
+import re
+import html
+import sqlite3
+from functools import partial
+
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
+
+from UI.BasicElements import LineLayout, ListWidget, AyatModelItem, NumberModelItem
+from tools import G
+from tools.PDF import PDF_Exporter
+
+
+class TopicsBar(QWidget):
+    """
+    The panel display the current topics for the given page
+    """
+    def __init__(self, parent=None):
+        super(TopicsBar, self).__init__(parent)
+        # FIXME:atm the domains doesn't work
+        self.topics = {'pages': {0: []}, 'domains': {}}
+        self.current_page = 0
+        self.topic_dialog = TopicsDialog(parent, self)
+
+        self.setMaximumWidth(600)
+        self.setFixedHeight(50)
+        self.setContentsMargins(0, 0, 0, 0)
+
+        topic_layout = QHBoxLayout()
+        self.topic_overview = QLabel("")
+        self.topic_overview.setFont(G.get_font(1.2))
+
+        self.topic_edit = QPushButton("...")
+        self.topic_edit.setFixedWidth(45)
+        self.topic_edit.clicked.connect(self.topic_dialog.showTopics)
+
+        self.topics_settings = QPushButton(G.icon('Setting-Tools'), "")
+        self.topics_settings.setFixedWidth(45)
+
+        topic_layout.addWidget(self.topic_overview, 0)
+        topic_layout.addWidget(self.topic_edit, 0)
+        topic_layout.addWidget(self.topics_settings, 0)
+        topic_layout.setStretch(1, 0)
+        topic_layout.setContentsMargins(10, 0, 10, 0)
+        topic_layout.setSpacing(0)
+
+        self.setLayout(topic_layout)
+
+    @G.log
+    def load_topics(self, db_file):
+        # when initializing the widget we load topics from the db
+        q = db_file.exec_("SELECT * FROM topics")
+
+        while q.next():
+            # storing every topic
+            name, domain, page = q.value('name'), q.value('domain'), int(q.value('page'))
+
+            if page in self.topics['pages']:
+                self.topics['pages'][page].append(name)
+
+            else:
+                self.topics['pages'][page] = [name]
+
+            # then we add the topics' domain in the list of domains
+            # TODO: not implemented yet
+            self.topics['domains'][name] = domain
+
+    def changePage(self, page=0):
+        # we update the panel's label with a list of all the topics
+        try:
+            self.topic_overview.setText(', '.join(sorted(self.topics['pages'][page])))
+
+        except KeyError as e:
+            G.exception(e)
+            self.topic_overview.setText('')
+
+        # defining the current page
+        self.current_page = page
+
+
+class TopicsDialog(QDialog):
+    """
+    This allows you to pick the topics linked with the current page
+    """
+    reference: TopicsBar
+    valid = pyqtSignal(list, list)
+
+    class TopicFind(QLineEdit):
+        """
+        a simple lineEdit search widget
+        """
+        def __init__(self, parent=None):
+            super(TopicsDialog.TopicFind, self).__init__(parent)
+
+        def keyPressEvent(self, e: QKeyEvent):
+            """
+            Overrides the keypress event
+            """
+            # if user valids by pressing Enter we add the currently highlighted topic,
+            if e.key() == Qt.Key.Key_Return:
+                self.parent().updateTopics()
+
+            # otherwise we update the list
+            else:
+                super(TopicsDialog.TopicFind, self).keyPressEvent(e)
+
+    def __init__(self, parent=None, reference=None):
+        super(TopicsDialog, self).__init__(parent)
+        # internal process
+        self.reference = reference
+        self.original_topics = []
+
+        # UI
+        self.pointer_rect = QRect(0, 30, 1, 1)
+
+        main_layout = QVBoxLayout()
+        self.setLayout(main_layout)
+
+        self.setContentsMargins(5, 5, 5, 5)
+        self.setFixedWidth(400)
+        self.setFixedHeight(400)
+        self.find_field = TopicsDialog.TopicFind(self)
+        self.find_field.textChanged.connect(self.filterTopics)
+        main_layout.addLayout(LineLayout(self, 'Find / Add : ', self.find_field))
+
+        self.topic_list = QListView(self)
+        self.model = QStandardItemModel(self.topic_list)
+
+        self.topic_list.setModel(self.model)
+        main_layout.addWidget(self.topic_list)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.ok = QPushButton('OK')
+        self.ok.pressed.connect(self.validForm)
+        self.cancel = QPushButton('Cancel')
+        self.cancel.pressed.connect(self.cancelForm)
+        main_layout.addLayout(LineLayout(self, self.ok, self.cancel))
+
+    def validForm(self):
+        """
+        Valid the current list of topics and update the settings
+        """
+        # reloading the same page for the TopicsBar
+        self.reference.changePage(self.reference.current_page)
+
+        # making no duplicate list of the topics
+        new = frozenset(self.reference.topics['pages'][self.reference.current_page])    # the ones we need to add
+        old = frozenset(self.original_topics)   # the ones we need to remove
+
+        # updating signals
+        self.valid.emit(list(new.difference(old)), list(old.difference(new)))
+        super(TopicsDialog, self).close()
+
+    def cancelForm(self):
+        """
+        Cancel the current changes
+        """
+        # revert to self.original_topics
+        self.reference.topics['pages'][self.reference.current_page] = self.original_topics
+
+        # reloading the same page
+        self.reference.changePage(self.reference.current_page)
+        super(TopicsDialog, self).close()
+
+    def showTopics(self):
+        """
+        It displays the topics in the list
+        :return:
+        """
+        self.find_field.setText("")
+
+        # if topics doesn't exists for this page, create the array
+        if self.reference.current_page not in self.reference.topics['pages']:
+            self.reference.topics['pages'][self.reference.current_page] = []
+
+        # make a copy of the original topics from reference
+        self.original_topics = copy.copy(self.reference.topics['pages'][self.reference.current_page])
+
+        # visual ops
+        self.filterTopics()
+        self.show()
+
+    def filterTopics(self, text_filter=''):
+        """
+        Filter the view depending on the given filter
+        :param text_filter: the text we filter through
+        """
+
+        # extending the res array with all the topics by page
+        res = []
+
+        for page in self.reference.topics['pages']:
+            res += self.reference.topics['pages'][page]
+
+        # visual settings for result's display
+        font = G.get_font(1.4)
+        extra_font = G.get_font(1.4, weight=400, italic=True)
+
+        self.model.clear()
+        i = 1
+        # through this list of topics
+        for t in sorted(frozenset(res)):
+
+            # this should display all topics, but we only need the ones for the current page
+            if text_filter == '' and t not in self.reference.topics['pages'][self.reference.current_page]:
+                continue
+
+            # this will display irrelevant topics
+            if text_filter != '' and t in self.reference.topics['pages'][self.reference.current_page]:
+                continue
+
+            # standard display if no filter active
+            elif text_filter == '':
+                item = QStandardItem(t)
+                item.setFont(font)
+
+            # custom display if filter's active
+            else:
+                item = QStandardItem(t)
+                item.setFont(extra_font)
+                item.setForeground(QColor(125, 125, 125))
+
+            # if text_filter matches current topic
+            if text_filter in t:
+                # adding the item
+                self.model.appendRow(item)
+
+                if i == 1:
+                    # tricks to select the upper element of the list
+                    self.pointer_rect = QRect(0, 30, 1, 1)
+                    self.topic_list.setSelection(self.pointer_rect, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+
+                i += 1
+
+    def updateTopics(self):
+        """
+        update the current topics
+        :return:
+        """
+        # determining the name of the topic we'll add
+        try:
+            item_text = self.model.itemFromIndex(self.topic_list.selectedIndexes()[0]).text()
+
+        # if there is no selection, setting the topic name based on the search field
+        except IndexError:
+            item_text = self.find_field.text()
+
+        # if the topic to be added not in the current page's topics
+        if item_text not in self.reference.topics['pages'][self.reference.current_page]:
+
+            # upgrading the lists
+            self.reference.topics['pages'][self.reference.current_page].append(item_text)
+            self.find_field.clear()
+            self.filterTopics()
+
+    def keyPressEvent(self, e:QKeyEvent):
+        """
+        Overrides keyPress to catch the Delete button pressed
+        """
+        if e.key() == Qt.Key.Key_Delete:
+            try:
+                # getting the currently selected
+                text = self.model.itemFromIndex(self.topic_list.selectedIndexes()[0]).text()
+
+                # updating the variables
+                self.reference.topics['pages'][self.reference.current_page].remove(text)
+                self.find_field.clear()
+
+                # now refresh the topics' list
+                self.filterTopics()
+                e.ignore()
+
+            except IndexError:
+                pass
+
+        super(TopicsDialog, self).keyPressEvent(e)
+
+
+class GlobalSearch(QDialog):
+    """
+    A complex search dialog
+    """
+    # arbitrary parameters to catch some characters before and after for visual feedback
+    # in the list it will display results as "lorem <i>ipsum</i> dolor met" highlighting
+    # the current match
+    head_len = 20
+    tail_len = 50
+
+    re_harakat = re.compile("[" + "|".join("ًٌٍَُِّْ") + "]")
+
+    def __init__(self, parent=None):
+        # here we'll copy the current project to perform our search
+        self._book = {}
+
+        super(GlobalSearch, self).__init__(parent)
+
+        self.setFixedSize(800, 600)
+        self.setWindowTitle("Find & Replace")
+        self.setWindowIcon(G.icon("Google-Custom-Search"))
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        widgets_layout = QVBoxLayout(self)
+        widgets_layout.setContentsMargins(5, 5, 5, 5)
+
+        self.setLayout(widgets_layout)
+        self.find_field = QLineEdit()
+        self.replace_check = QCheckBox("Replace : ")
+        self.replace_field = QLineEdit()
+        self.replace_check.stateChanged.connect(self.replace_field.setEnabled)
+        self.replace_field.setDisabled(True)
+        widgets_layout.addLayout(LineLayout(self, 'Find : ', self.find_field, self.replace_check, self.replace_field))
+
+        self.regex_check = QCheckBox("Regexp")
+        self.word_check = QCheckBox("Whole word")
+        self.case_check = QCheckBox("Case sensitive")
+        self.harakat_check = QCheckBox("Ignore harakat")
+        self.page_search_check = QCheckBox("Search in Page")
+        self.code_search_check = QCheckBox("Search in HTML Code")
+        widgets_layout.addLayout(LineLayout(self, self.regex_check, self.word_check, self.case_check,
+                                            self.harakat_check, self.page_search_check, self.code_search_check))
+
+        ayat_model_ar = AyatModelItem(font=G.get_font(1.4))
+        num_model = NumberModelItem()
+        self.result_list = ListWidget(self, models=(ayat_model_ar, num_model))
+        self.result_list.setColumnCount(2)
+        self.result_list.setColumnWidth(0, self.width() - 100)
+        self.result_list.setColumnWidth(1, 100)
+        self.result_list.itemClicked.connect(self.itemClicked)
+
+        widgets_layout.addWidget(self.result_list, stretch=1)
+
+        self.result_label = QLabel()
+        widgets_layout.addWidget(self.result_label)
+
+        self.search_button = QPushButton(G.icon('Search-Plus'), " Search")
+        self.search_button.clicked.connect(self.search)
+        self.replace_button = QPushButton(G.icon('Text-Replace'), "Replace")
+        self.replace_button.clicked.connect(self.replace)
+
+        widgets_layout.addLayout(LineLayout(self, self.search_button, self.replace_button))
+
+        self.progress = QProgressBar()
+        self.progress.setFixedHeight(5)
+        self.progress.setTextVisible(False)
+        main_layout.addLayout(widgets_layout, 1)
+        main_layout.addWidget(self.progress, 0)
+
+    def get_page(self, page: str) -> str:
+        """
+        Basic cleanup of the page, actually just used to remove all HTML tags
+        :param page: the page's html code
+        :return: the reformatted page
+        """
+        if not self.code_search_check.isChecked():
+            # matching all tags between < />
+            # TODO: update, maybe by loading a plainText version of the page ?
+            page = re.sub(r"<.*?>", "", page)
+
+        return page
+
+    def get_needle(self, needle: str) -> str:
+        """
+        Performs some tweaks on the search needle
+        :param needle: the search needle
+        :return: a correctly formed pattern based on the options
+        """
+        exit_chars = "|".join(G.new_word_keys.values())
+
+        # if regex we just get it has it is
+        if self.regex_check.isChecked():
+            search_pattern = needle
+
+        # if there is no replacement needed we convert the search needle to a regex one
+        elif not self.replace_check.isChecked():
+
+            # escaping all special characters
+            needle = re.escape(needle)
+
+            # if "match only word" is checked
+            if self.word_check.isChecked():
+                search_pattern = fr"(^|.{{0,{self.head_len - 1}}}[{exit_chars}])({needle})([{exit_chars}].{{0,{self.tail_len - 1}}}|$)"
+
+            # otherwise we make sure we get character before and after for visual feedback
+            else:
+                search_pattern = fr"(.{{0,{self.head_len}}})({needle})(.{{0,{self.tail_len}}})"
+
+        # if replacement is active we only match the needed needle
+        else:
+            # escaping all special characters
+            needle = re.escape(needle)
+
+            # head and tail to make sure complete words
+            if self.word_check.isChecked():
+                search_pattern = fr"(^|{exit_chars})({needle})({exit_chars}|$)"
+
+            else:
+                search_pattern = fr"{needle}"
+
+        return search_pattern
+
+    def get_search_field(self):
+        """
+        returns the current search domain, restraining to the active page only if checked
+        """
+        if not self.page_search_check.isChecked():
+            return self._book
+
+        else:
+            # getting the active page
+            current_page = self.parent().page_nb
+            return {current_page: self._book[current_page]}
+
+    def search_in_doc(self, needle: str, replacement=None) -> [tuple]:
+        """
+        perform a search using the Qt QDocument search feature
+        :param needle: the search needle
+        :param replacement: replacement text
+        """
+        results = list()
+        new_book = {}
+        total, perc = 0, 100.0 / len(self._book)
+        search_options = QTextDocument.FindFlags(0)
+
+        # applies the flag to the QTextDocument
+        for widget, flag in zip(
+                [self.case_check, self.word_check],
+                [QTextDocument.FindCaseSensitively, QTextDocument.FindWholeWords]
+        ):
+            if widget.isChecked():
+                search_options |= flag
+
+        # preparing the search needle
+        search_needle = QRegExp(needle) if self.regex_check.isChecked() else needle
+
+        # for every page in the current domain of research
+        for page in self.get_search_field():
+            pos = 0
+
+            # removing all harakats of the doc if checked
+            page_content = self.re_harakat.sub("", self._book[page]) if self.harakat_check.isChecked() else self._book[page]
+
+            # creating a temporary QTextDocument to load the page
+            _doc = QTextDocument()
+            _doc.setHtml(page_content)
+
+            # while we find occurence
+            while pos != -1:
+                res = _doc.find(search_needle, pos, options=search_options)
+                pos = res.position()
+
+                # pos -1 means we hit the end of document
+                if pos != -1:
+                    # FIXME: this won't work with a regex pattern since we use the length of the needle
+                    # getting the characters before, the match, and characters after
+                    text = (
+                        res.block().text()[max(0, res.positionInBlock() - self.head_len):res.positionInBlock()],
+                        res.block().text()[res.positionInBlock(): res.positionInBlock() + len(needle)],
+                        res.block().text()[res.positionInBlock() + len(needle):
+                                           min(len(res.block().text()), res.positionInBlock() + self.tail_len)]
+                    )
+
+                    # if replacement text us provided
+                    if replacement is not None:
+
+                        # popping the old text
+                        res.removeSelectedText()
+
+                        # then insert the new one
+                        res.insertText(replacement)
+
+                        # and update the book
+                        new_book[page] = res.document().toHtml()
+
+                    # storing every match
+                    results.append((page, text, res.position()))
+
+            total += perc
+            self.progress.setValue(int(total))
+
+        # if replacement wanted we update the book
+        if replacement is not None:
+            self._book.update(new_book)
+
+        return results
+
+    def search_in_code(self, needle: str) -> [tuple]:
+        """
+        Performs a hardcode search by ourselves
+        :param needle: the serach needle
+        :return: a list of result tuples
+        """
+        results = list()
+        total, perc = 0, 100.0 / len(self._book)
+
+        # settings regex flags depending on options checked
+        flags = re.M
+        if not self.case_check.isChecked():
+            flags |= re.I
+
+        # for every page in the current domain of research
+        for page in self.get_search_field():
+
+            # formatting our pattern
+            search_pattern = self.get_needle(needle)
+
+            # formatting our page
+            page_content = self.re_harakat.sub("", self._book[page]) if self.harakat_check.isChecked() else self._book[page]
+
+            # perform the regex search
+            match = re.findall(search_pattern, page_content, flags)
+
+            if match:
+                # append all the results to the results' list,
+                # the regex pattern will return 3 groups
+                for m in match:
+                    results.append((page, m, None))
+
+            total += perc
+            self.progress.setValue(int(total))
+
+        return results
+
+    def replace_in_code(self, needle: str, replacement: str) -> (int, int):
+        """
+        Same as the search_in_code but replacing
+        :param needle: the search needle pattern
+        :param replacement: the replacement pattern
+        :return: a tuple of the number of changes and new book's length
+        """
+        new_book = {}
+        changes = 0
+        total, perc = 0, 100.0 / len(self._book)
+
+        # for every page of the book
+        for page in self._book:
+            total += perc
+            self.progress.setValue(int(total))
+
+            # returns the page updated and the changes operated
+            new_book[page], change = re.subn(
+                self.get_needle(needle),
+                replacement,
+                self.get_page(self._book[page])
+            )
+            changes += change
+
+        # updating the book with the page modified
+        self._book.update(new_book)
+
+        return changes, len(new_book)
+
+    def format_result(self, result: list) -> str:
+        """
+        Format the results we got from the search_in_doc or search_in_code to the list
+        :param result: a tuple of three elements : (page, text, position)
+        :return: formatted result : (before match)(match)(after match)
+        """
+        # extract results
+        h, n, t = result
+
+        # beginning of result
+        head = ("..." + " ".join(h.split(" ")[1:])) if len(h) == self.head_len else h
+
+        # ending of result
+        tail = (" ".join(t.split(" ")[:-1]) + "...") if len(t) == self.tail_len else t
+
+        return "".join([head, n, tail])
+
+    def search(self):
+        """
+        The main search wrapper which call the sub functions
+        """
+        pages = set()
+
+        # cleaning the list of results
+        self.result_list.clear()
+
+        # if we need to search in the whole document including HTML code
+        if self.code_search_check.isChecked():
+            results = self.search_in_code(self.find_field.text())
+
+        # otherwise we just perform a QTextDocument search
+        else:
+            results = self.search_in_doc(self.find_field.text())
+
+        # for every result, we format them
+        for page, result, obj in sorted(results, key=lambda x: x[0]):
+            res = self.format_result(result)
+
+            # if HTML code is going to be displayed we unescape it first
+            if not self.code_search_check.isChecked():
+                res = html.unescape(res)
+
+            # adding the item widget to the list
+            item = QTreeWidgetItem([res, str(page)])
+            item.setData(2, 0, obj)
+            self.result_list.addTopLevelItem(item)
+
+            # updating pages for result
+            pages.add(page)
+
+        # displaying a light report of search result
+        self.result_label.setText(f'"{self.find_field.text()}" found {len(results)} time in {len(pages)} pages')
+
+    def replace(self):
+        """
+        The main replace wrapper which call the sub functions
+        """
+
+        # cleaning list of results
+        self.result_list.clear()
+
+        # if ever the function is called without the replace is checked
+        if not self.replace_check.isChecked():
+            self.result_label.setText("No replacement text found")
+            self.progress.setValue(0)
+            return
+
+        else:
+            # the both needle and replace patterns
+            needle, replacement = self.find_field.text(), self.replace_field.text()
+
+            # performs the needed sub function
+            if self.code_search_check.isChecked():
+                changes, pages = self.replace_in_code(needle, replacement)
+
+            else:
+                changes, pages = 0, set()
+
+                # unlike the replace_in_code function we need to extract the count results by ourselves
+                for p, r, o in self.search_in_doc(needle, replacement):
+                    pages.add(p)
+                    changes += 1
+
+                pages = len(pages)
+
+            # displaying a light report of replace
+            self.result_label.setText(f'"{needle}" replaced by "{replacement}" {changes} time in {pages} pages')
+
+            # updating parent's elements
+            # TODO: replace all this stuff by a signal
+            page = self.parent().page_nb
+
+            # updating the current document page
+            if page in self._book:
+                self.parent().typer.setHtml(self._book[page])
+
+            self.parent()._book.update(self._book)
+            self.parent().modified.update(set(self._book.keys()))
+            self.parent().changePage(page)
+
+    def itemClicked(self, item: QTreeWidgetItem):
+        """
+        if an element is clicked in the list, we go to the page
+        """
+        # gettin QTreeWidget data
+        pos = item.data(2, 0)
+
+        # if page changing worked
+        if self.parent().changePage(int(item.text(1))):
+            # we move inside the document
+            tc = self.parent().typer.textCursor()
+            tc.setPosition(pos, QTextCursor.MoveMode.MoveAnchor)
+            tc.select(QTextCursor.SelectionType.WordUnderCursor)
+
+            self.parent().typer.setTextCursor(tc)
+            self.parent().typer.ensureCursorVisible()
+
+    def show(self):
+        """
+        Getting the last book from parent when showing up
+        :return:
+        """
+        self._book = self.parent()._book
+
+        super(GlobalSearch, self).show()
+
+
+class Settings(QDialog):
+    """
+    A settings window
+    TODO: everything needs to be done here, should be in two parts ; globals, and for the current doc
+    """
+    _win: QMainWindow
+    _doc: QTextDocument
+    _typer: QTextEdit
+
+    def __init__(self, parent=None, typer=None):
+        super(Settings, self).__init__(parent)
+        self._win = parent
+        self._typer = typer
+        self._doc = self._typer.document()
+        self.setFixedSize(600, 400)
+
+        options_gbox = QGroupBox(self)
+        options_gbox.setTitle('Generals')
+        document_layout = QVBoxLayout()
+        self.connected_box = QCheckBox(self)
+        document_layout.addLayout(LineLayout(self, 'Connect to PDF\'s pages', self.connected_box))
+
+        options_gbox.setLayout(document_layout)
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(options_gbox)
+        self.setLayout(main_layout)
+        self.connected_box.clicked.connect(partial(self.update_settings, 'connect_to_ref'))
+
+    def update_settings(self, domain, state):
+        """
+        TODO: change everything, we should call a function like that but trigger signals to the parent instead
+        """
+        if isinstance(state, bool):
+            state = int(state)
+        if domain == 'connect_to_ref':
+            if state and not self._win._settings['reference']:
+                QMessageBox.critical(
+                    None,
+                    "Typer - No reference",
+                    "There is <b>no reference</b> linked to the current project.",
+                )
+                self.connected_box.setChecked(False)
+            elif state:
+                content = self._win.typer.document().toHtml()
+                self._win.viewer.pageChanged.connect(self._win.changePage)
+                self._win.viewer.load_page(self._win.page_nb)
+                self._win.typer.document().setHtml(content)
+            elif not state:
+                self._win.viewer.pageChanged.disconnect(self._win.changePage)
+        self._win.setSettings(domain, state)
+
+    def show(self):
+        if self._win._settings['connect_to_ref']:
+            self.connected_box.setChecked(True)
+
+        super(Settings, self).show()
+
+
+class Navigator(QDialog):
+    """
+    It displays a resume list of the pages typed inside a whole PDF : for instance :
+     if we typed pages 5 to 10 and 45 to 60 it'll display a list of theses two blocks
+     with buttons allowing to directly go at the beginning or end of the block
+    """
+    goto = pyqtSignal(int)
+
+    def __init__(self, parent):
+        super(Navigator, self).__init__(parent)
+
+        # UI stuffs
+        self.setFixedSize(550, 600)
+        self.main_layout = QVBoxLayout()
+        self.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(self.main_layout)
+
+        self.setWindowTitle('TyperNavigator')
+        self.setWindowIcon(G.icon('List'))
+
+        self.title = QLabel()
+        self.main_layout.addWidget(self.title, 1)
+
+    def addLine(self, start, end, start_title='', end_title=''):
+        """
+        after we got every parameters of the line, we add all the widgets in a new QHBoxLayout
+        :param start: the start page's number
+        :param end: the end page's number
+        :param start_title: the name of the start surat
+        :param end_title: name of the ending surat
+        """
+        line = QHBoxLayout()
+
+        # if page range is wider than 1
+        if start != end:
+            label = QLabel(f'[{start} ... {end}]')
+
+            # here we add to buttons, for beginning and end
+            goto_start = QPushButton(f'Start ({start_title})')
+            goto_start.pressed.connect(partial(self.goto.emit, start))
+            goto_end = QPushButton(f'End ({end_title})')
+            goto_end.pressed.connect(partial(self.goto.emit, end))
+
+            # ui stuff
+            line.addWidget(label, 1)
+            line.addWidget(goto_start, 0)
+            line.addWidget(goto_end, 0)
+
+        # if begin == end
+        else:
+            # then we just add one button to go to the corresponding page
+            label = QLabel(f'{start}')
+            goto = QPushButton(f'Go to ({start_title})')
+            goto.pressed.connect(partial(self.goto.emit, start))
+
+            # ui stuff
+            line.addWidget(label, 1)
+            line.addWidget(goto, 0)
+
+        # adding the new line to the layout
+        self.main_layout.addLayout(line, 0)
+
+    def buildMap(self, book: dict):
+        """
+        this scan the given book dict and determine the corresponding pages' blocks
+        :param book: book dict from parent
+        """
+        all_pages = book.keys()
+
+        # abort if there is no page
+        if not len(all_pages):
+            return
+
+        # this should delete everything but doesn't work completly
+        # FIXME: QLabel artifacts
+        # looping through all layout children
+        for i in reversed(range(self.main_layout.count())):
+            try:
+                self.main_layout.itemAt(i).layout().setParent(None)
+
+            except AttributeError:
+                pass
+
+        # we find all the surats names
+        header_matcher = re.compile(r'-state:97;.*?ff;\">(.*?)<', re.MULTILINE)
+
+        # preparing the vars
+        pages = set()
+        pages_title = {}
+
+        # create a temporary QTextDocument to store the HTML code of the page
+        tmp_doc = QTextDocument()
+
+        # for every page, we store to the temp doc
+        for i in all_pages:
+            tmp_doc.setHtml(book[i])
+
+            # we try to find all surats
+            match_surat = header_matcher.findall(book[i])
+
+            # if ever we got one or more, adding the last in the page
+            if match_surat:
+                pages_title[i] = match_surat[-1]
+
+            # getting all non-empty page
+            # TODO: improve empty page detection with the function in PDF library
+            if tmp_doc.toPlainText() != '':
+                pages.add(i)
+
+        # we'll store every blocks we meet, in a tuple
+        blocks = [[0, 0, '', '']]
+        i = 0
+        current_title = ''
+
+        # for every pages from 0 to the max value
+        while i <= max(pages):
+
+            # if page exists
+            if i in pages:
+                # and there is a surat in it
+                if i in pages_title:
+                    current_title = pages_title[i]
+
+                # this means a new block has started since the previous one was empty
+                if (i - 1) not in pages:
+                    blocks[-1][0] = i
+                    blocks[-1][2] = current_title
+
+                # expanding the current block whatsoever
+                blocks[-1][1] = i
+                blocks[-1][3] = current_title
+
+            # if the previous one was not empty and the current one is, we 'cut' the current block
+            # and append a new one to the list so it'll be the current one (blocks[-1])
+            elif (i - 1) in pages:
+                blocks.append([0, 0, '', ''])
+
+            i += 1
+
+        # displays light resume of the operation
+        self.title.setText(f'{len(pages)} pages filled, {len(blocks)} blocks')
+
+        # expanding size for every block
+        self.setFixedHeight(len(blocks) * 35 + 35)
+
+        # adding the widgets
+        for block in blocks:
+            self.addLine(*block)
+
+
+class Exporter(QDialog):
+    """
+    This dialog allows the user to pick a PDF file for export, and some settings
+    it also provide a live log of what's happening
+    """
+    def __init__(self, parent: QMainWindow):
+        super(Exporter, self).__init__(parent)
+        # getting an instance of the PDF Exporter
+        self.PDF_exporter = PDF_Exporter()
+        self.PDF_exporter.finished.connect(self.post_treatment)
+        self.setFont(parent.font())
+
+        # the widget's settings, where we store book's datas, etc
+        self.settings = {
+            'book': {},
+            'viewer': None,
+            'topics': {},
+            'dark_mode': False,
+            'multi_page': False,
+            'previous_export': None
+        }
+
+        # UI stuffs
+        self.setFixedSize(550, 700)
+        self.main_layout = QVBoxLayout()
+        self.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(self.main_layout)
+
+        self.setWindowTitle('TyperExport')
+        self.setWindowIcon(G.icon("File-Extension-Pdf"))
+
+        self.path_line = QLineEdit()
+        if self.settings['previous_export']:
+            self.path_line.setText(self.settings['previous_export'])
+
+        self.path_browse = QPushButton("...")
+        self.path_browse.clicked.connect(self.pick_file)
+
+        self.print_quality = QCheckBox("High Quality Export : ")
+
+        self.zoom_factor = QDoubleSpinBox(minimum=0.5, value=1.1, maximum=4.0)
+
+        self.min_range = QSpinBox()
+        self.max_range = QSpinBox()
+
+        self.open_at_finish = QCheckBox("Open file when export finishes")
+        self.open_at_finish.setChecked(True)
+        self.log = QPlainTextEdit()
+
+        def log_update(x):
+            """
+            just inserting line and scrolling to the end of the log
+            :param x: log line
+            """
+            self.log.insertPlainText(f"{x}\n")
+            self.log.ensureCursorVisible()
+
+        self.PDF_exporter.log.connect(log_update)
+
+        self.B_cancel = QPushButton("Cancel")
+        self.B_cancel.clicked.connect(self.close)
+        self.B_export = QPushButton("Export")
+        self.B_export.clicked.connect(self.export)
+
+        self.main_layout.addLayout(LineLayout(self, "Path : ", self.path_line, self.path_browse))
+        self.main_layout.addLayout(LineLayout(self, self.print_quality, "Zoom factor : ", self.zoom_factor))
+        self.main_layout.addLayout(LineLayout(self, "Start Page : ", self.min_range, "End Page : ", self.max_range))
+        self.main_layout.addWidget(self.log)
+        self.main_layout.setStretchFactor(self.log, 1)
+        self.main_layout.addLayout(LineLayout(self, self.open_at_finish))
+        self.main_layout.addLayout(LineLayout(self, self.B_cancel, self.B_export))
+
+    def export(self):
+        """
+        Start the export process of the PDF
+        """
+
+        # if the palette was a dark one, we turn it black and white for printing
+        if self.settings['dark_mode']:
+            palette = QApplication.palette()
+            palette.setColor(QPalette.ColorRole.Text, Qt.black)
+            QApplication.setPalette(palette)
+
+        self.log.clear()
+
+        # forwarding some settings to the PDF Exporter
+        self.PDF_exporter.settings.update({
+            'path': self.path_line.text(),
+            'factor': self.zoom_factor.value(),
+            'hq': self.print_quality.isChecked()
+        })
+
+        # some additional params if we export multiple page
+        if self.settings['multi_page']:
+            self.PDF_exporter.settings.update({
+                'book': self.settings['book'],
+                'viewer': self.settings['viewer'],
+                'topics': self.settings['topics'],
+                'range': (self.min_range.value(), self.max_range.value() + 1)
+            })
+            self.PDF_exporter.run()
+
+        # otherwise we create a temporary QTextDocument for the export
+        else:
+            doc = QTextDocument()
+            doc.setHtml(self.settings['typer'].toHtml())
+            self.PDF_exporter.single_page_export(doc)
+
+        # when export's done, we revert to dark mode
+        if self.settings['dark_mode']:
+            palette.setColor(QPalette.ColorRole.Text, Qt.white)
+            QApplication.setPalette(palette)
+
+    def pick_file(self):
+        """
+        Opens a dialog to select the PDF filepath
+        """
+        dialog = QFileDialog(None, "Pick saved PDF's filepath", G.abs_path())
+        dialog.setFileMode(dialog.AnyFile)
+        dialog.setDefaultSuffix("pdf")
+        dialog.setNameFilter("PDF Files (*.pdf)")
+        dialog.setAcceptMode(dialog.AcceptSave)
+
+        if dialog.exec_() == dialog.Accepted:
+            filename = dialog.selectedFiles()
+            self.path_line.setText(filename[0])
+            self.PDF_exporter.path = filename[0]
+
+    def post_treatment(self):
+        """
+        Performs some post treatment to store the settings used
+        :FIXME open at finish don't work
+        """
+        if self.open_at_finish.isChecked():
+            os.startfile(self.path_line.text(), 'open')
+
+        # storing the previous export
+        self.settings['previous_export'] = self.path_line.text()
+
+    def show(self):
+        """
+        Update the min and max page spinners before displaying the dialog
+        """
+        try:
+            # if we can get consistent values from the book
+            mini, maxi = min(self.settings['book'].keys()), max(self.settings['book'].keys())
+
+            # and min and max are not the same
+            assert mini == maxi
+
+        except (ValueError, AssertionError):
+            # otherwise we disable this feature
+            self.min_range.setDisabled(True)
+            self.max_range.setDisabled(True)
+
+        else:
+            # setting the values
+            for item in (self.min_range, self.max_range):
+                item.setMinimum(mini)
+                item.setMaximum(maxi)
+            self.min_range.setValue(mini)
+            self.max_range.setValue(maxi)
+
+        self.log.clear()
+
+        super(Exporter, self).show()
+
+
+class Conjugate(QDialog):
+    """
+    A dialog showing all the conjugation table of the given verb
+    """
+    def __init__(self, parent, database: sqlite3.Connection):
+        super(Conjugate, self).__init__(parent)
+        self.temps = []
+        self.modes = []
+        self.heads = []
+
+        # original general ressource for the conjugation, temps, modes, etc
+        # TODO: update with the current wrapper in G.SQLConnection ?? or at least G.new_connection
+        self.database = database
+        self.cursor = database.cursor()
+        temps = self.cursor.execute(f'SELECT value FROM ref WHERE field="temps" ORDER BY id ASC').fetchall()
+
+        for t in temps:
+            self.temps.extend([tmp.replace(' ', '<br>') for tmp in t])
+
+        modes = self.cursor.execute(f'SELECT value FROM ref WHERE field="mode" ORDER BY id ASC').fetchall()
+        for m in modes:
+            self.modes.extend(m)
+
+        heads = self.cursor.execute(f'SELECT value FROM ref WHERE field="head" ORDER BY id ASC').fetchall()
+        for h in heads:
+            self.heads.extend(h)
+
+        # the current text cursor in the document
+        self.textCursor = QTextCursor()
+
+        # UI stuffs
+        self.main_layout = QVBoxLayout()
+        self.setLayout(self.main_layout)
+
+        self.sub_content = QLabel(self)
+        self.sub_content.linkActivated.connect(self.setWord)
+
+        self.scrollable = QScrollArea(self)
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.addWidget(self.sub_content)
+        self.scrollable.setWidget(widget)
+        self.scrollable.setWidgetResizable(True)
+
+        self.main_layout.addWidget(self.scrollable)
+
+        self.setMinimumSize(1200, 500)
+
+    def setWord(self, word):
+        """
+        add the word
+        :param word: the word to insert
+        """
+        self.textCursor.insertHtml(word)
+
+        self.hide()
+        self.close()
+
+    def load(self, cursor, verb):
+        """
+        loading the current verb conjugate table
+        :param cursor: update the document text cursor for before insertion
+        :param verb: the verb to display conjugation table
+        """
+        # update the text Cursor before
+        self.textCursor = cursor
+
+        html_text = ''  # where we'll insert the final html code
+        h1 = -1         # the current mode level : Indicatif, Subjonctif, etc
+        h2 = -1         # the current temps level : Présent, Passé...
+        modes = {}
+
+        req = self.cursor.execute(f'SELECT forme, head, mode, temps, id FROM conjugaison WHERE source="{verb}"')
+
+        # for every conjugation
+        for forme, head, mode, temps, i in req.fetchall():
+            # if we changed the mode
+            if mode != h1:
+                h1 = mode
+                modes[h1] = {}
+
+            # if we changed the temps
+            if temps != h2:
+                h2 = temps
+                modes[h1][h2] = {
+                    'head_lines': {},
+                    'lines': {}
+                }
+
+            modes[h1][h2]['head_lines'][i] = head
+            modes[h1][h2]['lines'][i] = forme
+
+        # then for every mode (Indicatif, Subjonctif, etc...)
+        for mode, conjugation_table in modes.items():
+            # we add a main header for the temps
+            html_text += f'<h2 style="padding:3px;margin:3px">{self.modes[mode]}</h2>'
+
+            # we get the maximum number of rows for the current conjugation_table to add the same number in every temps
+            m = 0
+            for t in conjugation_table:
+                mx = max(conjugation_table[t]['lines'].keys())
+                if mx > m:
+                    m = mx
+
+            # creating empty lines
+            lines = {i: '' for i in range(m + 2)}
+
+            sub_html = '<table>\n'
+
+            # for every temps we edit the line
+            for temps in conjugation_table:
+
+                # adding a header for the temps
+                lines[0] += f'<td style="padding:10px 0 0 0;">'
+                lines[0] += f'<h3 style="padding:10px 0 0 0;">{self.temps[temps]}</h3></td>'
+                lines[0] += "<td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>"
+
+                # we try to append the line if the person exists in the conjugation table
+                for line in range(m + 1):
+                    try:
+                        lines[line + 1] += f"<td>{self.heads[conjugation_table[temps]['head_lines'][line]]}"
+                        lines[line + 1] += f"<a href='{conjugation_table[temps]['lines'][line]}'>"
+                        lines[line + 1] += f"{conjugation_table[temps]['lines'][line]}</a></td>"
+
+                    except KeyError:
+                        lines[line + 1] += "<td></td>"
+
+                    lines[line + 1] += "<td></td>"
+
+            # finalizing the table
+            sub_html += "<tr>" + "</tr>\n<tr>".join([lines[a] for a in lines]) + "</tr>\n</table><br>"
+            html_text += sub_html
+
+        # display the complete conjugation table
+        self.sub_content.setText(html_text)
