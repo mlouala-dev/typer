@@ -11,18 +11,21 @@
 
 * **Summary of set up** : we tried to respect the PEP nomenclature and Rest docstring rules, it use the keywords `TODO`
 and `FIXME` to signal improvements / errors
-* **Configuration**
-  * Has been designed with Python 3.10, has been tested down to the 3.7, now that we are in dev, the debug level is set
-  to `logging.DEBUG`
-* **Dependencies**
-  * PyQt5
-  * sqlite3
-  * symspellpy
-  * PyMuPDF
-* **Database configuration** : no configuration needed
-* How to run tests : install and run the typer.py core script, a simple demo file is provided.
-  * You can use `DB Browser for SQLite` to edit the databases, [download here](https://sqlitebrowser.org/blog/version-3-12-2-released/) 
-* Deployment instructions
+
+#### Configuration : 
+  * Designed with Python 3.10, has been tested down to the 3.7, now that we are in dev, the debug level is set to `logging.DEBUG`
+#### Dependencies
+  - PyQt5
+  - sqlite3
+  - symspellpy
+  - PyMuPDF
+  - pyaudio
+  - wave
+
+#### How to run tests : 
+* install and run the typer.py core script, a simple demo file is provided. 
+* You can use `DB Browser for SQLite` to edit the databases, [download here](https://sqlitebrowser.org/blog/version-3-12-2-released/) 
+
 
 ### Contribution guidelines ###
 

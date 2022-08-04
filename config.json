@@ -7,7 +7,7 @@
   },
   {
    "optionDest": "filenames",
-   "value": "D:/Script/Typer/typer.py"
+   "value": "D:/Script/typer/typer.py"
   },
   {
    "optionDest": "onefile",
@@ -64,10 +64,6 @@
   {
    "optionDest": "datas",
    "value": "D:/Script/Typer/rsc;rsc/"
-  },
-  {
-   "optionDest": "datas",
-   "value": "D:/Script/Typer/books;books/"
   }
  ],
  "nonPyinstallerOptions": {
