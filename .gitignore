@@ -4,7 +4,7 @@
 #     https://www.atlassian.com/git/tutorials/saving-changes/gitignore
 
 # Typer backup
-./rsc/backup.db
+backup.db
 
 # Node artifact files
 node_modules/
