@@ -2,7 +2,6 @@
 import sys
 import os
 import html
-import logging
 
 from datetime import datetime
 from functools import partial
