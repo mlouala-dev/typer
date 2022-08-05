@@ -574,9 +574,6 @@ class StatusBar(QStatusBar):
         self.page_label.setFixedWidth(300)
         self.page_label.setVisible(False)
 
-        self.label = QLabel(self)
-        self.label.setText("")
-
         self.connection_status_icon = QLabel(self)
         self.connection_status_icon.setPixmap(G.pixmap("Link", size=21))
         self.connection_status = QLabel("Connected to...")
@@ -589,6 +586,10 @@ class StatusBar(QStatusBar):
         self.record_volume.setOrientation(Qt.Vertical)
         self.record_volume.setFixedWidth(20)
         self.record_volume.setTextVisible(False)
+
+        self.label = QLabel(self)
+        self.label.setAlignment(Qt.AlignRight)
+        self.label.setText("")
 
         self.connection_status_icon.hide()
         self.connection_status.hide()
@@ -611,12 +612,12 @@ class StatusBar(QStatusBar):
         self.saved_icon.setPixmap(G.pixmap("Bullet-Green", size=21))
 
         self.addPermanentWidget(self.page_label, 1)
-        self.addPermanentWidget(self.label, 1)
-        self.addPermanentWidget(self.connection_status_icon)
-        self.addPermanentWidget(self.connection_status)
-        self.addPermanentWidget(self.record_status_icon)
+        self.addPermanentWidget(self.connection_status_icon, 0)
+        self.addPermanentWidget(self.connection_status, 0)
+        self.addPermanentWidget(self.record_status_icon, 0)
         self.addPermanentWidget(self.record_volume, 0)
-        self.addPermanentWidget(self.record_status)
+        self.addPermanentWidget(self.record_status, 0)
+        self.addPermanentWidget(self.label, 1)
         self.addPermanentWidget(self.progress, 1)
         self.addPermanentWidget(self.not_saved_icon, 0)
         self.addPermanentWidget(self.saving_icon, 0)

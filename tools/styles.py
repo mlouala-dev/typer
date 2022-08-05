@@ -57,6 +57,8 @@ class TyperStyle:
         f.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
 
         textchar.setFont(f)
+        textchar.setFontPointSize(14.4)
+        textchar.setFont(f)
 
     def matching_props(self, block: QTextBlock) -> bool:
         """
