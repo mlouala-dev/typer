@@ -544,20 +544,20 @@ class Typer(QTextEdit):
             # forward Tab only if we're sure there is no autocomplete to do
             super(Typer, self).keyPressEvent(e)
 
+        # we refresh the 'next character'
+        ntc = self.textCursor()
+        ntc.movePosition(QTextCursor.NextCharacter, QTextCursor.KeepAnchor)
+        # we check if next character exists to prevent useless autocompletion display
+        # encoding as unicode to make sure that next_char is empty, EOL was considered
+        # as a character
+        next_character = ntc.selectedText()
+
         if self.auto_complete_available:
             tc = self.textCursor()
             tc.select(tc.SelectionType.WordUnderCursor)
             self.word = tc.selectedText()
 
             candidate = None
-
-            # we refresh the 'next character'
-            ntc = self.textCursor()
-            ntc.movePosition(QTextCursor.NextCharacter, QTextCursor.KeepAnchor)
-            # we check if next character exists to prevent useless autocompletion display
-            # encoding as unicode to make sure that next_char is empty, EOL was considered
-            # as a character
-            next_character = ntc.selectedText()
 
             # getting the previous character
             ptc = self.textCursor()
@@ -606,7 +606,6 @@ class Typer(QTextEdit):
 
         # finally, if Tab was pressed and there is an auto complete suggestion active
         if e.key() == Qt.Key.Key_Tab and self.auto_complete_available and self.auto_complete_label.isVisible():
-
             # inserting the suggestion
             self.insertPlainText(self.auto_complete_label.text())
 
@@ -615,12 +614,15 @@ class Typer(QTextEdit):
             self.auto_complete_label.hide()
             self.word = ""
 
-            # make the
+            # update cursor
             tc = self.textCursor()
             tc.select(tc.SelectionType.WordUnderCursor)
 
             # adding a space since the previous word should be complete
-            self.insertPlainText(" ")
+            # if the next character is in the new word characters, we skip the space after
+            if next_character not in G.new_word_keys.values():
+                self.insertPlainText(" ")
+
             self.new_word = True
 
     def insertNote(self):
