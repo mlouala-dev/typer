@@ -104,6 +104,10 @@ class Typer(QTextEdit):
         self.default_blockFormat.setRightMargin(10)
 
         self.default_textFormat = QTextCharFormat()
+        self.default_font.setPointSizeF(self.default_font.pointSizeF())
+        self.default_font.setItalic(False)
+        self.default_font.setBold(False)
+        self.default_font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
         self.default_textFormat.setFont(self.default_font)
         self.default_textFormat.setProperty(8167, [G.__font__])
 
