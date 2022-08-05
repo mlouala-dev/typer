@@ -19,7 +19,7 @@
   },
   {
    "optionDest": "icon_file",
-   "value": "D:/Script/Typer/rsc/typer.ico"
+   "value": "D:/Script/typer/rsc/typer.ico"
   },
   {
    "optionDest": "name",
@@ -42,6 +42,14 @@
    "value": false
   },
   {
+   "optionDest": "disable_windowed_traceback",
+   "value": false
+  },
+  {
+   "optionDest": "embed_manifest",
+   "value": true
+  },
+  {
    "optionDest": "uac_admin",
    "value": false
   },
@@ -62,8 +70,16 @@
    "value": false
   },
   {
+   "optionDest": "argv_emulation",
+   "value": false
+  },
+  {
    "optionDest": "datas",
-   "value": "D:/Script/Typer/rsc;rsc/"
+   "value": "D:/Script/typer/rsc;rsc/"
+  },
+  {
+   "optionDest": "datas",
+   "value": "D:/Script/_rsc/pywintypes310.dll;."
   }
  ],
  "nonPyinstallerOptions": {

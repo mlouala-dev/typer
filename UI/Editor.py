@@ -579,7 +579,6 @@ class Typer(QTextEdit):
 
                 rect.setWidth(w)
                 rect.translate(2, 0)
-                rect.setTop(rect.top() + 0.5)
                 self.auto_complete_label.setGeometry(rect)
                 self.auto_complete_label.setText(res)
                 self.auto_complete_label.show()
