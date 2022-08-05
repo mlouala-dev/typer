@@ -32,7 +32,7 @@ class Typer(QTextEdit):
 
     # used to automatically superscript some patterns
     re_numbering = re.compile(r'((1)(ers?|ères?))|((\d+)([èe]mes?))')
-    re_textblock = re.compile(r'(.*?>)( +)?[-\u2022]?(<span.*?>\d\)</span>)?( +)?([\w\d]+)(.*?)<')
+    re_textblock = re.compile(r'(.*?>)( +)?[-\u2022]?(<span.*?>\d\)</span>)?( +)?([\w\d]+)(.*?)<', flags=re.IGNORECASE)
     re_ignoretoken = r'\d|^[A-Z]|ﷺ|ﷻ'
 
     # this is a simple tool for autosuggestion label
@@ -397,7 +397,7 @@ class Typer(QTextEdit):
                 res, cnt = '', 0
                 # every line patching pattern
                 for line in html.split('\n'):
-                    line_res = self.re_textblock.sub(fr'\1\2 <span style=" font-family:\'{G.__font__}\'; font-size:15pt; font-weight:600; color:#267dff;">{cnt})</span> \5\6<', line, count=1, flags=re.IGNORECASE)
+                    line_res = self.re_textblock.sub(fr'\1\2 <span style=" font-family:\'{G.__font__}\'; font-size:15pt; font-weight:600; color:#267dff;">{cnt})</span> \5\6<', line, count=1)
                     res += line_res
                     # ignoring the empty paragraphs
                     if '-qt-paragraph-type:empty;' not in line:
@@ -418,7 +418,7 @@ class Typer(QTextEdit):
 
                 res = ''
                 for line in html.split('\n'):
-                    line_res = self.re_textblock.sub(fr'\1\2 <span style=" font-family:\'{G.__font__}\'; font-size:15pt; font-weight:600; color:#267dff;">%s</span> \5\6<' % u'\u2022', line, count=1, flags=re.IGNORECASE)
+                    line_res = self.re_textblock.sub(fr'\1\2 <span style=" font-family:\'{G.__font__}\'; font-size:15pt; font-weight:600; color:#267dff;">%s</span> \5\6<' % u'\u2022', line, count=1)
                     res += line_res
 
                 tc.insertHtml(res)
@@ -746,15 +746,8 @@ class Typer(QTextEdit):
             # the document again in sha Allah)
             tc.block().setUserState(style.id)
 
-            self.document().setDefaultFont(t.font())
-            self.setFont(t.font())
-            self.setCurrentFont(t.font())
-
         # revert to the default style
         else:
-            self.document().setDefaultFont(self.default_font)
-            self.setFont(self.default_font)
-            self.setCurrentFont(self.default_font)
             tc.setBlockFormat(self.default_blockFormat)
             tc.setCharFormat(self.default_textFormat)
             tc.block().setUserState(0)
@@ -803,11 +796,17 @@ class Typer(QTextEdit):
                 self.toggleFormat(Styles["ayat"])
 
                 # applying some style to the text block
+                default = QTextCharFormat()
+
                 tc.select(tc.SelectionType.BlockUnderCursor)
                 cf = tc.charFormat()
                 f = cf.font()
                 f.setBold(False)
-                cf.setForeground(QColor(38, 125, 255))
+
+                color = QColor(38, 125, 255)
+                if color:
+                    cf.setForeground(color if color != cf.foreground() else default.foreground())
+
                 cf.setFont(f)
                 tc.setCharFormat(cf)
                 tc.clearSelection()

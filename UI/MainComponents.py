@@ -240,6 +240,13 @@ class Toolbar(QToolBar):
                 shortcut='Ctrl+S',
                 defaultState=False
             ),
+            'saveas': Toolbar.Tool(
+                icon="Save-As",
+                hint="Save as project...",
+                action=self._win.saveAsProject,
+                shortcut='Ctrl+Shift+S',
+                defaultState=False
+            ),
             'sep0': Toolbar.Separator,
             'ref': Toolbar.Tool(
                 icon="Book-Link",

@@ -5,6 +5,7 @@ import html
 
 from datetime import datetime
 from functools import partial
+from shutil import copyfile
 
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
@@ -157,8 +158,6 @@ class TyperWIN(QMainWindow):
         self.setCentralWidget(self.container)
         self.setBaseSize(600, 800)
 
-        self.toolbar.buttons['save'].setDisabled(True)
-
         _splash.progress(75, "Applying dark theme...")
         if self.dark_mode:
             self.setDarkMode()
@@ -228,18 +227,14 @@ class TyperWIN(QMainWindow):
             self.statusbar.updateSavedState(1)
 
             # open new file dialog
-            dialog = QFileDialog(None, "New Project", G.__abs_path__)
-            dialog.setFileMode(dialog.AnyFile)
-            dialog.setDefaultSuffix(G.__ext__)
-            dialog.setNameFilter(f"Typer Files (*.{G.__ext__});;All files (*.*)")
-            dialog.setAcceptMode(dialog.AcceptSave)
+            dialog = self.defaultDialogContext('New Project')
 
-            if dialog.exec_() == dialog.Accepted:
+            if dialog.exec_() == QFileDialog.Accepted:
                 filename = dialog.selectedFiles()
                 filename = filename[0]
 
                 # init a new database for the file
-                self.makeDB(filename)
+                self.createNewFile(filename)
                 self._file = filename
 
                 # reset some ui's settings
@@ -256,13 +251,10 @@ class TyperWIN(QMainWindow):
         # we first make sure that changes has been saved
         if self.checkChanges():
 
-            dialog = QFileDialog(None, "Open a project", G.__abs_path__)
-            dialog.setFileMode(dialog.ExistingFile)
-            dialog.setDefaultSuffix(G.__ext__)
-            dialog.setNameFilter(f"Typer Files (*.{G.__ext__});;All files (*.*)")
-            dialog.setAcceptMode(dialog.AcceptOpen)
+            # creating the dialog
+            dialog = self.defaultDialogContext('Open a project', filemode=QFileDialog.ExistingFile)
 
-            if dialog.exec_() == dialog.Accepted:
+            if dialog.exec_() == QFileDialog.Accepted:
                 filename = dialog.selectedFiles()
                 filename = filename[0]
 
@@ -282,7 +274,6 @@ class TyperWIN(QMainWindow):
         self.modified.clear()
 
         self._file = filename
-        nice_name = os.path.splitext(os.path.split(filename)[1])[0]
 
         self.updateStatus(15, 'Reconnecting DB...')
         self.reconnectDBFile()
@@ -293,12 +284,10 @@ class TyperWIN(QMainWindow):
         self.updateStatus(85, 'Loading book')
         self.loadProject()
 
-        self.setWindowTitle(f'{nice_name} - {self._variant} v{G.__ver__}')
+        self.updateTitle()
 
         # we mark the file as saved since it's freshly loaded
         self.statusbar.updateSavedState(2)
-
-        self.updateStatus(100, f'{nice_name} successfully loaded')
 
     @G.log
     def backup(self):
@@ -340,13 +329,37 @@ class TyperWIN(QMainWindow):
             # rebuild the summary (F2)
             self.summary_view.build(self.typer.document())
 
-        self.statusbar.updateStatus(100, "Book loaded")
+        # flagging as not modified
+        self.modified.clear()
+        self.statusbar.updateStatus(100, f"Book loaded from '<i>{self._file}</i>'")
+
+    def saveAsProject(self):
+        """
+        Open the save dialog to get the filepath where we'll clone our project
+        """
+
+        # querying new file's name
+        dialog = self.defaultDialogContext('Save Project As...', path=os.path.dirname(self._file))
+
+        if dialog.exec_() == QFileDialog.Accepted:
+            new_file_path = dialog.selectedFiles()[0]
+
+            # we'll simply clone the old file, and save everything to the new
+            copyfile(self._file, new_file_path)
+
+            # updating the protected _file attr
+            self._file = new_file_path
+
+            self.updateTitle()
+
+            # and finally save to the new file
+            self.saveProject()
 
     def saveProject(self):
         """
         Save current project and create a new file if needed
         """
-        G.warning('saving Project')
+
         # if file hasn't been saved yet : ask for file
         if not self.db_file:
             self.newProjectDialog()
@@ -388,10 +401,12 @@ class TyperWIN(QMainWindow):
         self.statusbar.updateSavedState(2)
         self.toolbar.buttons['save'].setDisabled(True)
 
-        # final save process
+        # flagging as not modified
         self.modified.clear()
+
+        # final save process
         self.saveSettings()
-        self.statusbar.updateStatus(100, "Book saved")
+        self.statusbar.updateStatus(100, f"Book saved to '<i>{self._file}</i>'")
 
     @G.log
     def reconnectDBFile(self) -> QSqlDatabase:
@@ -486,7 +501,7 @@ class TyperWIN(QMainWindow):
         dialog = QFileDialog(None, "Open a reference's PDF", current_dir)
         dialog.setFileMode(dialog.ExistingFile)
         dialog.setDefaultSuffix("pdf")
-        dialog.setNameFilter("Pdf Files (*.pdf)")
+        dialog.setNameFilter("PDF Files (*.pdf)")
         dialog.setAcceptMode(dialog.AcceptOpen)
 
         if dialog.exec_() == dialog.Accepted:
@@ -677,7 +692,6 @@ class TyperWIN(QMainWindow):
         :return:
         """
         words = self.typer.occurences
-        G.warning('SAVING', self._settings)
 
         # getting the step of progress
         # FIXME: actually not used since it take a lot of ressource to refresh the UI..
@@ -805,9 +819,10 @@ class TyperWIN(QMainWindow):
 
         # save button now enabled
         self.toolbar.buttons['save'].setDisabled(False)
+        self.toolbar.buttons['saveas'].setDisabled(False)
 
     @G.log
-    def makeDB(self, filename):
+    def createNewFile(self, filename):
         """
         First creation of a new project database
         :param filename: file's path
@@ -1159,6 +1174,40 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none;
         :param msg: Message (additional)
         """
         self.statusbar.updateStatus(val, msg)
+
+    def updateTitle(self):
+        """
+        Update the titleBar with the file's name and variant
+        """
+
+        if self._file:
+            # getting the name of the file without ext
+            nice_name = os.path.splitext(os.path.split(self._file)[1])[0]
+        else:
+            nice_name = 'Unsaved project'
+
+        # finally updating the title bar's label
+        self.setWindowTitle(f'<i>{nice_name}</i> - {self._variant} v{G.__ver__}')
+
+
+    @staticmethod
+    def defaultDialogContext(title='', path=G.__abs_path__, filemode=QFileDialog.AnyFile) -> QFileDialog:
+        """
+        Returns a dialog with the default we use, file ext, file mode, etc..
+        :param title: the dialog's title
+        :param path: the dialog's default start path
+        :param filemode: dialog's filemode, Any or Existing
+        :return: a QFileDialog widget
+        """
+        dialog = QFileDialog(None, title, path)
+
+        # we define some defaults settings used by all our file dialogs
+        dialog.setFileMode(filemode)
+        dialog.setDefaultSuffix(G.__ext__)
+        dialog.setNameFilter(f"Typer Files (*.{G.__ext__});;All files (*.*)")
+        dialog.setAcceptMode(dialog.AcceptSave)
+
+        return dialog
 
     # INHERIT
 
