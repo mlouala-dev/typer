@@ -62,7 +62,7 @@ class Typer(QTextEdit):
         self.auto_complete_label.setStyleSheet("""
         QLabel {
             color: #2a82da;
-            background: #090317;
+            background-color: rgba(65, 59, 69, 230);
             padding-left:0;
             padding-right:3px;
             padding-top:1px;
@@ -551,11 +551,19 @@ class Typer(QTextEdit):
 
             candidate = None
 
-            # getting the previous character
-            tc = self.textCursor()
-            tc.movePosition(QTextCursor.PreviousCharacter, QTextCursor.KeepAnchor)
+            # we refresh the 'next character'
+            ntc = self.textCursor()
+            ntc.movePosition(QTextCursor.NextCharacter, QTextCursor.KeepAnchor)
             # we check if next character exists to prevent useless autocompletion display
-            previous_character = tc.selectedText()
+            # encoding as unicode to make sure that next_char is empty, EOL was considered
+            # as a character
+            next_character = ntc.selectedText()
+
+            # getting the previous character
+            ptc = self.textCursor()
+            ptc.movePosition(QTextCursor.PreviousCharacter, QTextCursor.KeepAnchor)
+            # we check if next character exists to prevent useless autocompletion display
+            previous_character = ptc.selectedText()
 
             if previous_character not in G.new_word_keys.values():
                 # if the current word's length is 3 suggests the best word for this root
@@ -572,14 +580,19 @@ class Typer(QTextEdit):
                             break
 
             # if there is a candidate, we draw the autocomplete_label
-            if candidate and len(candidate) > len(self.word):
+            # we also require that the next character is a new word character (' ' or ", etc...)
+            # OR that the cursor is at the end of the line
+            if candidate and \
+                    len(candidate) > len(self.word) and \
+                    (next_character in G.new_word_keys.values() or tc.positionInBlock() == (tc.block().length() - 1)):
                 rect: QRectF
                 rect = self.cursorRect(self.textCursor())
                 res = candidate[len(self.word):]
 
                 # placing the label where the textCursor is
+                self.auto_complete_label.setFont(tc.charFormat().font())
                 fm = QFontMetrics(self.auto_complete_label.font())
-                w = fm.boundingRect(res).width() + 9
+                w = fm.boundingRect(res).width() + 10
 
                 rect.setWidth(w)
                 rect.translate(2, 0)
