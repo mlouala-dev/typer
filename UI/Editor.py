@@ -1155,7 +1155,7 @@ class Typer(QTextEdit):
                                            verbosity=Verbosity.CLOSEST, include_unknown=False, transfer_casing=False)
 
         # adding results to menu
-        self.insertItemsToMenu(suggestions, cursor, menu)
+        self.insertItemsToMenu([a.term for a in suggestions], cursor, menu)
 
         return len(suggestions)
 
@@ -1168,10 +1168,10 @@ class Typer(QTextEdit):
         """
         # looping through items
         for solution in terms:
-            action = QAction(solution.term, menu)
+            action = QAction(solution, menu)
 
             # adding the cursor as a userData
-            action.setData((cursor, solution.term))
+            action.setData((cursor, solution))
             menu.addAction(action)
 
         # for all these action trigger the correctWord function
