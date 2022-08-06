@@ -580,7 +580,7 @@ class StatusBar(QStatusBar):
         # UI stuffs
         self.page_label = QLabel(self)
         self.page_label.setText("")
-        self.page_label.setFixedWidth(300)
+        self.page_label.setFixedWidth(100)
         self.page_label.setVisible(False)
 
         self.connection_status_icon = QLabel(self)
