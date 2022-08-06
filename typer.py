@@ -98,6 +98,7 @@ class TyperWIN(QMainWindow):
         viewer_frame_layout.setContentsMargins(0, 0, 0, 0)
         viewer_frame_layout.setSpacing(0)
         viewer_frame_layout.addWidget(self.topic_display)
+        viewer_frame_layout.setAlignment(Qt.AlignTop)
         self.topic_display.topic_dialog.valid.connect(self.saveTopics)
         self.viewer_frame.setMaximumWidth(600)
 
@@ -331,7 +332,7 @@ class TyperWIN(QMainWindow):
 
         # flagging as not modified
         self.modified.clear()
-        self.statusbar.updateStatus(100, f"Book loaded from '<i>{self._file}</i>'")
+        self.statusbar.updateStatus(100, f"Book loaded from '<i>{self.getFilesName()}</i>'")
 
     def saveAsProject(self):
         """
@@ -406,7 +407,7 @@ class TyperWIN(QMainWindow):
 
         # final save process
         self.saveSettings()
-        self.statusbar.updateStatus(100, f"Book saved to '<i>{self._file}</i>'")
+        self.statusbar.updateStatus(100, f"Book saved to '<i>{self.getFilesName()}</i>'")
 
     @G.log
     def reconnectDBFile(self) -> QSqlDatabase:
@@ -983,6 +984,18 @@ class TyperWIN(QMainWindow):
         self.recording = not self.recording
         self.statusbar.setRecordingState(self.recording)
 
+    def getFilesName(self):
+        """
+        Returns the nice name of the currently opened file or 'Untitled'
+        :return:
+        """
+        if self._file:
+            # getting the name of the file without ext
+            return os.path.splitext(os.path.split(self._file)[1])[0]
+
+        else:
+            return 'Untitled'
+
     # UI
 
     def exportDialog(self):
@@ -1180,14 +1193,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none;
         Update the titleBar with the file's name and variant
         """
 
-        if self._file:
-            # getting the name of the file without ext
-            nice_name = os.path.splitext(os.path.split(self._file)[1])[0]
-        else:
-            nice_name = 'Unsaved project'
-
-        # finally updating the title bar's label
-        self.setWindowTitle(f'<i>{nice_name}</i> - {self._variant} v{G.__ver__}')
+        self.setWindowTitle(f'{self.getFilesName()} - {self._variant} v{G.__ver__}')
 
 
     @staticmethod

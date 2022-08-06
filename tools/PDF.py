@@ -30,6 +30,7 @@ class Viewer(QWidget):
         super(Viewer, self).__init__(parent)
         self.win = parent
         self.current_page = 0
+        self.pixmap = QPixmap()
 
         layout = QGridLayout(self)
         self.view = QLabel(self)
@@ -37,7 +38,6 @@ class Viewer(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         self.setLayout(layout)
-        self.setMaximumWidth(638)
 
         # if filename is provided we load it - for debug
         if 'filename' in kwargs:
@@ -124,16 +124,24 @@ class Viewer(QWidget):
             self.current_page = page_num
 
         # extracting the pixmap for the given page
-        pixmap = self.makePixmap(page_num).scaledToHeight(self.height(), Qt.SmoothTransformation)
+        self.makePixmap(page_num)
+        self.redrawPixmap()
+
+        # emitting status
+        self.pageChanged.emit(self.current_page)
+
+    def redrawPixmap(self):
+        """
+        Rescale the pixmap to the correct size and update parent's
+        """
+        # scaling the pixmap correctly
+        pixmap = self.pixmap.scaledToWidth(self.win.width() // 3, Qt.SmoothTransformation)
 
         # setting it as a QLabel's Pixmap
         self.view.setPixmap(pixmap)
 
         # preventing the parent to be too small
         self.parent().setMaximumWidth(pixmap.width())
-
-        # emitting status
-        self.pageChanged.emit(self.current_page)
 
     def makePixmap(self, page_num: int, for_printing=False) -> QPixmap:
         """
@@ -164,10 +172,8 @@ class Viewer(QWidget):
             page.stride,
             image_format)
 
-        pixmap = QPixmap()
-        pixmap.convertFromImage(image_data)
-
-        return pixmap
+        self.pixmap = QPixmap()
+        self.pixmap.convertFromImage(image_data)
 
     def resizeEvent(self, e: QResizeEvent):
         """

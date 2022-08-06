@@ -69,6 +69,7 @@ class TitleBar(QFrame):
 
         height, style = self.default_style
         self.setFixedHeight(height)
+        self.setMouseTracking(True)
         self.setObjectName('TitleBar')
         self.setStyleSheet(style)
 
@@ -137,6 +138,7 @@ class TitleBar(QFrame):
         Move the window
         FIXME: replace the window under the cursor : offset
         """
+
         if self.pressing and not self.win.isMaximized():
             # getting position's offset
             end = self.mapToGlobal(e.pos())
