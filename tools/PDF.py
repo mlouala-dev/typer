@@ -112,14 +112,18 @@ class Viewer(QWidget):
         :param page_num: the page number
         """
         # abort if there is no document loaded
+
         if not self.doc:
             return
 
-        # clamping value to make sure we're not out of range
-        if page_num is not None:
-            page_num = max(min(page_num, self.doc.page_count - 1), 0)
-        else:
+        # if no page number specified, we take the current_page var
+        if page_num is None:
             page_num = self.current_page
+
+        # clamping value to make sure we're not out of range
+        else:
+            page_num = max(min(page_num, self.doc.page_count - 1), 0)
+            self.current_page = page_num
 
         # redraw pixmap
         self.redrawPixmap(page_num)

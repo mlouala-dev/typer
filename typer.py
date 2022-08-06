@@ -323,7 +323,6 @@ class TyperWIN(QMainWindow):
             tc = self.typer.textCursor()
             tc.movePosition(tc.MoveOperation.End, tc.MoveMode.MoveAnchor)
             self.typer.setTextCursor(tc)
-            tc.select(tc.SelectionType.BlockUnderCursor)
 
             # rebuild the summary (F2)
             self.summary_view.build(self.typer.document())
