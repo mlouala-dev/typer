@@ -580,7 +580,6 @@ class StatusBar(QStatusBar):
         # UI stuffs
         self.page_label = QLabel(self)
         self.page_label.setText("")
-        self.page_label.setFixedWidth(100)
         self.page_label.setVisible(False)
 
         self.connection_status_icon = QLabel(self)
@@ -639,12 +638,13 @@ class StatusBar(QStatusBar):
         :type val: int | float
         :param msg: Additional Label
         """
-        self.label.setText(msg)
+
+        # surrounding the text label with spaces to make sure
+        self.label.setText(f'  {msg}  ')
         self.progress.setValue(int(val))
 
         # Forcing ui's redraw
         self.repaint()
-        self.parent().repaint()
         QApplication.processEvents()
 
     def updateSavedState(self, state: int):
