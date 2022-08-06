@@ -22,6 +22,7 @@ class QuranQuote(QDialog):
     db: QSqlDatabase
     result_insert = pyqtSignal(int, list, str)
     result_reference = pyqtSignal(str, str)
+    result_goto = pyqtSignal(int, int)
     surats = list()
 
     class Surat:
@@ -241,6 +242,10 @@ class QuranQuote(QDialog):
                 if modifiers == Qt.KeyboardModifier.AltModifier:
                     self.result_reference.emit(*res[2].split(':'))
 
+                # we make it goes to the address surat:verse
+                elif modifiers == Qt.KeyboardModifier.ControlModifier:
+                    self.result_goto.emit(*[int(r) for r in res[2].split(':')])
+
                 else:
                     self.result_insert.emit(*res)
 
@@ -319,7 +324,7 @@ class QuranSearch(QDialog):
         # getting value of the surat and verse's numbers
         address = (item.data(2, Qt.ItemDataRole.UserRole), item.data(1, Qt.ItemDataRole.UserRole))
 
-        # we make it goes to the adress surat:verse
+        # we make it goes to the address surat:verse
         if modifiers == Qt.KeyboardModifier.ControlModifier:
             self.result_goto.emit(*address)
 

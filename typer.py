@@ -193,6 +193,7 @@ class TyperWIN(QMainWindow):
 
         self.quran_quote.result_insert.connect(self.typer.insertAyat)
         self.quran_quote.result_reference.connect(insertReference)
+        self.quran_quote.result_goto.connect(self.goToReference)
         self.quran_search.result_insert.connect(lambda s, v: self.typer.insertAyat(*self.quran_quote.query(f'{s}:{v}')))
         self.quran_search.result_reference.connect(insertReference)
         self.quran_search.result_goto.connect(self.goToReference)
