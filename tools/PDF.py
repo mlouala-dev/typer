@@ -34,6 +34,7 @@ class Viewer(QWidget):
 
         layout = QGridLayout(self)
         self.view = QLabel(self)
+        self.view.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.view, 0, 0)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -114,34 +115,35 @@ class Viewer(QWidget):
         if not self.doc:
             return
 
-        # if no page number specified, we take the current_page var
-        if page_num is None:
+        # clamping value to make sure we're not out of range
+        if page_num is not None:
+            page_num = max(min(page_num, self.doc.page_count - 1), 0)
+        else:
             page_num = self.current_page
 
-        # clamping value to make sure we're not out of range
-        else:
-            page_num = max(min(page_num, self.doc.page_count - 1), 0)
-            self.current_page = page_num
-
-        # extracting the pixmap for the given page
-        self.makePixmap(page_num)
-        self.redrawPixmap()
+        # redraw pixmap
+        self.redrawPixmap(page_num)
 
         # emitting status
         self.pageChanged.emit(self.current_page)
 
-    def redrawPixmap(self):
+    def redrawPixmap(self, page: int):
         """
-        Rescale the pixmap to the correct size and update parent's
+        Redraw the pixmpa for the current_page
+        :param page: the page number
         """
+
+        # we abort if the PDF document isn't set yet
+        if not self.doc:
+            return
+
+        self.makePixmap(page)
+
         # scaling the pixmap correctly
-        pixmap = self.pixmap.scaledToWidth(self.win.width() // 3, Qt.SmoothTransformation)
+        pixmap = self.pixmap.scaledToWidth(self.width(), Qt.SmoothTransformation)
 
         # setting it as a QLabel's Pixmap
         self.view.setPixmap(pixmap)
-
-        # preventing the parent to be too small
-        self.parent().setMaximumWidth(pixmap.width())
 
     def makePixmap(self, page_num: int, for_printing=False) -> QPixmap:
         """
@@ -152,11 +154,9 @@ class Viewer(QWidget):
         """
         # we store the page's data in a var and get its width and height
         page_data = self.doc.load_page(page_num)
-        w, h = page_data.mediabox_size
-        ratio = self.view.height() / h
 
         # upscaling ratio for highres (300 dpi)
-        ratio *= 10 if for_printing else 1
+        ratio = 10 if for_printing else 1
 
         # get the pixmap from a 1:1 ratio with no alpha
         page = page_data.get_pixmap(matrix=fitz.Matrix(ratio, ratio), alpha=False)
@@ -181,7 +181,7 @@ class Viewer(QWidget):
         """
         super(Viewer, self).resizeEvent(e)
 
-        self.load_page()
+        self.redrawPixmap(self.current_page)
 
 
 class PDF_Exporter(QThread):

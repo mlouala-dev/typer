@@ -100,7 +100,6 @@ class TyperWIN(QMainWindow):
         viewer_frame_layout.addWidget(self.topic_display)
         viewer_frame_layout.setAlignment(Qt.AlignTop)
         self.topic_display.topic_dialog.valid.connect(self.saveTopics)
-        self.viewer_frame.setMaximumWidth(600)
 
         _splash.progress(40, "Loading QuranQuote...")
         self.quran_quote = QuranWorker.QuranQuote(self)
@@ -118,11 +117,6 @@ class TyperWIN(QMainWindow):
         self.summary_view.hide()
 
         self.toolbar = Toolbar(self)
-
-        _splash.progress(55, "Loading UI...")
-        self.typer.cursorPositionChanged.connect(self.summary_view.updateSummaryHighLight)
-        self.summary_view.clicked.connect(self.updateTextCursor)
-        self.typer.textChanged.connect(self.setModified)
 
         _splash.progress(55, "Loading UI Window Title...")
         self.window_title = TitleBar(self)
@@ -179,6 +173,10 @@ class TyperWIN(QMainWindow):
         _splash.deleteLater()
 
         # SIGNALS
+        self.typer.cursorPositionChanged.connect(self.summary_view.updateSummaryHighLight)
+        self.summary_view.clicked.connect(self.updateTextCursor)
+        self.typer.textChanged.connect(self.setModified)
+
         self.navigator.goto.connect(self.goTo)
 
         self.audio_recorder.audio_pike.connect(self.statusbar.record_volume.setValue)
@@ -1283,6 +1281,14 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none;
             # if used wants to cancel we abort the save
             elif res == QMessageBox.Cancel:
                 e.ignore()
+
+    def resizeEvent(self, e: QResizeEvent) -> None:
+        """
+        Overrides the resize event to force scale on the pdf viewer
+        """
+        if self.viewer_frame.isVisible():
+            # preventing it to scale too much
+            self.viewer_frame.setMaximumWidth(self.width() // 3)
 
 
 if __name__ == "__main__":
