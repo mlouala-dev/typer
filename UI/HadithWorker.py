@@ -8,19 +8,102 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 
-from UI.BasicElements import ListWidget, SearchField, LineLayout, RadioGroupBox, AyatModelItem, NumberModelItem, \
-    MultiLineModelItem
+from UI.BasicElements import ListWidget, SearchField, LineLayout, AyatModelItem, MultiLineModelItem
 
 from tools import G
+from tools.translitteration import arabic_hurufs, clean_harakat
+
+
+class Hadith:
+    def __init__(self, hid: int = 0, hadith: str = '', rawi: str = '', grade: str = ''):
+        self.id = hid
+        self.hadith = self.clean(hadith)
+        self.light_hadith = self.clean(clean_harakat(hadith))
+        self.rawi = rawi
+        self.grade = grade
+
+        # the translated version
+        self.hadith_trad = ''
+        self.rawi_trad = ''
+        self.grade_trad = ''
+
+    def addTranslation(self, hadith: str = '', rawi: str = '', grade: str = ''):
+        self.hadith_trad = self.cleanTranslation(hadith)
+        self.rawi_trad = self.cleanTranslation(rawi)
+        self.grade_trad = grade
+
+    def clean(self, text: str):
+        hadith = text.replace("’", "'")
+        hadith = hadith.replace("ʽ", "'")
+        hadith = hadith.replace("-صلى الله عليه وسلم-", "ﷺ")
+        return hadith
+
+    def cleanTranslation(self, text: str):
+        hadith = re.sub(r"[Ḥḥ]", "H", self.clean(text))
+        hadith = re.sub(r"[Ḍḍ]", "D", hadith)
+        hadith = re.sub(r"[Ṭṭ]", "T", hadith)
+        hadith = re.sub(r"[Ẓẓ]", "Z", hadith)
+        hadith = re.sub(r"[Ṣṣ]", "S", hadith)
+        hadith = hadith.replace("(sur lui la paix et le salut)", "ﷺ")
+        return hadith
+
+    def _source(self):
+        return self.hadith, f'رواه {self.rawi}', self.grade
+
+    def _translation(self):
+        return self.hadith_trad, f'Rapporté par {self.rawi_trad}', self.grade_trad
+
+    @staticmethod
+    def formatPlainText(h, r, g):
+        return f'{h} {r} ({g})'
+
+    @staticmethod
+    def formatHtml(h, r, g):
+        h = re.sub(r"« (.*?) »", r'<b>"\1"</b>', h)
+        h = re.sub(r"\{ (.*) \}", r'''<span style="font-weight:600; color:#169b4c;">﴾ \1 ﴿</span>''', h)
+        h = re.sub(r"\{\( (.*) \)\}", r'''<span style="font-weight:600; color:#169b4c;">﴾ \1 ﴿</span>''', h)
+        return f'''{h} {r} <i>({g})</i>'''
+
+    def toPlainText(self):
+        return Hadith.formatPlainText(*self._source())
+
+    def toTranslatedPlainText(self):
+        return Hadith.formatPlainText(*self._translation())
+
+    def toHtml(self):
+        return Hadith.formatHtml(*self._source())
+
+    def toTranslatedHtml(self):
+        return Hadith.formatHtml(*self._translation())
+
+    def __contains__(self, item):
+        # we check first character, if arabic we search in the source text,
+        # otherwise the translation
+        if item[0] in arabic_hurufs:
+            return clean_harakat(item) in self.light_hadith
+        else:
+            return item in self.hadith_trad
+
+    def hasRawi(self, needle):
+        if needle[0] in arabic_hurufs:
+            return clean_harakat(needle) in self.rawi
+        else:
+            return needle in self.rawi_trad
+
 
 class HadithSearch(QDialog):
     db: QSqlDatabase
+    hadiths: [Hadith]
     result_click = pyqtSignal(str)
 
     def __init__(self, parent=None):
+        self.hadiths = []
+
         super(HadithSearch, self).__init__(parent)
+        self.setWindowTitle('Search in hadith database')
+        self.setWindowIcon(G.icon('Book-Keeping'))
+
         self._win = parent
-        self.init_db()
         self.main_layout = QVBoxLayout(self)
 
         self.search_field = SearchField(self)
@@ -30,127 +113,82 @@ class HadithSearch(QDialog):
         self.search = QPushButton("Search")
         self.search.clicked.connect(self.preview)
 
-        self.search_modes = RadioGroupBox(direction=QHBoxLayout(),
-                                          title='Search modes',
-                                          widgets=(
-                                              "Arabic text",
-                                              "French text",
-                                              "Rawi (arabic)",
-                                              "Rawi (french)"
-                                          ))
-
         self.main_layout.addLayout(LineLayout(self, self.search_field, self.search))
-        self.main_layout.addLayout(LineLayout(self, self.search_modes))
-
-        hint_label = QLabel("<b>Click</b> to insert arabic, <b>Ctrl+Click</b> insert french")
-        self.main_layout.addWidget(hint_label)
 
         self.result_label = QLabel(self)
         self.main_layout.addWidget(self.result_label)
 
-        self.hadith_font = QFont('KFGQPC Uthman Taha Naskh', pointSize=13)
-        ayat_model_ar = AyatModelItem(font=self.hadith_font)
-        ayat_model_fr = MultiLineModelItem(font=QFont('Calibri', pointSize=10))
-        delegate_model = NumberModelItem()
-        self.result_view = ListWidget(self,
-                                      models=(
-                                          ayat_model_ar,
-                                          ayat_model_fr,
-                                          delegate_model,
-                                          delegate_model
-                                        )
-                                      )
-        self.result_view.setHeaderLabels(['hadith', 'hadith arabic', 'grade', 'rawi'])
+        self.arabic_font = G.get_font(1.4)
+        self.translation_font = G.get_font(1.3)
+        ayat_model_ar = AyatModelItem(font=self.arabic_font)
+        ayat_model_fr = MultiLineModelItem(font=self.translation_font)
+        self.result_view = ListWidget(self, models=(ayat_model_ar, ayat_model_fr))
+        self.result_view.setHeaderLabels(['hadith', 'hadith_arabic'])
         self.result_view.setContentsMargins(3, 3, 3, 3)
         self.result_view.itemClicked.connect(self.itemClicked)
 
         self.main_layout.addWidget(self.result_view)
-        self.result_view.setColumnCount(4)
+        self.result_view.setColumnCount(2)
         self.setFixedHeight(800)
-        self.setFixedWidth(1300)
-        self.result_view.setColumnWidth(0, 500)
-        self.result_view.setColumnWidth(1, 500)
-        self.result_view.setColumnWidth(2, 100)
-        self.result_view.setColumnWidth(3, 150)
+        self.setFixedWidth(1000)
+        self.result_view.setColumnWidth(0, 400)
+        self.result_view.setColumnWidth(1, 400)
 
     def itemClicked(self, item: QTreeWidgetItem, column: int):
-        modifiers = QApplication.keyboardModifiers()
+        hadith: Hadith
+        hid = item.data(1, Qt.ItemDataRole.UserRole)
+        hadith = self.hadiths[hid]
+        content = hadith.toHtml() if column == 0 else hadith.toTranslatedHtml()
 
-        data_id = 2 if modifiers == Qt.KeyboardModifier.ControlModifier else 1
-        hadith, grade, takhrij = item.data(data_id, Qt.ItemDataRole.UserRole)
-        hadith = re.sub(r"« (.*) »", r'<b>"\1"</b>', hadith)
-        hadith = re.sub(r"« (.*?) »", r"<i>'\1'</i>", hadith)
-        if data_id == 2:
-            hadith = re.sub(r"[Ḥḥ]", "H", hadith)
-            hadith = re.sub(r"[Ḍḍ]", "D", hadith)
-            hadith = re.sub(r"[Ṭṭ]", "T", hadith)
-            hadith = re.sub(r"[Ẓẓ]", "Z", hadith)
-            hadith = re.sub(r"[Ṣṣ]", "S", hadith)
-            hadith = hadith.replace("(qu'Allah l'agrée)", r'<img src="D:/Script/Typer\rsc/ra_LD.png" />')
-            hadith = hadith.replace("’", "'")
-            hadith = hadith.replace("ʽ", "'")
-            hadith = re.sub(r"\{\( (.*) \)\}", r'''<span style=" font-family:'Microsoft Uighur'; font-size:15pt; font-weight:600; color:#169b4c;">\1</span>''', hadith)
-        else:
-            hadith = re.sub(r"\{ (.*) \}", r'''<span style=" font-family:'Microsoft Uighur'; font-size:15pt; font-weight:600; color:#169b4c;">\1</span>''', hadith)
-        res = f"{hadith} - {takhrij[0].lower()}{takhrij[1:]} <i>({grade})</i>"
-
-        self.result_click.emit(res)
+        self.result_click.emit(content)
         self.close()
 
-    def init_db(self, db_rsc=None):
-        if __name__ == "__main__":
-            from PyQt5.QtSql import QSqlDatabase
-            connection = QSqlDatabase.addDatabase("QSQLITE")
-            connection.setConnectOptions('QSQLITE_ENABLE_REGEXP')
-            connection.setDatabaseName("../rsc/hadith.db")
-            db_rsc = QSqlDatabase.database()
+    def init_db(self, db: QSqlDatabase = None):
+        q = db.exec_('SELECT * FROM ahadith ORDER BY id DESC')
 
-        self.db = db_rsc
+        while q.next():
+            hadith = Hadith(
+                hid=q.value('id'),
+                hadith=q.value('hadith'),
+                grade=q.value('grade'),
+                rawi=q.value('rawi')
+            )
+            sq = db.exec_(f'SELECT hadith, rawi, grade FROM ahadith_trad WHERE id={hadith.id}')
+            sq.next()
+            hadith.addTranslation(sq.value('hadith'), sq.value('rawi'), sq.value('grade'))
+
+            self.hadiths.append(hadith)
 
     def preview(self, e: QKeyEvent):
+        if isinstance(e, QKeyEvent):
+            return
+
         if (e is False or e.key() == Qt.Key.Key_Return) and len(self.search_field.text()):
-            txt = self.search_field.text()
-            sel = self.search_modes.selectionIndex()
-
-            field = ["hadith_text_ar", "hadith_text", "takhrij_ar", "takhrij"]
-            clean_txt = re.sub(r'[ًٌٍَُِّْ]', '', txt)
-            # clean_txt = re.sub(r'([' + ''.join(arabic_hurufs) + '])', r'\1[ًٌٍَُِّْ]{0,2}?', clean_txt)
-            q = self.db.exec_(f'SELECT * FROM hadith WHERE {field[sel]} REGEXP "{clean_txt}" ORDER BY id ASC')
-            self.result_view.clear()
-            self.result_view.show()
-
+            needle = self.search_field.text()
             result_count = 0
-            result_diff_count = set()
+            for hid, hadith in enumerate(self.hadiths):
+                if needle in hadith:
+                    fm_ar = QFontMetrics(self.arabic_font)
+                    fm_fr = QFontMetrics(self.translation_font)
 
-            while q.next():
-                fm = QFontMetrics(self.hadith_font)
-                w = self.result_view.columnWidth(0)
-                nl = math.ceil(fm.width(q.value('hadith_text_ar')) / w)
-                hadith_ar = q.value("hadith_text_ar").replace("-صلى الله عليه وسلم-", "ﷺ")
-                hadith_fr = q.value("hadith_text").replace("(sur lui la paix et le salut)", "ﷺ")
-                grade_ar = q.value("grade_ar").replace(".", "")
-                grade_fr = q.value("grade").replace(".", "")
-                takhrij_ar = q.value("takhrij_ar").replace(".", "")
-                takhrij_fr = q.value("takhrij").replace(".", "")
-                item = QTreeWidgetItem(self.result_view, [
-                    hadith_ar,
-                    hadith_fr,
-                    grade_ar,
-                    takhrij_ar
-                ])
-                item.setData(1, Qt.ItemDataRole.UserRole, [hadith_ar, grade_ar, takhrij_ar])
-                item.setData(2, Qt.ItemDataRole.UserRole, [hadith_fr, grade_fr, takhrij_fr])
-                item.setSizeHint(2, QSize(w, nl * 40 + 15))
-                result_count += 1
-                result_diff_count.add(q.value(0))
+                    hadith_ar = hadith.toPlainText()
+                    hadith_fr = hadith.toTranslatedPlainText()
+                    item = QTreeWidgetItem(self.result_view, [hadith_ar, hadith_fr])
 
-            self.result_label.setText('%d occurences found in %d different hadiths' % (result_count, len(result_diff_count)))
+                    h_ar = math.floor(fm_ar.width(hadith_ar) / self.result_view.columnWidth(0))
+                    h_fr = math.ceil(fm_fr.width(hadith_fr) / self.result_view.columnWidth(1))
+
+                    item.setData(1, Qt.ItemDataRole.UserRole, hid)
+                    item.setSizeHint(0, QSize(self.result_view.columnWidth(0), h_ar * fm_ar.height()))
+                    item.setSizeHint(1, QSize(self.result_view.columnWidth(1), h_fr * fm_fr.height()))
+                    result_count += 1
+
+            self.result_label.setText(f'{result_count} occurences found')
 
     def closeEvent(self, a0: QCloseEvent) -> None:
         self.search_field.setText('')
         self.result_label.setText('')
         self.result_view.clear()
-        self.db.close()
         win32api.LoadKeyboardLayout('0000040c', 1)
         super(HadithSearch, self).closeEvent(a0)
 

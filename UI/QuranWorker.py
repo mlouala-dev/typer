@@ -36,6 +36,8 @@ class QuranQuote(QDialog):
 
     def __init__(self, parent=None):
         super(QuranQuote, self).__init__(parent)
+        self.setWindowTitle('Insert from / Jump to Quran')
+        self.setWindowIcon(G.icon('Book-Go'))
 
         # some UI settings
         self.setFixedWidth(400)
@@ -275,6 +277,9 @@ class QuranSearch(QDialog):
 
     def __init__(self, parent=None):
         super(QuranSearch, self).__init__(parent)
+        self.setWindowTitle('Search in Quran')
+        self.setWindowIcon(G.icon('Book'))
+
         self.setFont(G.get_font(1.4))
         self._win = parent
 

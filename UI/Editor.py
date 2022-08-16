@@ -12,7 +12,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 
 from UI import QuranWorker
-from UI.Modules import Conjugate
+from UI.Modules import Conjugate, Jumper
 from tools.styles import Styles, Styles_Shortcut, TyperStyle
 from tools import G, translitteration
 
@@ -428,7 +428,7 @@ class Typer(QTextEdit):
             # TODO: dynamically load the existing shortcuts
             elif e.key() in (Qt.Key.Key_H, Qt.Key.Key_V, Qt.Key.Key_R,
                              Qt.Key.Key_F, Qt.Key.Key_C, Qt.Key.Key_G,
-                             Qt.Key.Key_A, Qt.Key.Key_E):
+                             Qt.Key.Key_A, Qt.Key.Key_E, Qt.Key.Key_S):
                 super(self._win.__class__, self._win).keyPressEvent(e)
 
             else:
@@ -535,7 +535,7 @@ class Typer(QTextEdit):
             # apply the default style to the new paragraph
             tc = self.textCursor()
             tc.select(tc.SelectionType.BlockUnderCursor)
-            Styles["default"].applyStyle(tc)
+            Styles.Default.applyStyle(tc)
             block = tc.blockFormat()
             block.setIndent(indent)
             tc.setBlockFormat(block)
@@ -793,9 +793,9 @@ class Typer(QTextEdit):
                 self.insertHtml(f"<p><img src='{path.toString()}'></p><p>{res}</p>")
 
                 # before and after applied the "ayat" style
-                self.toggleFormat(Styles["ayat"])
+                self.toggleFormat(Styles.Ayat)
                 self.insertHtml(f"<p>﴾</p><p>({QuranWorker.QuranQuote.surats[s].arabic} {translitteration.get_arabic_numbers(cmd, not l)})</p>")
-                self.toggleFormat(Styles["ayat"])
+                self.toggleFormat(Styles.Ayat)
 
                 # applying some style to the text block
                 default = QTextCharFormat()
@@ -823,18 +823,18 @@ class Typer(QTextEdit):
 
                 self.insertHtml(f"<center><p>{res}</p></center>")
 
-                self.toggleFormat(Styles["surat_ar"])
+                self.toggleFormat(Styles.SuratAR)
                 tc.insertBlock()
 
                 self.insertHtml("<center><p><img src='%s'></p></center>" % r"./rsc/surat_sep_1_LD.png")
                 tc.insertBlock()
 
                 self.insertHtml(f"<center><p>{QuranWorker.QuranQuote.surats[s].name} ({int(QuranWorker.QuranQuote.surats[s].order)})</p></center>")
-                self.toggleFormat(Styles["surat_fr"])
+                self.toggleFormat(Styles.SuratFR)
                 tc.insertBlock()
 
                 self.insertHtml("<center><p><img src='%s'></p></center>" % r"./rsc/surat_sep_2_LD.png")
-                self.toggleFormat(Styles["surat_ornament"])
+                self.toggleFormat(Styles.SuratOrnament)
                 tc.insertBlock()
 
         # if this is an inline insert, revert to normal
@@ -853,6 +853,21 @@ class Typer(QTextEdit):
             self.insertHtml(res)
 
             self.setCurrentCharFormat(cf)
+
+    @G.log
+    def insertBookSource(self, obj: Jumper.Kitab | Jumper.Bab | Jumper.Hadith):
+        if isinstance(obj, Jumper.Kitab):
+            self.insertPlainText(obj.name)
+            self.toggleFormat(Styles.Kitab)
+            tc = self.textCursor()
+            tc.insertBlock()
+
+        elif isinstance(obj, Jumper.Bab):
+            self.insertPlainText(obj.name)
+            self.toggleFormat(Styles.Bab)
+            tc = self.textCursor()
+            tc.insertBlock()
+
 
     @staticmethod
     def extractTextFragment(t: str, wide=False) -> str:

@@ -42,7 +42,7 @@ def get_font(size: float = 1, *args, **kwargs) -> QFont:
     :param kwargs: every keyword named argument
     :return: the complete QFont object
     """
-    font = QFont(__font__)
+    font = QFont(__font__, *args, **kwargs)
     font.setPointSizeF(int(size * 12 * 10) / 10.0)
 
     # we force the antialias

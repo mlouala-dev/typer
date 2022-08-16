@@ -15,12 +15,18 @@ class SplashScreen(QWidget):
     """
     A Splash screen widget to display loading progress
     """
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, title=''):
         super(SplashScreen, self).__init__(parent)
         self.setWindowFlags(Qt.SplashScreen | Qt.FramelessWindowHint)
         bg = QLabel(self)
         bg.setPixmap(G.rsc("splash_screen.jpg"))
         bg.setGeometry(0, 0, 700, 384)
+
+        self.title = QLabel(title, parent=self)
+        self.title.setFont(G.get_font(1.9, italic=True))
+        self.title.setGeometry(260, 30, 500, 30)
+        self.title.setStyleSheet("color:#00B2FF;")
+
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setGeometry(0, 385, 700, 6)
@@ -322,10 +328,16 @@ class Toolbar(QToolBar):
                 action=self._win.QuranDialog,
                 shortcut='Alt+C'
             ),
+            'book_jumper': Toolbar.Tool(
+                icon="Book-Spelling",
+                hint="Insert from / Jump to Source Book...",
+                action=self._win.jumper.show,
+                shortcut='Alt+S'
+            ),
             'hadith_search': Toolbar.Tool(
                 icon="Book-Keeping",
                 hint="Search in hadith database...",
-                action=self._win.hadithDialog,
+                action=self._win.hadith_dialog.show,
                 shortcut='Alt+H'
             )
         }
@@ -416,6 +428,10 @@ class Summary(QTreeWidget):
         """
         Automatically select the current closest block selected in the document
         """
+        # abort if hidden
+        if self.isHidden():
+            return
+
         n = self.win.currentCursor().block().blockNumber()
 
         # we search for the closest one
@@ -461,19 +477,19 @@ class Summary(QTreeWidget):
         for i in range(document.blockCount()):
             block = document.findBlockByNumber(i)
             # if the block's style is a primary one (Alt+1 style)
-            if block.userState() in (Styles["header"].id, Styles["ayat"].id):
+            if block.userState() in (Styles.Header.id, Styles.Ayat.id):
                 self.summary[i] = emptyChild(block)
                 # for subchildren
                 last_header = i
 
             # else if secondary (Alt+2 style)
-            elif Styles["title"].id == block.userState():
+            elif Styles.Title.id == block.userState():
                 self.summary[last_header]['children'][i] = emptyChild(block)
                 # for subchildren
                 last_title = i
 
             # else if tertiary (Alt+3 style)
-            elif Styles["subtitle"].id == block.userState():
+            elif Styles.Subtitle.id == block.userState():
                 # if it doesn't have a secondary as parent, attach to the upper one
                 try:
                     self.summary[last_header]['children'][last_title]['children'][i] = block.text()
