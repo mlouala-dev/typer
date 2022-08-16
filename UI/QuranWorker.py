@@ -254,7 +254,7 @@ class QuranQuote(QDialog):
                 self.close()
 
         super(QuranQuote, self).keyPressEvent(e)
-    
+
     def closeEvent(self, a0: QCloseEvent) -> None:
         # resetting everything to zero
         self.search_field.setText('')
