@@ -9,10 +9,12 @@ from functools import partial
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
+from PyQt5.QtSql import QSqlDatabase
 
-from UI.BasicElements import LineLayout, ListWidget, AyatModelItem, NumberModelItem
+from UI.BasicElements import LineLayout, ListWidget, AyatModelItem, NumberModelItem, SearchField
 from tools import G
 from tools.PDF import PDF_Exporter
+from tools.translitteration import translitterate, re_ignore_hamza, clean_harakat
 
 
 class TopicsBar(QWidget):
@@ -1191,3 +1193,342 @@ class Conjugate(QDialog):
 
         # display the complete conjugation table
         self.sub_content.setText(html_text)
+
+
+class Jumper(QDialog):
+    """
+    A new class to handle the navigation within the PDF, if data 'book.db' is provided it will be able to
+    insert / jump / reference a given data in formats :
+        {kitab}:{bab}:{hadith} : insert the given hadith (in local format, ie : the 6th hadith of the given bab)
+        {kitab}:{bab} : insert the name of the bab
+        {kitab} : just insert the name of the kitab
+        {bab} : just insert the name of the bab
+        {hadith} : by absolute numeration insert the hadith
+    the {kitab} and {bab} can be typed as integer or translitterated arabic or arabic with or without harakat
+    """
+
+    class Kitab:
+        def __init__(self, name='', kid=0, page=None):
+            """
+            :type page: Jumper.Page
+            """
+            self.id = kid
+            self.name = name
+            self.page = page
+            self.abwab = list()
+            self.ahadith = list()
+
+        def getBab(self, bid: int):
+            """
+            :rtype: Jumper.Bab
+            """
+            for bab in self.abwab:
+                if bab.id == bid:
+                    return bab
+            else:
+                raise KeyError
+
+        def getHadith(self, hid: int):
+            """
+            :rtype: Jumper.Hadith
+            """
+            for hadith in self.ahadith:
+                if hadith.sub_id == hid:
+                    return hadith
+            else:
+                raise KeyError
+
+    class Bab:
+        def __init__(self, name='', bid=0, kid=0, page=None):
+            """
+            :type page: Jumper.Page
+            """
+            self.id = bid
+            self.kid = kid
+            self.name = name
+            self.page = page
+            self.ahadith = list()
+
+        def getHadith(self, hid: int):
+            """
+            :rtype: Jumper.Hadith
+            """
+            for hadith in self.ahadith:
+                if hadith.sub_id == hid:
+                    return hadith
+            else:
+                raise KeyError
+
+    class Hadith:
+        def __init__(self, hid=0, sub_id=0, bid=0, kid=0, content='', grade=''):
+            self.id = hid
+            self.sub_id = sub_id
+            self.bid = bid
+            self.kid = kid
+            self.content = content
+            self.grade = grade
+
+    class Page:
+        def __init__(self, page=0, kid=0, bid=0, previous_hid=1, hid=1):
+            self.page = page
+            self.kid = kid
+            self.bid = bid
+            self.hids = frozenset(range(previous_hid, hid))
+
+        def __contains__(self, item):
+            return item in self.hids
+
+        def __repr__(self):
+            return str(self.page)
+
+    kutub: {Kitab}
+    abwab: [Bab]
+    datas: [Hadith]
+    pages: [Page]
+    result_goto = pyqtSignal(int)
+    result_insert = pyqtSignal(object)
+
+    def __init__(self, parent):
+        # here we'll insert the datas from parent
+        # ABSTRACT
+        self.kutub = {}
+        self.abwab = list()
+        self.datas = list()
+        self.pages = [Jumper.Page()]
+
+        # UI
+        super(Jumper, self).__init__(parent)
+        self.setWindowTitle('Source Book Jumper')
+        self.setWindowIcon(G.icon('Book-Spelling'))
+
+        self.setFixedWidth(400)
+        self.search_field = SearchField(self)
+        self.search_field.keyPressed.connect(self.preview)
+
+        self.search_field.setFont(G.get_font(2))
+        self.result_title = QLabel(self)
+        self.result_title.setFont(G.get_font(2))
+
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.addWidget(self.search_field)
+        self.main_layout.addWidget(self.result_title)
+        self.main_layout.setSpacing(0)
+
+    def init_db(self, db: QSqlDatabase):
+        # first getting all pages infos for assigning the object to the kutub abwab and ahadith
+        q = db.exec_('SELECT * FROM pages')
+        # the previous hadith ID starting from 1
+        previous_hid = 1
+        while q.next():
+            page = Jumper.Page(
+                page=q.value('page'),
+                kid=q.value('kitab'),
+                bid=q.value('bab'),
+                previous_hid=previous_hid,
+                hid=q.value('id')
+            )
+            previous_hid = q.value('id')
+            self.pages.append(page)
+
+        # walking through kutub
+        q = db.exec_('SELECT * FROM kutub')
+        while q.next():
+            kitab = self.kutub[q.value('id')] = Jumper.Kitab(
+                name=clean_harakat(q.value('name')),
+                kid=q.value('id'),
+                page=self.pages[q.value('page')]
+            )
+
+            # we now get all the abwab for the given kitab
+            sq = db.exec_(f'SELECT * FROM abwab WHERE kitab={kitab.id}')
+            while sq.next():
+                bab = Jumper.Bab(
+                    name=clean_harakat(sq.value('name')),
+                    bid=sq.value('id'),
+                    kid=sq.value('kitab'),
+                    page=self.pages[sq.value('page')]
+                )
+
+                self.abwab.append(bab)
+                kitab.abwab.append(bab)
+
+        # storing every hadith in different places for search optimization
+        hq = db.exec_(f'SELECT * FROM ahadith')
+
+        while hq.next():
+            hadith = Jumper.Hadith(
+                hid=hq.value('id'),
+                sub_id=hq.value('sub_id'),
+                bid=hq.value('bab'),
+                kid=hq.value('kitab'),
+                content=html.unescape(hq.value('hadith')),
+                grade=hq.value('grade')
+            )
+
+            self.kutub[hadith.kid].ahadith.append(hadith)
+
+            try:
+                self.kutub[hadith.kid].getBab(hadith.bid).ahadith.append(hadith)
+            except KeyError:
+                pass
+
+            self.datas.append(hadith)
+
+    def getKitab(self, kid: int) -> Kitab:
+        return self.kutub[kid]
+
+    def getBab(self, bid: int, kid: int) -> Bab:
+        return self.kutub[kid].getBab(bid)
+
+    def getHadith(self, hid: int) -> Hadith:
+        for hadith in self.datas:
+            if hadith.id == hid:
+                return hadith
+        else:
+            raise KeyError
+
+    def getPage(self, hid: int) -> Page:
+        """
+        returns the page for the given id
+        :param hid: the id of the searched object
+        """
+        for page in self.pages:
+            if hid in page:
+                return page
+
+    def findKitab(self, needle: str) -> Kitab:
+        for index, kitab in self.kutub.items():
+            if needle in re_ignore_hamza.sub('ا', kitab.name):
+                return kitab
+
+    def findBab(self, needle: str, scope: int = None) -> Bab:
+        if scope is not None:
+            scoped = self.kutub[scope].abwab
+        else:
+            scoped = self.abwab
+
+        for bab in scoped:
+            if needle in re_ignore_hamza.sub('ا', bab.name):
+                return bab
+
+    def findScopedBab(self, needle: int | str, scope: int = None) -> Bab | Hadith:
+        try:
+            idx = int(needle)
+        except ValueError:
+            needle = translitterate(needle, True)
+            return self.findBab(needle, scope)
+        else:
+            return self.getBab(idx, scope)
+
+    def _search(self, cmd: str, scope: int = None) -> Kitab | Bab | Hadith:
+        try:
+            idx = int(cmd)
+            assert idx in self.kutub
+            return self.kutub[idx]
+
+        # we didn't find this ID in the kutubs' index
+        except AssertionError:
+            return self.getHadith(idx)
+
+        # this means this is invalid literal for int()
+        # so we try to transliterate
+        except ValueError:
+            needle = translitterate(cmd, True)
+            kitab = self.findKitab(needle)
+            if self.findKitab(needle):
+                return kitab
+            else:
+                bab = self.findScopedBab(needle, scope)
+                if bab:
+                    return bab
+
+    def _query(self, cmd=''):
+        if not len(cmd):
+            raise KeyError
+
+        if cmd.endswith(':'):
+            cmd += '1'
+
+        exploded_command = cmd.split(':')
+
+        if len(exploded_command) == 3:
+            k, b, h = exploded_command
+            kitab = self._search(k)
+
+            if len(b):
+                bab = self.findScopedBab(b, kitab.id)
+                return bab.getHadith(int(h))
+            else:
+                return kitab.getHadith(int(h))
+
+        # looking for {kitab}:{bab}
+        elif len(exploded_command) == 2:
+            k, b = exploded_command
+            first = self._search(k)
+
+            if isinstance(first, Jumper.Kitab):
+                if not len(b):
+                    return first
+                else:
+                    return self.findScopedBab(b, first.id)
+            elif isinstance(first, Jumper.Bab):
+                return first.getHadith(int(b))
+
+        elif len(exploded_command) == 1:
+            return self._search(exploded_command[0])
+
+    def getTextResult(self, cmd=''):
+        try:
+            result = self._query(cmd)
+        except KeyError:
+            return ''
+
+        if isinstance(result, Jumper.Kitab):
+            return result.name
+        elif isinstance(result, Jumper.Bab):
+            return result.name
+        elif isinstance(result, Jumper.Hadith):
+            return result.content
+
+    def getPageResult(self, cmd=''):
+        try:
+            result = self._query(cmd)
+        except KeyError:
+            return 1
+
+        if isinstance(result, Jumper.Kitab):
+            return result.page
+        elif isinstance(result, Jumper.Bab):
+            return result.page
+        elif isinstance(result, Jumper.Hadith):
+            return self.getPage(result.id)
+
+    def preview(self):
+        self.result_title.setText(self.getTextResult(self.search_field.text()))
+
+    def keyPressEvent(self, e: QKeyEvent) -> None:
+        """
+        Overrides method to forward the result to signal if Enter is pressed
+        """
+        if e.key() == Qt.Key.Key_Return:
+
+            # finalizing the result before signal emission
+            cmd = self.search_field.text()
+
+            # getting status for Alt, Ctrl and Shift
+            modifiers = QApplication.keyboardModifiers()
+
+            # TODO: isnert adress
+            # if modifiers == Qt.KeyboardModifier.AltModifier:
+            #     self.result_reference.emit(*res[2].split(':'))
+
+            # we make it goes to the address surat:verse
+            if modifiers == Qt.KeyboardModifier.ControlModifier:
+                self.result_goto.emit(self.getPageResult(cmd).page)
+
+            else:
+                self.result_insert.emit(self._query(cmd))
+
+            self.close()
+
+        super(Jumper, self).keyPressEvent(e)

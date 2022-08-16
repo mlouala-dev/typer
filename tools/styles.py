@@ -75,7 +75,7 @@ class TyperStyle:
         return self.matching_props(other)
 
 
-class HeaderStyle(TyperStyle):
+class Header(TyperStyle):
     """
     The Alt+1 style
     """
@@ -93,7 +93,7 @@ class HeaderStyle(TyperStyle):
         textchar.setFontPointSize(21.0)
 
 
-class TitleStyle(TyperStyle):
+class Title(TyperStyle):
     """
     The Alt+2 style
     """
@@ -113,7 +113,7 @@ class TitleStyle(TyperStyle):
         textchar.setFontPointSize(19.0)
 
 
-class SubTitleStyle(TyperStyle):
+class Subtitle(TyperStyle):
     """
     The Alt+3 style
     """
@@ -130,7 +130,7 @@ class SubTitleStyle(TyperStyle):
         textchar.setFontPointSize(17.0)
 
 
-class SuratStyleAR(TyperStyle):
+class SuratAR(TyperStyle):
     """
     The Surat paragraph
     """
@@ -155,7 +155,29 @@ class SuratStyleAR(TyperStyle):
         textchar.setFontPointSize(40.0)
 
 
-class SuratStyleFR(TyperStyle):
+class KitabAR(SuratAR):
+    id = 981
+    pass
+
+
+class BabAR(SuratAR):
+    id = 982
+
+    def apply(self, block: QTextBlockFormat, textchar: QTextCharFormat):
+        super(BabAR, self).apply(block, textchar)
+
+        block.setLineHeight(60.0, 1)
+
+        f = textchar.font()
+        f.setBold(True)
+        f.setItalic(False)
+        f.setUnderline(False)
+        textchar.setFont(f)
+        textchar.setForeground(QBrush(QColor(115, 195, 255)))
+        textchar.setFontPointSize(30.0)
+
+
+class SuratFR(TyperStyle):
     """
     The Surat FR paragraph
     """
@@ -180,7 +202,7 @@ class SuratStyleFR(TyperStyle):
         textchar.setFontPointSize(30.0)
 
 
-class SuratStyleOrnament(TyperStyle):
+class SuratOrnament(TyperStyle):
     """
     The Surat decoration paragraph
     """
@@ -197,7 +219,7 @@ class SuratStyleOrnament(TyperStyle):
         block.setTextIndent(0)
 
 
-class AyatStyle(TyperStyle):
+class Ayat(TyperStyle):
     """
     The Ayat paragraph
     """
@@ -217,22 +239,24 @@ class AyatStyle(TyperStyle):
         textchar.setFontPointSize(17.0)
 
 
-Styles = {
-    "default": TyperStyle(),
-    "header": HeaderStyle(),
-    "title": TitleStyle(),
-    "subtitle": SubTitleStyle(),
-    "surat_ar": SuratStyleAR(),
-    "surat_fr": SuratStyleFR(),
-    "surat_ornament": SuratStyleOrnament(),
-    "ayat": AyatStyle()
-}
+class Styles:
+    Default = TyperStyle()
+    Header = Header()
+    Title = Title()
+    Subtitle = Subtitle()
+    SuratAR = SuratAR()
+    SuratFR = SuratFR()
+    SuratOrnament = SuratOrnament()
+    Ayat = Ayat()
+    Kitab = KitabAR()
+    Bab = BabAR()
+
 
 # the keyboard's shortcut connections
 Styles_Shortcut = {
-    Qt.Key_twosuperior: Styles['default'],
-    Qt.Key_Ampersand: Styles['header'],
-    Qt.Key_Eacute: Styles['title'],
-    Qt.Key_QuoteDbl: Styles['subtitle'],
-    39: Styles['ayat']
+    Qt.Key_twosuperior: Styles.Default,
+    Qt.Key_Ampersand: Styles.Header,
+    Qt.Key_Eacute: Styles.Title,
+    Qt.Key_QuoteDbl: Styles.Subtitle,
+    39: Styles.Ayat
 }

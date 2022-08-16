@@ -44,6 +44,9 @@ class Letter:
             return self.letter == other.letter and self.accent == other.accent
         return self.letter == other[0] and self.accent == other[1]
 
+    def __repr__(self):
+        return f'{self.letter}[{self.accent}]'
+
 
 L = Letter([], letter='l')
 Alif = Letter([], letter="'")
@@ -85,6 +88,7 @@ harakaat = {
 
 re_clean_al = re.compile(r"^ال")
 re_clean_harakat = re.compile(r"[ًٌٍَُِ~ّ]")
+re_ignore_hamza = re.compile(r'[أإآ]')
 
 # we try to get out dictionary containing all words with a madd at the end and wrote with ى
 try:
@@ -97,6 +101,10 @@ except FileNotFoundError:
 # remove trailing return char
 finally:
     ar_dict = [a.replace("\n", "")[:-1] for a in ar_words]
+
+
+def clean_harakat(text: str) -> str:
+    return re_clean_harakat.sub('', text)
 
 
 def explode_arabic(text: str) -> [Letter]:
@@ -194,7 +202,7 @@ def append_to_dict(word: str):
 
     try:
         # cleaning the word before storing
-        word = re_clean_harakat.sub("", word)
+        word = clean_harakat(word)
 
         # we first make sure our word is not in ar_dict
         assert word.endswith("ى") and word[:-1] not in ar_dict
@@ -210,12 +218,18 @@ def append_to_dict(word: str):
         pass
 
 
-def translitterate(text: str) -> str:
+def translitterate(text: str, no_harakat=False) -> str:
     """
     This main function converts a latin transliterration string to arabic
+    TODO: load different transliterration rules
+
     :param text: the text to convert
+    :param no_harakat: do not return the arabic's text with arabic TODO: embed in settings
     :return: the converted arabic string
     """
+    # if the text is arabic, returning as it, just apply the no_harakat if needed
+    if text[0] in arabic_hurufs:
+        return clean_harakat(text) if no_harakat else text
 
     # first getting our list of (characters, tashkil)
     letters = explode_arabic(text)
@@ -230,7 +244,7 @@ def translitterate(text: str) -> str:
         :return: an updated word if it has ى instead of ا
         """
         # pre-cleaning
-        previous_word = re_clean_harakat.sub("", word.split(" ")[-1])
+        previous_word = clean_harakat(word.split(" ")[-1])
 
         # if it ends with a ا we check he's in dict
         if previous_word.endswith('ا'):
@@ -358,7 +372,7 @@ def translitterate(text: str) -> str:
     # we finally check the last word to make sure everybody has been formatted properly
     final = get_previous_word(final)
 
-    return final
+    return clean_harakat(final) if no_harakat else final
 
 
 if __name__ == "__main__":

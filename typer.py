@@ -14,11 +14,10 @@ from PyQt5.QtSql import QSqlDatabase, QSqlQuery
 
 from UI import QuranWorker, Editor
 from UI.HadithWorker import HadithSearch
-from UI.Modules import Settings, TopicsBar, Navigator, GlobalSearch, Exporter
+from UI.Modules import Settings, TopicsBar, Navigator, GlobalSearch, Exporter, Jumper
 from UI.MainComponents import StatusBar, Summary, TitleBar, Toolbar, SplashScreen
 
 from tools import G, PDF, Threads
-
 
 # Exception catch for Qt
 
@@ -47,7 +46,9 @@ class TyperWIN(QMainWindow):
     _file: str
     _book = dict()
     _version = G.__ver__
-    _variant = f"{G.__app__} Quran"
+    _variant = 'Quran'
+    _title = f"{G.__app__} {_variant}"
+
 
     # TODO: settings needs improvement with an external settings manager to load / save / handle
     _settings = {
@@ -64,7 +65,7 @@ class TyperWIN(QMainWindow):
 
     def __init__(self):
         super(TyperWIN, self).__init__()
-        _splash = SplashScreen()
+        _splash = SplashScreen(self, title=f'{self._variant} v{self._version}')
         _splash.show()
         _layout = QGridLayout(self)
 
@@ -101,6 +102,11 @@ class TyperWIN(QMainWindow):
         viewer_frame_layout.setAlignment(Qt.AlignTop)
         self.topic_display.topic_dialog.valid.connect(self.saveTopics)
 
+        _splash.progress(30, "Loading Hadith Database...")
+        self.hadith_dialog = HadithSearch(self)
+        with G.SQLConnection('hadith.db') as db:
+            self.hadith_dialog.init_db(db)
+
         _splash.progress(40, "Loading QuranQuote...")
         self.quran_quote = QuranWorker.QuranQuote(self)
 
@@ -112,6 +118,7 @@ class TyperWIN(QMainWindow):
         _splash.progress(50, "Loading Navigator...")
         self.navigator = Navigator(self)
         self.exporter = Exporter(self)
+        self.jumper = Jumper(self)
 
         self.viewer_frame.hide()
         self.summary_view.hide()
@@ -161,12 +168,18 @@ class TyperWIN(QMainWindow):
 
         # DATABASES
 
+        # additional books data (for other variants)
+        _splash.progress(80, "Loading book's database...")
+        with G.SQLConnection('book.db') as db:
+            self.jumper.init_db(db)
+
         _splash.progress(85, "Loading Quran's database...")
         with G.SQLConnection('quran.db') as db:
             _splash.progress(95, "Init Quran's widget...")
             self.quran_quote.init_db(db)
 
         _splash.progress(100, 'Quran loaded, backup database activation...')
+
 
         # TODO: Automatic loading of last opened file ?
 
@@ -198,6 +211,10 @@ class TyperWIN(QMainWindow):
         self.quran_search.result_reference.connect(insertReference)
         self.quran_search.result_goto.connect(self.goToReference)
 
+        self.jumper.result_goto.connect(self.changePage)
+        self.jumper.result_insert.connect(self.typer.insertBookSource)
+        self.hadith_dialog.result_click.connect(self.typer.insertHtml)
+
         self.typer.contentChanged.connect(partial(self.summary_view.build, self.typer.document()))
         self.typer.contentChanged.connect(self.summary_view.updateSummaryHighLight)
 
@@ -205,9 +222,10 @@ class TyperWIN(QMainWindow):
         self.window_title.close_button.clicked.connect(self.close)
         self.windowTitleChanged.connect(self.window_title.setTitle)
 
-        self.setWindowTitle(f'{self._variant} v{G.__ver__}')
+        self.setWindowTitle(f'{self._title} v{G.__ver__}')
 
         super(TyperWIN, self).show()
+        self.hadith_dialog.show()
         self.typer.setFocus()
 
         # if app ran from a file opening, loads it
@@ -1031,18 +1049,6 @@ class TyperWIN(QMainWindow):
             self.quran_quote.show()
             self.quran_quote.init_db(db)
 
-    def hadithDialog(self):
-        """
-        Function to open the Hadith search dialog
-        """
-        # declaring the dialog
-        dial = HadithSearch(self)
-
-        with G.SQLConnection('hadith.db') as db:
-            dial.show()
-            dial.init_db(db)
-            dial.result_click.connect(self.typer.insertHtml)
-
     def toggleWidgetDisplay(self, widget: QWidget):
         """
         Show / Hide the given widget
@@ -1191,7 +1197,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none;
         Update the titleBar with the file's name and variant
         """
 
-        self.setWindowTitle(f'{self.getFilesName()} - {self._variant} v{G.__ver__}')
+        self.setWindowTitle(f'{self.getFilesName()} - {self._title} v{G.__ver__}')
 
 
     @staticmethod
@@ -1233,6 +1239,10 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none;
         if modifiers == Qt.KeyboardModifier.ControlModifier:
             if e.key() == Qt.Key.Key_G:
                 self.goTo()
+
+        elif modifiers == Qt.KeyboardModifier.AltModifier:
+            if e.key() == Qt.Key.Key_S:
+                self.jumper.show()
 
         # Override the page_up and page_down to switch between project's pages
         elif e.key() == Qt.Key.Key_PageUp:
