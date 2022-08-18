@@ -380,35 +380,37 @@ class LocalSettings(_Settings):
                 for text, count, before in self._cursor.execute('SELECT * FROM dict').fetchall():
                     word = LocalSettings.Dict.Word(text, count, previous=before)
                     self.add(word)
+
                 self.news.clear()
                 self.updates.clear()
-                print(self.words)
 
         def add(self, word: Word):
-            hashed = hash(word)
-            insert = False
+            try:
+                self[word].count += 1
+                self.updates.add(self[word])
 
-            if word.root in self.word_roots:
-                if word.previous in self.word_roots[word.root]:
-                    if word in self:
-                        self[word].count += 1
-                        self.updates.add(self[word])
-                    else:
-                        self.word_roots[word.root][word.previous].append(word)
-                        self.word_roots[word.root][word.previous].sort(reverse=True)
-                        insert = True
-                else:
+            # word not find
+            except ValueError:
+                try:
+                    assert word.previous in self.word_roots[word.root]
+                    self.word_roots[word.root][word.previous].append(word)
+
+                # root not find
+                except KeyError:
+                    self.word_roots[word.root] = {}
                     self.word_roots[word.root][word.previous] = [word]
-                    insert = True
-            else:
-                self.word_roots[word.root] = {}
-                self.word_roots[word.root][word.previous] = [word]
-                insert = True
 
-            if insert:
-                self.words.append(word)
-                self.news.add(word)
-                self.hashes.append(hashed)
+                # word previous is not an array
+                except AssertionError:
+                    self.word_roots[word.root][word.previous] = [word]
+
+                finally:
+                    self.words.append(word)
+                    self.news.add(word)
+                    self.hashes.append(hash(word))
+
+            finally:
+                self.word_roots[word.root][word.previous].sort(reverse=True)
 
         def __getitem__(self, item: Word):
             i = self.hashes.index(hash(item))
@@ -418,11 +420,14 @@ class LocalSettings(_Settings):
             return hash(item) in self.hashes
 
         def find(self, word: Word):
-            if word.root in self.word_roots:
-                if word.previous in self.word_roots[word.root]:
-                    for match in self.word_roots[word.root][word.previous]:
-                        if match.word.startswith(word.word):
-                            return match.word
+            match = None
+            try:
+                for key in self.word_roots[word.root][word.previous]:
+                    if key.word.startswith(word.word):
+                        match = key.word
+                        break
+            finally:
+                return match
 
         def save(self):
             if self._cursor:
@@ -430,6 +435,7 @@ class LocalSettings(_Settings):
                                          [w.disp() for w in self.news])
                 self._cursor.executemany('UPDATE dict SET count=:count WHERE word=:word AND before=:before',
                                          [w.disp() for w in self.updates])
+
                 self.news.clear()
                 self.updates.clear()
 
@@ -671,7 +677,6 @@ class LocalSettings(_Settings):
 
                 # if everything went fine we can set the BOOKMAP as active
                 self.BOOKMAP.active = True
-                print('BOOKMAP active')
 
             # this means we have no bookmap_datas
             except sqlite3.OperationalError:
