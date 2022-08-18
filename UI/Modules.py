@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtSql import QSqlDatabase
 
 from UI.BasicElements import LineLayout, ListWidget, AyatModelItem, NumberModelItem, SearchField
-from tools import G
+from tools import G, S
 from tools.PDF import PDF_Exporter
 from tools.translitteration import translitterate, re_ignore_hamza, clean_harakat
 
@@ -24,7 +24,6 @@ class TopicsBar(QWidget):
     def __init__(self, parent=None):
         super(TopicsBar, self).__init__(parent)
         # FIXME:atm the domains doesn't work
-        self.topics = {'pages': {0: []}, 'domains': {}}
         self.current_page = 0
         self.topic_dialog = TopicsDialog(parent, self)
 
@@ -52,29 +51,10 @@ class TopicsBar(QWidget):
 
         self.setLayout(topic_layout)
 
-    @G.log
-    def load_topics(self, db_file):
-        # when initializing the widget we load topics from the db
-        q = db_file.exec_("SELECT * FROM topics")
-
-        while q.next():
-            # storing every topic
-            name, domain, page = q.value('name'), q.value('domain'), int(q.value('page'))
-
-            if page in self.topics['pages']:
-                self.topics['pages'][page].append(name)
-
-            else:
-                self.topics['pages'][page] = [name]
-
-            # then we add the topics' domain in the list of domains
-            # TODO: not implemented yet
-            self.topics['domains'][name] = domain
-
     def changePage(self, page=0):
         # we update the panel's label with a list of all the topics
         try:
-            self.topic_overview.setText(', '.join(sorted(self.topics['pages'][page])))
+            self.topic_overview.setText(', '.join(map(str, sorted(S.LOCAL.TOPICS.pages[page]))))
 
         except KeyError as e:
             G.exception(e)
@@ -89,7 +69,6 @@ class TopicsDialog(QDialog):
     This allows you to pick the topics linked with the current page
     """
     reference: TopicsBar
-    valid = pyqtSignal(list, list)
 
     class TopicFind(QLineEdit):
         """
@@ -114,7 +93,7 @@ class TopicsDialog(QDialog):
         super(TopicsDialog, self).__init__(parent)
         # internal process
         self.reference = reference
-        self.original_topics = []
+        self.original_topics = set()
 
         # UI
         self.pointer_rect = QRect(0, 30, 1, 1)
@@ -130,6 +109,7 @@ class TopicsDialog(QDialog):
         main_layout.addLayout(LineLayout(self, 'Find / Add : ', self.find_field))
 
         self.topic_list = QListView(self)
+        self.topic_list.doubleClicked.connect(self.updateTopics)
         self.model = QStandardItemModel(self.topic_list)
 
         self.topic_list.setModel(self.model)
@@ -150,11 +130,11 @@ class TopicsDialog(QDialog):
         self.reference.changePage(self.reference.current_page)
 
         # making no duplicate list of the topics
-        new = frozenset(self.reference.topics['pages'][self.reference.current_page])    # the ones we need to add
+        new = frozenset(S.LOCAL.TOPICS.pages[self.reference.current_page])    # the ones we need to add
         old = frozenset(self.original_topics)   # the ones we need to remove
 
         # updating signals
-        self.valid.emit(list(new.difference(old)), list(old.difference(new)))
+        S.LOCAL.saveTopics(list(new.difference(old)), list(old.difference(new)))
         super(TopicsDialog, self).close()
 
     def cancelForm(self):
@@ -162,10 +142,10 @@ class TopicsDialog(QDialog):
         Cancel the current changes
         """
         # revert to self.original_topics
-        self.reference.topics['pages'][self.reference.current_page] = self.original_topics
+        # self.reference.topics['pages'][self.reference.current_page] = self.original_topics
 
         # reloading the same page
-        self.reference.changePage(self.reference.current_page)
+        # self.reference.changePage(self.reference.current_page)
         super(TopicsDialog, self).close()
 
     def showTopics(self):
@@ -175,12 +155,11 @@ class TopicsDialog(QDialog):
         """
         self.find_field.setText("")
 
-        # if topics doesn't exists for this page, create the array
-        if self.reference.current_page not in self.reference.topics['pages']:
-            self.reference.topics['pages'][self.reference.current_page] = []
-
         # make a copy of the original topics from reference
-        self.original_topics = copy.copy(self.reference.topics['pages'][self.reference.current_page])
+        try:
+            self.original_topics = copy.copy(S.LOCAL.TOPICS.pages[self.reference.current_page])
+        except KeyError:
+            pass
 
         # visual ops
         self.filterTopics()
@@ -193,10 +172,10 @@ class TopicsDialog(QDialog):
         """
 
         # extending the res array with all the topics by page
-        res = []
+        res = set()
 
-        for page in self.reference.topics['pages']:
-            res += self.reference.topics['pages'][page]
+        for page_topics in S.LOCAL.TOPICS.pages.values():
+            res.update(page_topics)
 
         # visual settings for result's display
         font = G.get_font(1.4)
@@ -206,35 +185,35 @@ class TopicsDialog(QDialog):
         i = 1
         # through this list of topics
         for t in sorted(frozenset(res)):
+            t: S.LOCAL.TOPICS.Topic
 
-            # this should display all topics, but we only need the ones for the current page
-            if text_filter == '' and t not in self.reference.topics['pages'][self.reference.current_page]:
-                continue
+            if S.LOCAL.page in S.LOCAL.TOPICS.pages:
+                # this should display all topics, but we only need the ones for the current page
+                if text_filter == '' and t not in S.LOCAL.TOPICS.pages[S.LOCAL.page]:
+                    continue
 
-            # this will display irrelevant topics
-            if text_filter != '' and t in self.reference.topics['pages'][self.reference.current_page]:
-                continue
+                # this will display irrelevant topics
+                if text_filter != '' and t in S.LOCAL.TOPICS.pages[S.LOCAL.page]:
+                    continue
 
             # standard display if no filter active
-            elif text_filter == '':
-                item = QStandardItem(t)
+            if text_filter == '':
+                item = QStandardItem(t.name)
                 item.setFont(font)
 
             # custom display if filter's active
             else:
-                item = QStandardItem(t)
+                item = QStandardItem(t.name)
                 item.setFont(extra_font)
                 item.setForeground(QColor(125, 125, 125))
 
             # if text_filter matches current topic
-            if text_filter in t:
+            if text_filter in t.name:
                 # adding the item
                 self.model.appendRow(item)
 
                 if i == 1:
-                    # tricks to select the upper element of the list
-                    self.pointer_rect = QRect(0, 30, 1, 1)
-                    self.topic_list.setSelection(self.pointer_rect, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+                    self.topic_list.setCurrentIndex(self.model.index(0, 0))
 
                 i += 1
 
@@ -251,13 +230,11 @@ class TopicsDialog(QDialog):
         except IndexError:
             item_text = self.find_field.text()
 
-        # if the topic to be added not in the current page's topics
-        if item_text not in self.reference.topics['pages'][self.reference.current_page]:
+        # upgrading the lists
+        S.LOCAL.TOPICS.addTopic(item_text, 'theme', S.LOCAL.page)
 
-            # upgrading the lists
-            self.reference.topics['pages'][self.reference.current_page].append(item_text)
-            self.find_field.clear()
-            self.filterTopics()
+        self.find_field.clear()
+        self.filterTopics()
 
     def keyPressEvent(self, e:QKeyEvent):
         """
@@ -269,7 +246,7 @@ class TopicsDialog(QDialog):
                 text = self.model.itemFromIndex(self.topic_list.selectedIndexes()[0]).text()
 
                 # updating the variables
-                self.reference.topics['pages'][self.reference.current_page].remove(text)
+                S.LOCAL.TOPICS.removeTopicFromPage(text, S.LOCAL.page)
                 self.find_field.clear()
 
                 # now refresh the topics' list
@@ -278,6 +255,12 @@ class TopicsDialog(QDialog):
 
             except IndexError:
                 pass
+
+        elif e.key() == Qt.Key.Key_Tab:
+            try:
+                print(self.model.itemFromIndex(self.topic_list.rootIndex()).text())
+            except IndexError:
+                print('no item')
 
         super(TopicsDialog, self).keyPressEvent(e)
 
@@ -698,17 +681,19 @@ class Settings(QDialog):
         self._doc = self._typer.document()
         self.setFixedSize(600, 400)
 
-        options_gbox = QGroupBox(self)
-        options_gbox.setTitle('Generals')
-        document_layout = QVBoxLayout()
-        self.connected_box = QCheckBox(self)
-        document_layout.addLayout(LineLayout(self, 'Connect to PDF\'s pages', self.connected_box))
+        self.document_layout = QVBoxLayout()
+        self.setLayout(self.document_layout)
 
-        options_gbox.setLayout(document_layout)
-        main_layout = QVBoxLayout()
-        main_layout.addWidget(options_gbox)
-        self.setLayout(main_layout)
-        self.connected_box.clicked.connect(partial(self.update_settings, 'connect_to_ref'))
+        self.connected_box = self.addOption('connected', 'Connect to PDF\'s pages')
+        self.viewer_external_box = self.addOption('viewer_external', 'External PDF Viewer Frame')
+        self.viewer_invert_box = self.addOption('viewer_invert', 'Invert PDF Viewer Colors')
+
+    def addOption(self, name: str, nice_name: str):
+        checkbox = QCheckBox(self)
+        self.layout().addLayout(LineLayout(self, nice_name, checkbox))
+        checkbox.clicked.connect(partial(self.update_settings, name))
+
+        return checkbox
 
     def update_settings(self, domain, state):
         """
@@ -716,26 +701,37 @@ class Settings(QDialog):
         """
         if isinstance(state, bool):
             state = int(state)
-        if domain == 'connect_to_ref':
-            if state and not self._win._settings['reference']:
+        if domain in ('connected', 'viewer_external', 'viewer_invert'):
+            if state and not S.LOCAL.PDF:
                 QMessageBox.critical(
                     None,
                     "Typer - No reference",
                     "There is <b>no reference</b> linked to the current project.",
                 )
-                self.connected_box.setChecked(False)
-            elif state:
-                content = self._win.typer.document().toHtml()
-                self._win.viewer.pageChanged.connect(self._win.changePage)
-                self._win.viewer.load_page(self._win.page_nb)
-                self._win.typer.document().setHtml(content)
+                return
+        if domain == 'connected':
+            S.LOCAL.connected = state
+            if state:
+                self._win.changePage(S.LOCAL.page)
+
             elif not state:
-                self._win.viewer.pageChanged.disconnect(self._win.changePage)
-        self._win.setSettings(domain, state)
+                self._win.typer.document().setHtml(S.LOCAL.BOOK[0])
+
+        elif domain == 'viewer_external':
+            S.LOCAL.viewer_external = state
+            self._win.dockViewer(not state)
+
+        elif domain == 'viewer_invert':
+            S.LOCAL.viewer_invert = state
+            self._win.viewer.redrawPixmap(self._win.viewer.current_page)
+
+        S.LOCAL.saveSetting(domain)
 
     def show(self):
-        if self._win._settings['connect_to_ref']:
-            self.connected_box.setChecked(True)
+        self.connected_box.setChecked(S.LOCAL.connected)
+        self.connected_box.setEnabled(S.LOCAL.hasPDF())
+        self.viewer_external_box.setChecked(S.LOCAL.viewer_external)
+        self.viewer_external_box.setEnabled(S.LOCAL.hasPDF())
 
         super(Settings, self).show()
 
@@ -1207,95 +1203,10 @@ class Jumper(QDialog):
     the {kitab} and {bab} can be typed as integer or translitterated arabic or arabic with or without harakat
     """
 
-    class Kitab:
-        def __init__(self, name='', kid=0, page=None):
-            """
-            :type page: Jumper.Page
-            """
-            self.id = kid
-            self.name = name
-            self.page = page
-            self.abwab = list()
-            self.ahadith = list()
-
-        def getBab(self, bid: int):
-            """
-            :rtype: Jumper.Bab
-            """
-            for bab in self.abwab:
-                if bab.id == bid:
-                    return bab
-            else:
-                raise KeyError
-
-        def getHadith(self, hid: int):
-            """
-            :rtype: Jumper.Hadith
-            """
-            for hadith in self.ahadith:
-                if hadith.sub_id == hid:
-                    return hadith
-            else:
-                raise KeyError
-
-    class Bab:
-        def __init__(self, name='', bid=0, kid=0, page=None):
-            """
-            :type page: Jumper.Page
-            """
-            self.id = bid
-            self.kid = kid
-            self.name = name
-            self.page = page
-            self.ahadith = list()
-
-        def getHadith(self, hid: int):
-            """
-            :rtype: Jumper.Hadith
-            """
-            for hadith in self.ahadith:
-                if hadith.sub_id == hid:
-                    return hadith
-            else:
-                raise KeyError
-
-    class Hadith:
-        def __init__(self, hid=0, sub_id=0, bid=0, kid=0, content='', grade=''):
-            self.id = hid
-            self.sub_id = sub_id
-            self.bid = bid
-            self.kid = kid
-            self.content = content
-            self.grade = grade
-
-    class Page:
-        def __init__(self, page=0, kid=0, bid=0, previous_hid=1, hid=1):
-            self.page = page
-            self.kid = kid
-            self.bid = bid
-            self.hids = frozenset(range(previous_hid, hid))
-
-        def __contains__(self, item):
-            return item in self.hids
-
-        def __repr__(self):
-            return str(self.page)
-
-    kutub: {Kitab}
-    abwab: [Bab]
-    datas: [Hadith]
-    pages: [Page]
     result_goto = pyqtSignal(int)
     result_insert = pyqtSignal(object)
 
     def __init__(self, parent):
-        # here we'll insert the datas from parent
-        # ABSTRACT
-        self.kutub = {}
-        self.abwab = list()
-        self.datas = list()
-        self.pages = [Jumper.Page()]
-
         # UI
         super(Jumper, self).__init__(parent)
         self.setWindowTitle('Source Book Jumper')
@@ -1314,197 +1225,8 @@ class Jumper(QDialog):
         self.main_layout.addWidget(self.result_title)
         self.main_layout.setSpacing(0)
 
-    def init_db(self, db: QSqlDatabase):
-        # first getting all pages infos for assigning the object to the kutub abwab and ahadith
-        q = db.exec_('SELECT * FROM pages')
-        # the previous hadith ID starting from 1
-        previous_hid = 1
-        while q.next():
-            page = Jumper.Page(
-                page=q.value('page'),
-                kid=q.value('kitab'),
-                bid=q.value('bab'),
-                previous_hid=previous_hid,
-                hid=q.value('id')
-            )
-            previous_hid = q.value('id')
-            self.pages.append(page)
-
-        # walking through kutub
-        q = db.exec_('SELECT * FROM kutub')
-        while q.next():
-            kitab = self.kutub[q.value('id')] = Jumper.Kitab(
-                name=clean_harakat(q.value('name')),
-                kid=q.value('id'),
-                page=self.pages[q.value('page')]
-            )
-
-            # we now get all the abwab for the given kitab
-            sq = db.exec_(f'SELECT * FROM abwab WHERE kitab={kitab.id}')
-            while sq.next():
-                bab = Jumper.Bab(
-                    name=clean_harakat(sq.value('name')),
-                    bid=sq.value('id'),
-                    kid=sq.value('kitab'),
-                    page=self.pages[sq.value('page')]
-                )
-
-                self.abwab.append(bab)
-                kitab.abwab.append(bab)
-
-        # storing every hadith in different places for search optimization
-        hq = db.exec_(f'SELECT * FROM ahadith')
-
-        while hq.next():
-            hadith = Jumper.Hadith(
-                hid=hq.value('id'),
-                sub_id=hq.value('sub_id'),
-                bid=hq.value('bab'),
-                kid=hq.value('kitab'),
-                content=html.unescape(hq.value('hadith')),
-                grade=hq.value('grade')
-            )
-
-            self.kutub[hadith.kid].ahadith.append(hadith)
-
-            try:
-                self.kutub[hadith.kid].getBab(hadith.bid).ahadith.append(hadith)
-            except KeyError:
-                pass
-
-            self.datas.append(hadith)
-
-    def getKitab(self, kid: int) -> Kitab:
-        return self.kutub[kid]
-
-    def getBab(self, bid: int, kid: int) -> Bab:
-        return self.kutub[kid].getBab(bid)
-
-    def getHadith(self, hid: int) -> Hadith:
-        for hadith in self.datas:
-            if hadith.id == hid:
-                return hadith
-        else:
-            raise KeyError
-
-    def getPage(self, hid: int) -> Page:
-        """
-        returns the page for the given id
-        :param hid: the id of the searched object
-        """
-        for page in self.pages:
-            if hid in page:
-                return page
-
-    def findKitab(self, needle: str) -> Kitab:
-        for index, kitab in self.kutub.items():
-            if needle in re_ignore_hamza.sub('ا', kitab.name):
-                return kitab
-
-    def findBab(self, needle: str, scope: int = None) -> Bab:
-        if scope is not None:
-            scoped = self.kutub[scope].abwab
-        else:
-            scoped = self.abwab
-
-        for bab in scoped:
-            if needle in re_ignore_hamza.sub('ا', bab.name):
-                return bab
-
-    def findScopedBab(self, needle: int | str, scope: int = None) -> Bab | Hadith:
-        try:
-            idx = int(needle)
-        except ValueError:
-            needle = translitterate(needle, True)
-            return self.findBab(needle, scope)
-        else:
-            return self.getBab(idx, scope)
-
-    def _search(self, cmd: str, scope: int = None) -> Kitab | Bab | Hadith:
-        try:
-            idx = int(cmd)
-            assert idx in self.kutub
-            return self.kutub[idx]
-
-        # we didn't find this ID in the kutubs' index
-        except AssertionError:
-            return self.getHadith(idx)
-
-        # this means this is invalid literal for int()
-        # so we try to transliterate
-        except ValueError:
-            needle = translitterate(cmd, True)
-            kitab = self.findKitab(needle)
-            if self.findKitab(needle):
-                return kitab
-            else:
-                bab = self.findScopedBab(needle, scope)
-                if bab:
-                    return bab
-
-    def _query(self, cmd=''):
-        if not len(cmd):
-            raise KeyError
-
-        if cmd.endswith(':'):
-            cmd += '1'
-
-        exploded_command = cmd.split(':')
-
-        if len(exploded_command) == 3:
-            k, b, h = exploded_command
-            kitab = self._search(k)
-
-            if len(b):
-                bab = self.findScopedBab(b, kitab.id)
-                return bab.getHadith(int(h))
-            else:
-                return kitab.getHadith(int(h))
-
-        # looking for {kitab}:{bab}
-        elif len(exploded_command) == 2:
-            k, b = exploded_command
-            first = self._search(k)
-
-            if isinstance(first, Jumper.Kitab):
-                if not len(b):
-                    return first
-                else:
-                    return self.findScopedBab(b, first.id)
-            elif isinstance(first, Jumper.Bab):
-                return first.getHadith(int(b))
-
-        elif len(exploded_command) == 1:
-            return self._search(exploded_command[0])
-
-    def getTextResult(self, cmd=''):
-        try:
-            result = self._query(cmd)
-        except KeyError:
-            return ''
-
-        if isinstance(result, Jumper.Kitab):
-            return result.name
-        elif isinstance(result, Jumper.Bab):
-            return result.name
-        elif isinstance(result, Jumper.Hadith):
-            return result.content
-
-    def getPageResult(self, cmd=''):
-        try:
-            result = self._query(cmd)
-        except KeyError:
-            return 1
-
-        if isinstance(result, Jumper.Kitab):
-            return result.page
-        elif isinstance(result, Jumper.Bab):
-            return result.page
-        elif isinstance(result, Jumper.Hadith):
-            return self.getPage(result.id)
-
     def preview(self):
-        self.result_title.setText(self.getTextResult(self.search_field.text()))
+        self.result_title.setText(S.LOCAL.BOOKMAP.getTextResult(self.search_field.text()))
 
     def keyPressEvent(self, e: QKeyEvent) -> None:
         """
@@ -1524,10 +1246,10 @@ class Jumper(QDialog):
 
             # we make it goes to the address surat:verse
             if modifiers == Qt.KeyboardModifier.ControlModifier:
-                self.result_goto.emit(self.getPageResult(cmd).page)
+                self.result_goto.emit(S.LOCAL.BOOKMAP.getPageResult(cmd).page - 1)
 
             else:
-                self.result_insert.emit(self._query(cmd))
+                self.result_insert.emit(S.LOCAL.BOOKMAP.getTextResult(cmd))
 
             self.close()
 

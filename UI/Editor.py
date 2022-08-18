@@ -14,7 +14,7 @@ from PyQt5.QtCore import *
 from UI import QuranWorker
 from UI.Modules import Conjugate, Jumper
 from tools.styles import Styles, Styles_Shortcut, TyperStyle
-from tools import G, translitteration
+from tools import G, translitteration, S
 
 
 class Typer(QTextEdit):
@@ -42,6 +42,7 @@ class Typer(QTextEdit):
     }
 
     contentChanged = pyqtSignal()
+    contentEdited = pyqtSignal()
 
     def __init__(self, parent=None):
         super(Typer, self).__init__(parent)
@@ -474,63 +475,65 @@ class Typer(QTextEdit):
             text = tc.selectedText()
             text = text.replace("\u2029", "")
 
-            # and imports all word to our frequency list
-            for word in map(lambda x: x.lower(), text.split(" ")):
-                passed = len(word) <= 3
-                for char in G.new_word_keys.values():
-                    # skipping the word if contains bad characters
-                    if len(word) and (char in word or word[0] not in string.ascii_letters):
-                        passed = True
+            # first we make sure our block doesn't contains spelling errors
+            if tc.block().userData().state != G.State_Correction:
+                # and imports all word to our frequency list
+                for word in map(lambda x: x.lower(), text.split(" ")):
+                    passed = len(word) <= 3
+                    for char in G.new_word_keys.values():
+                        # skipping the word if contains bad characters
+                        if len(word) and (char in word or word[0] not in string.ascii_letters):
+                            passed = True
 
-                        # exiting the fist loop
+                            # exiting the fist loop
+                            continue
+
+                    # if bad, exiting the second loop also
+                    if passed:
                         continue
 
-                # if bad, exiting the second loop also
-                if passed:
-                    continue
+                    # if word root already in frequency list we update the frequencies
+                    if word[:3] in self.occurences:
+                        if word in self.occurences[word[:3]]["candidates"]:
+                            self.occurences[word[:3]]["candidates"][word] += 1
 
-                # if word root already in frequency list we update the frequencies
-                if word[:3] in self.occurences:
-                    if word in self.occurences[word[:3]]["candidates"]:
-                        self.occurences[word[:3]]["candidates"][word] += 1
+                            # flaggin as updated for the saveSettings
+                            self.occurences["updated"].add(word)
+                        else:
+                            self.occurences[word[:3]]["candidates"][word] = 1
 
-                        # flaggin as updated for the saveSettings
-                        self.occurences["updated"].add(word)
+                            # flagging as news for the saveSettings
+                            self.occurences["news"].add(word)
+
+                    # if word's root is new
                     else:
-                        self.occurences[word[:3]]["candidates"][word] = 1
+                        self.occurences[word[:3]] = {
+                            "best": word,
+                            "candidates": {
+                                word: 1
+                            }
+                        }
 
                         # flagging as news for the saveSettings
                         self.occurences["news"].add(word)
 
-                # if word's root is new
-                else:
-                    self.occurences[word[:3]] = {
-                        "best": word,
-                        "candidates": {
-                            word: 1
-                        }
-                    }
+                # for every occurence in the frequency list
+                for root, occurence in self.occurences.items():
+                    if len(root) == 3:
+                        best = occurence['best']
 
-                    # flagging as news for the saveSettings
-                    self.occurences["news"].add(word)
+                        # reordering the best word for the given root
+                        for word in occurence['candidates']:
+                            if occurence['candidates'][word] > occurence['candidates'][best]:
+                                best = word
 
-            # for every occurence in the frequency list
-            for root, occurence in self.occurences.items():
-                if len(root) == 3:
-                    best = occurence['best']
-
-                    # reordering the best word for the given root
-                    for word in occurence['candidates']:
-                        if occurence['candidates'][word] > occurence['candidates'][best]:
-                            best = word
-
-                    self.occurences[root]['best'] = best
+                        self.occurences[root]['best'] = best
 
             # forward to superclass
             super(Typer, self).keyPressEvent(e)
 
             # light save settings
-            self._win.saveSettings()
+            S.LOCAL.saveVisualSettings()
 
             # apply the default style to the new paragraph
             tc = self.textCursor()
@@ -624,6 +627,9 @@ class Typer(QTextEdit):
                 self.insertPlainText(" ")
 
             self.new_word = True
+
+        # if we reach this point this mean changes occured on the text
+        self.contentEdited.emit()
 
     def insertNote(self):
         """
@@ -855,19 +861,18 @@ class Typer(QTextEdit):
             self.setCurrentCharFormat(cf)
 
     @G.log
-    def insertBookSource(self, obj: Jumper.Kitab | Jumper.Bab | Jumper.Hadith):
-        if isinstance(obj, Jumper.Kitab):
+    def insertBookSource(self, obj: S.LocalSettings.BookMap.Kitab | S.LocalSettings.BookMap.Bab | S.LocalSettings.BookMap.Hadith):
+        if isinstance(obj, S.LocalSettings.BookMap.Kitab):
             self.insertPlainText(obj.name)
             self.toggleFormat(Styles.Kitab)
             tc = self.textCursor()
             tc.insertBlock()
 
-        elif isinstance(obj, Jumper.Bab):
+        elif isinstance(obj, S.LocalSettings.BookMap.Bab):
             self.insertPlainText(obj.name)
             self.toggleFormat(Styles.Bab)
             tc = self.textCursor()
             tc.insertBlock()
-
 
     @staticmethod
     def extractTextFragment(t: str, wide=False) -> str:

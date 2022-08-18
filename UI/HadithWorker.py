@@ -9,7 +9,6 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 
 from UI.BasicElements import ListWidget, SearchField, LineLayout, AyatModelItem, MultiLineModelItem
-
 from tools import G
 from tools.translitteration import arabic_hurufs, clean_harakat
 
