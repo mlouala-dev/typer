@@ -4,17 +4,16 @@ import os
 import re
 import html
 import sqlite3
+from logging import CRITICAL, ERROR, WARNING, INFO, DEBUG, NOTSET
 from functools import partial
 
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
-from PyQt5.QtSql import QSqlDatabase
 
 from UI.BasicElements import LineLayout, ListWidget, AyatModelItem, NumberModelItem, SearchField
 from tools import G, S
 from tools.PDF import PDF_Exporter
-from tools.translitteration import translitterate, re_ignore_hamza, clean_harakat
 
 
 class TopicsBar(QWidget):
@@ -673,6 +672,7 @@ class Settings(QDialog):
     _win: QMainWindow
     _doc: QTextDocument
     _typer: QTextEdit
+    verbose_eq = [CRITICAL, ERROR, WARNING, INFO, DEBUG, NOTSET]
 
     def __init__(self, parent=None, typer=None):
         super(Settings, self).__init__(parent)
@@ -687,6 +687,19 @@ class Settings(QDialog):
         self.connected_box = self.addOption('connected', 'Connect to PDF\'s pages')
         self.viewer_external_box = self.addOption('viewer_external', 'External PDF Viewer Frame')
         self.viewer_invert_box = self.addOption('viewer_invert', 'Invert PDF Viewer Colors')
+        self.verbose_level = QComboBox()
+        self.verbose_level.addItems([
+            'critical',
+            'error',
+            'warning',
+            'info',
+            'debug',
+            'silent'
+        ])
+        self.verbose_level.setCurrentIndex(self.verbose_eq.index(G.__debug_level__))
+        self.verbose_level.currentIndexChanged.connect(partial(self.update_settings, 'verbose_level'))
+
+        self.layout().addWidget(self.verbose_level)
 
     def addOption(self, name: str, nice_name: str):
         checkbox = QCheckBox(self)
@@ -709,6 +722,7 @@ class Settings(QDialog):
                     "There is <b>no reference</b> linked to the current project.",
                 )
                 return
+
         if domain == 'connected':
             S.LOCAL.connected = state
             if state:
@@ -725,7 +739,13 @@ class Settings(QDialog):
             S.LOCAL.viewer_invert = state
             self._win.viewer.redrawPixmap(self._win.viewer.current_page)
 
-        S.LOCAL.saveSetting(domain)
+        elif domain == 'verbose_level':
+            G.__debug_level__ = self.verbose_eq[state]
+            G.logger.setLevel(self.verbose_eq[state])
+            print('verbose changed to', G.__debug_level__)
+
+        if domain in ('connected', 'viewer_external', 'viewer_invert'):
+            S.LOCAL.saveSetting(domain)
 
     def show(self):
         self.connected_box.setChecked(S.LOCAL.connected)

@@ -474,23 +474,21 @@ class Typer(QTextEdit):
                 # and imports all word to our frequency list
                 splitted_text = text.split(" ")
                 for i, word_text in enumerate(splitted_text[1:]):
-                    passed = len(word_text) <= 3
-                    passed |= word_text[0] not in string.ascii_letters
+                    try:
+                        assert len(word_text) <= 3
+                        assert word_text[0] not in string.ascii_letters
 
-                    for char in G.new_word_keys.values():
-                        # skipping the word if contains bad characters
-                        if char in word_text:
-                            passed |= True
+                        for char in G.new_word_keys.values():
+                            # skipping the word if contains bad characters
+                            if char in word_text:
+                                raise IndexError
 
-                            # exiting the fist loop
-                            continue
-
-                    # if bad, exiting the second loop also
-                    if passed:
+                    except (AssertionError, IndexError):
                         continue
 
-                    word = S.LocalSettings.Dict.Word(word_text, previous=splitted_text[i])
-                    S.LOCAL.DICT.add(word)
+                    else:
+                        word = S.LocalSettings.Dict.Word(word_text, previous=splitted_text[i])
+                        S.LOCAL.DICT.add(word)
 
             # forward to superclass
             super(Typer, self).keyPressEvent(e)
