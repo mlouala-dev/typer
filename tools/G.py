@@ -20,7 +20,7 @@ from PyQt5.QtSql import QSqlDatabase
 
 # The application's core settings
 __app__ = 'Typer'   # name
-__ver__ = 1.2       # version
+__ver__ = 1.4       # version
 __ext__ = '786'     # extension
 __debug_level__ = logging.DEBUG
 

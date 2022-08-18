@@ -22,10 +22,12 @@ class SplashScreen(QWidget):
         bg.setPixmap(G.rsc("splash_screen.jpg"))
         bg.setGeometry(0, 0, 700, 384)
 
+        # a label displaying the current version / variant of the app
+        # we force parent since we set the geometry manually
         self.title = QLabel(title, parent=self)
-        self.title.setFont(G.get_font(1.9, italic=True))
+        self.title.setFont(G.get_font(2.4, italic=True))
         self.title.setGeometry(260, 30, 500, 30)
-        self.title.setStyleSheet("color:#00B2FF;")
+        self.title.setStyleSheet("color:#ccc;")
 
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setTextVisible(False)

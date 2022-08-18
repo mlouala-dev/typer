@@ -46,15 +46,10 @@ class TyperWIN(QMainWindow):
     _file: str
     _book = dict()
     _version = G.__ver__
-    _variant = 'Mishkaat'
+    _variant = ''
     _title = f"{G.__app__} {_variant}"
 
-
-    # TODO: settings needs improvement with an external settings manager to load / save / handle
-    _settings = {
-        'reference': '',
-        'connect_to_ref': 0
-    }
+    # TODO: need to be transfered in S.GLOBAL
     dark_mode = True
 
     # the dbs
@@ -73,11 +68,11 @@ class TyperWIN(QMainWindow):
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setWindowIcon(QIcon(G.rsc_path("ico.png")))
 
-        _splash.progress(10, "Loading dictionnary...")
+        _splash.progress(5, "Loading dictionnary...")
         self.dictionnary = Threads.Dictionnary()
         self.dictionnary.finished.connect(self.spellBuilt)
 
-        _splash.progress(25, "Loading settings...")
+        _splash.progress(7, "Loading settings...")
         self.dictionnary.start()
 
         self._file = None
@@ -86,6 +81,7 @@ class TyperWIN(QMainWindow):
         self.undo_stack = QUndoStack(self)
         self.undo_stack.setUndoLimit(1000)
 
+        _splash.progress(10, "Loading Hadith Database...")
         self.container = QWidget(self)
         self.summary_view = Summary(self)
         self.typer = Editor.Typer(self)
@@ -94,20 +90,21 @@ class TyperWIN(QMainWindow):
         self.topic_display = TopicsBar(self)
         self.viewer_frame = PDF.ViewerFrame(self.viewer, self.topic_display)
 
-        _splash.progress(30, "Loading Hadith Database...")
+        _splash.progress(15, "Loading Hadith Database...")
         self.hadith_dialog = HadithSearch(self)
+        self.hadith_dialog.loading_step.connect(lambda x, y: _splash.progress(int(15 + y * .2), f'Loading Hadith n°{x}'))
         with G.SQLConnection('hadith.db') as db:
             self.hadith_dialog.init_db(db)
 
-        _splash.progress(40, "Loading QuranQuote...")
+        _splash.progress(45, "Loading QuranQuote...")
         self.quran_quote = QuranWorker.QuranQuote(self)
 
-        _splash.progress(45, "Loading QuranSearch...")
+        _splash.progress(50, "Loading QuranSearch...")
         self.quran_search = QuranWorker.QuranSearch(self)
         self.find_dialog = GlobalSearch(self)
         self.settings_dialog = Settings(self, self.typer)
 
-        _splash.progress(50, "Loading Navigator...")
+        _splash.progress(53, "Loading Navigator...")
         self.navigator = Navigator(self)
         self.exporter = Exporter(self)
         self.jumper = Jumper(self)
@@ -120,7 +117,7 @@ class TyperWIN(QMainWindow):
         _splash.progress(55, "Loading UI Window Title...")
         self.window_title = TitleBar(self)
 
-        _splash.progress(55, "Loading UI Main Layout...")
+        _splash.progress(60, "Loading UI Main Layout...")
         self.splitter = QSplitter(Qt.Horizontal)
         self.splitter.insertWidget(0, self.viewer_frame)
         self.splitter.addWidget(self.typer)
@@ -129,7 +126,7 @@ class TyperWIN(QMainWindow):
         self.splitter.setStretchFactor(1, 2)
         self.splitter.setStretchFactor(2, 20)
 
-        _splash.progress(55, "Loading UI Status Bar...")
+        _splash.progress(65, "Loading UI Status Bar...")
         self.statusbar = StatusBar()
 
         _splash.progress(70, "Loading Audio Recorder...")
@@ -166,8 +163,8 @@ class TyperWIN(QMainWindow):
         _splash.progress(85, "Loading Quran's database...")
 
         with G.SQLConnection('quran.db') as db:
-            _splash.progress(95, "Init Quran's widget...")
             self.quran_quote.init_db(db)
+            _splash.progress(95, "Init Quran's widget...")
 
         _splash.progress(100, 'Quran loaded, backup database activation...')
 
