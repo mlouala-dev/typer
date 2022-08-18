@@ -50,17 +50,16 @@ class LocalSettings(_Settings):
     }
 
     class Book:
-        def __init__(self, db: sqlite3.Connection, cursor: sqlite3.Cursor):
+        def __init__(self, db: sqlite3.Connection = None, cursor: sqlite3.Cursor = None):
             self._mod = set()
             self._book = {}
             self._db = db
             self._cursor = cursor
 
-            print(self._cursor.execute('SELECT * FROM book').fetchall())
-            for page, content in self._cursor.execute('SELECT * FROM book').fetchall():
-                self._book[page] = html.unescape(content)
+            if self._cursor:
+                for page, content in self._cursor.execute('SELECT * FROM book').fetchall():
+                    self._book[page] = html.unescape(content)
 
-        @G.log
         def savePage(self, page: int):
             try:
                 self._cursor.execute('INSERT INTO book ("page", "text") VALUES (?, ?)', (page, html.escape(self[page])))
@@ -81,7 +80,10 @@ class LocalSettings(_Settings):
             self._mod.add(page)
 
         def unsetModified(self, page: int):
-            self._mod.remove(page)
+            try:
+                self._mod.remove(page)
+            except KeyError:
+                pass
 
         def isModified(self):
             return bool(len(self._mod))
@@ -93,7 +95,6 @@ class LocalSettings(_Settings):
             return self._book[item]
 
         def __setitem__(self, key, value):
-            print('updating', self._book[key] != value)
             try:
                 assert self._book[key] != value
             except AssertionError:
@@ -334,6 +335,106 @@ class LocalSettings(_Settings):
             elif isinstance(result, LocalSettings.BookMap.Hadith):
                 return self.getPage(result.id)
 
+    class Dict:
+        class Word:
+            def __init__(self, word: str, count: int = 1, previous=''):
+                self.word = word
+                self.root = word[:3]
+                self.count = count
+                self.previous = previous
+
+            def __repr__(self):
+                return f'[{self.previous}] {self.word}({self.count})'
+
+            def __hash__(self):
+                return hash(f'{self.previous}{self.word}')
+
+            def __lt__(self, other):
+                return self.count < other.count
+
+            def __gt__(self, other):
+                return self.count > other.count
+
+            def disp(self):
+                """
+                it returns a named dict used by the SQL cursor command
+                """
+                return {
+                    'word': self.word,
+                    'count': self.count,
+                    'before': self.previous
+                }
+
+        def __init__(self, db: sqlite3.Connection = None, cursor: sqlite3.Cursor = None):
+            self._db = db
+            self._cursor = cursor
+
+            self.words = []
+            self.hashes = []
+            self.word_roots = {}
+
+            self.news = set()
+            self.updates = set()
+
+            if self._cursor:
+                for text, count, before in self._cursor.execute('SELECT * FROM dict').fetchall():
+                    word = LocalSettings.Dict.Word(text, count, previous=before)
+                    self.add(word)
+                self.news.clear()
+                self.updates.clear()
+                print(self.words)
+
+        def add(self, word: Word):
+            hashed = hash(word)
+            insert = False
+
+            if word.root in self.word_roots:
+                if word.previous in self.word_roots[word.root]:
+                    if word in self:
+                        self[word].count += 1
+                        self.updates.add(self[word])
+                    else:
+                        self.word_roots[word.root][word.previous].append(word)
+                        self.word_roots[word.root][word.previous].sort(reverse=True)
+                        insert = True
+                else:
+                    self.word_roots[word.root][word.previous] = [word]
+                    insert = True
+            else:
+                self.word_roots[word.root] = {}
+                self.word_roots[word.root][word.previous] = [word]
+                insert = True
+
+            if insert:
+                self.words.append(word)
+                self.news.add(word)
+                self.hashes.append(hashed)
+
+        def __getitem__(self, item: Word):
+            i = self.hashes.index(hash(item))
+            return self.words[i]
+
+        def __contains__(self, item: Word):
+            return hash(item) in self.hashes
+
+        def find(self, word: Word):
+            if word.root in self.word_roots:
+                if word.previous in self.word_roots[word.root]:
+                    for match in self.word_roots[word.root][word.previous]:
+                        if match.word.startswith(word.word):
+                            return match.word
+
+        def save(self):
+            if self._cursor:
+                self._cursor.executemany('INSERT INTO dict (word, count, before) VALUES (:word, :count, :before)',
+                                         [w.disp() for w in self.news])
+                self._cursor.executemany('UPDATE dict SET count=:count WHERE word=:word AND before=:before',
+                                         [w.disp() for w in self.updates])
+                self.news.clear()
+                self.updates.clear()
+
+                self._db.commit()
+
     class Topics:
         class Topic:
             def __init__(self, name: str = '', domain: str = ''):
@@ -399,8 +500,8 @@ class LocalSettings(_Settings):
     BOOK: Book
 
     def __init__(self):
-        self.BOOK = {}
-        self.DICT = {}
+        self.BOOK = LocalSettings.Book()
+        self.DICT = LocalSettings.Dict()
         self.TOPICS = LocalSettings.Topics()
         self.BOOKMAP = LocalSettings.BookMap()
         self.PDF = None
@@ -469,7 +570,8 @@ class LocalSettings(_Settings):
         );
         CREATE TABLE "dict" (
             "word"	TEXT,
-            "occurence"	INTEGER
+            "count"	INTEGER,
+            "before"	TEXT
         );
         CREATE TABLE "settings" (
             "field"	TEXT,
@@ -499,6 +601,7 @@ class LocalSettings(_Settings):
         self.create_db_link()
 
         self.BOOK = LocalSettings.Book(self.db, self.cursor)
+        self.DICT = LocalSettings.Dict(self.db, self.cursor)
 
         for name, page, domain in self.cursor.execute('SELECT * FROM topics').fetchall():
             self.TOPICS.addTopic(name, domain, int(page))
@@ -595,8 +698,6 @@ class LocalSettings(_Settings):
             settings['viewer_h']
         )
 
-        self.DICT = {word: num for word, num in self.cursor.execute('SELECT * FROM dict').fetchall()}
-
     @G.log
     def saveSetting(self, setting):
         self.cursor.execute('UPDATE settings SET value=? WHERE field=?', (self.__dict__[setting], setting))
@@ -617,6 +718,7 @@ class LocalSettings(_Settings):
         self.db.commit()
 
         self.BOOK.saveAllPage()
+        self.DICT.save()
 
         self.saveVisualSettings()
 
@@ -668,13 +770,6 @@ class LocalSettings(_Settings):
     def unsetModifiedFlag(self):
         if len(self.BOOK):
             self.BOOK.unsetModified(self.page if self.connected else 0)
-
-    # Dict
-    def addDictEntry(self, word: str, occurence: int):
-        self.cursor.execute(f'INSERT INTO dict (word, occurence) VALUES (?, ?)', (word, occurence))
-
-    def updateDictEntry(self, word: str, occurence: int):
-        self.cursor.execute(f'UPDATE dict SET occurence=? WHERE word=?', (occurence, word))
 
     # Topics
     def saveTopics(self, topic_add: list, topic_delete: list):
@@ -736,5 +831,10 @@ LOCAL = LocalSettings()
 
 
 if __name__ == "__main__":
-    LOCAL.createSettings('test.db')
-
+    d = LOCAL.Dict()
+    d.add(d.Word('testiminier', previous='avant'))
+    d.add(d.Word('testiminier', previous='avant'))
+    d.add(d.Word('testimonier', count=1, previous='avant'))
+    print(d.words)
+    u = d.Word('testim', previous='avant')
+    print(d.find(u))

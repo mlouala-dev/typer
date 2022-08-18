@@ -532,23 +532,6 @@ class TyperWIN(QMainWindow):
         Load current settings from current project
         """
 
-        # we reset the occurence list of the text editor
-        self.typer.occurences.clear()
-        self.typer.occurences['news'] = set()
-        self.typer.occurences['updated'] = set()
-
-        for word, num in S.LOCAL.DICT.items():
-            # we get the first three characters and store the candidates
-            try:
-                self.typer.occurences[word[:3]]["candidates"][word] = num
-            except KeyError as e:
-                self.typer.occurences[word[:3]] = {
-                    "best": word,
-                    "candidates": {
-                        word: num
-                    }
-                }
-
         # we update the visual settings
         self.summary_view.setVisible(S.LOCAL.isSummaryVisible())
         self.viewer_frame.setVisible(S.LOCAL.isViewerVisible())
@@ -588,24 +571,6 @@ class TyperWIN(QMainWindow):
         """
         Save current settings and occurence list
         """
-        words = self.typer.occurences
-
-        # and we append all fresh words
-        for root in words:
-            if len(root) == 3:
-                for word in words[root]["candidates"]:
-                    occurence = words[root]["candidates"][word]
-                    # adding new occurence word
-                    if word in words["news"]:
-                        S.LOCAL.addDictEntry(word, occurence)
-
-                    # if the word was already in the occurence list database, just update the occurence num
-                    elif word in words["updated"]:
-                        S.LOCAL.updateDictEntry(word, occurence)
-
-        words["news"].clear()
-        words["updated"].clear()
-
         S.LOCAL.page = self.page_nb
         S.LOCAL.saveAllSettings()
 
@@ -627,7 +592,6 @@ class TyperWIN(QMainWindow):
 
     # OTHER
 
-    @G.debug
     def setModified(self):
         """
         Update which page will need to be saved and marked as modified

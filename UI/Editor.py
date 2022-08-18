@@ -35,12 +35,6 @@ class Typer(QTextEdit):
     re_textblock = re.compile(r'(.*?>)( +)?[-\u2022]?(<span.*?>\d\)</span>)?( +)?([\w\d]+)(.*?)<', flags=re.IGNORECASE)
     re_ignoretoken = r'\d|^[A-Z]|ﷺ|ﷻ'
 
-    # this is a simple tool for autosuggestion label
-    occurences = {
-        'news': set(),
-        'updated': set()
-    }
-
     contentChanged = pyqtSignal()
     contentEdited = pyqtSignal()
 
@@ -478,11 +472,12 @@ class Typer(QTextEdit):
             # first we make sure our block doesn't contains spelling errors
             if tc.block().userData().state != G.State_Correction:
                 # and imports all word to our frequency list
-                for word in map(lambda x: x.lower(), text.split(" ")):
-                    passed = len(word) <= 3
+                splitted_text = text.split(" ")
+                for i, word_text in enumerate(splitted_text[1:]):
+                    passed = len(word_text) <= 3
                     for char in G.new_word_keys.values():
                         # skipping the word if contains bad characters
-                        if len(word) and (char in word or word[0] not in string.ascii_letters):
+                        if len(word_text) and (char in word_text or word_text[0] not in string.ascii_letters):
                             passed = True
 
                             # exiting the fist loop
@@ -492,42 +487,8 @@ class Typer(QTextEdit):
                     if passed:
                         continue
 
-                    # if word root already in frequency list we update the frequencies
-                    if word[:3] in self.occurences:
-                        if word in self.occurences[word[:3]]["candidates"]:
-                            self.occurences[word[:3]]["candidates"][word] += 1
-
-                            # flaggin as updated for the saveSettings
-                            self.occurences["updated"].add(word)
-                        else:
-                            self.occurences[word[:3]]["candidates"][word] = 1
-
-                            # flagging as news for the saveSettings
-                            self.occurences["news"].add(word)
-
-                    # if word's root is new
-                    else:
-                        self.occurences[word[:3]] = {
-                            "best": word,
-                            "candidates": {
-                                word: 1
-                            }
-                        }
-
-                        # flagging as news for the saveSettings
-                        self.occurences["news"].add(word)
-
-                # for every occurence in the frequency list
-                for root, occurence in self.occurences.items():
-                    if len(root) == 3:
-                        best = occurence['best']
-
-                        # reordering the best word for the given root
-                        for word in occurence['candidates']:
-                            if occurence['candidates'][word] > occurence['candidates'][best]:
-                                best = word
-
-                        self.occurences[root]['best'] = best
+                    word = S.LocalSettings.Dict.Word(word_text, previous=splitted_text[i])
+                    S.LOCAL.DICT.add(word)
 
             # forward to superclass
             super(Typer, self).keyPressEvent(e)
@@ -560,33 +521,20 @@ class Typer(QTextEdit):
             tc.select(tc.SelectionType.WordUnderCursor)
             self.word = tc.selectedText()
 
-            candidate = None
-
             # getting the previous character
             ptc = self.textCursor()
-            ptc.movePosition(QTextCursor.PreviousCharacter, QTextCursor.KeepAnchor)
+            ptc.movePosition(QTextCursor.PreviousWord, QTextCursor.MoveMode.MoveAnchor, 2)
+            ptc.select(ptc.SelectionType.WordUnderCursor)
             # we check if next character exists to prevent useless autocompletion display
-            previous_character = ptc.selectedText()
+            previous_word = ptc.selectedText()
 
-            if previous_character not in G.new_word_keys.values():
-                # if the current word's length is 3 suggests the best word for this root
-                # TODO: this limit of 3 may be used defined
-                if len(self.word) == 3 and self.word[:3] in self.occurences:
-                    candidate = self.occurences[self.word[:3]]['best']
-
-                # determine the best candidate
-                elif len(self.word) > 3 and self.word[:3] in self.occurences:
-                    for elts in self.occurences[self.word[:3]]["candidates"]:
-                        # return the first occurence of the word where the candidate starts by the current word
-                        if elts.startswith(self.word.lower()):
-                            candidate = elts
-                            break
+            word = S.LocalSettings.Dict.Word(self.word, previous=previous_word)
+            candidate = S.LOCAL.DICT.find(word)
 
             # if there is a candidate, we draw the autocomplete_label
             # we also require that the next character is a new word character (' ' or ", etc...)
             # OR that the cursor is at the end of the line
-            if candidate and \
-                    len(candidate) > len(self.word) and \
+            if candidate and len(candidate) > len(self.word) and \
                     (next_character in G.new_word_keys.values() or tc.positionInBlock() == (tc.block().length() - 1)):
                 rect: QRectF
                 rect = self.cursorRect(self.textCursor())
