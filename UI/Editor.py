@@ -12,9 +12,9 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 
 from UI import QuranWorker
-from UI.Modules import Conjugate, Jumper
+from UI.Modules import Conjugate
 from tools.styles import Styles, Styles_Shortcut, TyperStyle
-from tools import G, translitteration, S
+from tools import G, translitteration, S, T
 
 
 class Typer(QTextEdit):
@@ -47,6 +47,9 @@ class Typer(QTextEdit):
     def __init__(self, parent=None):
         super(Typer, self).__init__(parent)
         self._win = parent
+
+        self.undoStack = QUndoStack(self)
+        self.undoStack.setUndoLimit(1000)
 
         # preparing the Conjugate dialog
         self.dictionary = sqlite3.connect(G.rsc_path("lang.db"))
@@ -360,8 +363,20 @@ class Typer(QTextEdit):
         # the alt modifier is used to apply some fast styles
         elif modifiers == Qt.KeyboardModifier.AltModifier:
 
+            if e.key() == Qt.Key_twosuperior:
+                T.applyBlockTag(self.textCursor(), 'h1')
+                return
+
+            elif e.key() == Qt.Key_Ampersand:
+                T.applyBlockTag(self.textCursor(), 'h2')
+                return
+
+            elif e.key() == Qt.Key_Eacute:
+                T.applyBlockTag(self.textCursor(), 'h3')
+                return
+
             # the main title shortcut
-            if e.key() in Styles_Shortcut:  # Alt+1
+            if e.key() in Styles_Shortcut:  # Alt+?
 
                 # apply the style to the whold text block
                 self.applyOverallBlock(partial(self.toggleFormat, Styles_Shortcut[e.key()]))
@@ -393,7 +408,7 @@ class Typer(QTextEdit):
                 tc = self.textCursor()
 
                 # we get the current selection as html
-                html = self.extractTextFragment(tc.selection().toHtml(), wide=True)
+                html = T.extractTextFragment(tc.selection().toHtml(), wide=True)
 
                 res, cnt = '', 0
                 # every line patching pattern
@@ -415,7 +430,7 @@ class Typer(QTextEdit):
                 tc = self.textCursor()
 
                 # getting the current selection as html
-                html = self.extractTextFragment(tc.selection().toHtml(), wide=True)
+                html = T.extractTextFragment(tc.selection().toHtml(), wide=True)
 
                 res = ''
                 for line in html.split('\n'):
@@ -875,32 +890,13 @@ class Typer(QTextEdit):
             tc = self.textCursor()
             tc.insertBlock()
 
-    @staticmethod
-    def extractTextFragment(t: str, wide=False) -> str:
-        """
-        This function get a QTextFragment, remove the <html><head> tags and extract only the wanted code
-        :param t: the HTML complete Text Fragment code
-        :param wide: if we want the complete block (True) or just the selection (False)
-        :return: HTML code extracted
-        """
-        try:
-            assert not wide
-            # getting what's inside the Start / End tags
-            html = t.split('<!--StartFragment-->')[1].split('<!--EndFragment-->')[0]
-
-        # if there is no match, extracting from body to the end and remove - if exists - the Start / End tags
-        except (IndexError, AssertionError):
-            html = t.split('<body>')[1].replace('<!--StartFragment-->', '').split('<!--EndFragment-->')[0]
-
-        return html
-
     def quoteText(self, quote):
         """
         Adding the char around the selection
         :param quote: the quote character, either " ' ( or [
         """
         # getting the HTML code of the selection
-        html = self.extractTextFragment(self.textCursor().selection().toHtml())
+        html = T.extractTextFragment(self.textCursor().selection().toHtml())
 
         # an equivalence list of the quote characters
         eq = {

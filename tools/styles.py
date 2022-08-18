@@ -254,9 +254,9 @@ class Styles:
 
 # the keyboard's shortcut connections
 Styles_Shortcut = {
-    Qt.Key_twosuperior: Styles.Default,
-    Qt.Key_Ampersand: Styles.Header,
-    Qt.Key_Eacute: Styles.Title,
+    # Qt.Key_twosuperior: Styles.Default,
+    # Qt.Key_Ampersand: Styles.Header,
+    # Qt.Key_Eacute: Styles.Title,
     Qt.Key_QuoteDbl: Styles.Subtitle,
     39: Styles.Ayat
 }

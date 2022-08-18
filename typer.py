@@ -78,8 +78,9 @@ class TyperWIN(QMainWindow):
         self._file = None
 
         self.page_nb = 0
-        self.undo_stack = QUndoStack(self)
-        self.undo_stack.setUndoLimit(1000)
+
+        self.undoStack = QUndoStack(self)
+        self.undoStack.setUndoLimit(1000)
 
         _splash.progress(10, "Loading Hadith Database...")
         self.container = QWidget(self)
@@ -627,7 +628,6 @@ class TyperWIN(QMainWindow):
 
     # OTHER
 
-    @G.debug
     def setModified(self):
         """
         Update which page will need to be saved and marked as modified
@@ -1031,7 +1031,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none;
                 self.jumper.show()
 
         # Override the page_up and page_down to switch between project's pages
-        elif e.key() == Qt.Key.Key_PageUp and S.LOCAL.BOOK:
+        elif e.key() == Qt.Key.Key_PageUp and S.LOCAL.PDF:
             # if Shift modifier pressed, it will search for the closest filled page in book
             if modifiers == Qt.KeyboardModifier.ShiftModifier:
                 keys = [i for i in S.LOCAL.BOOK if i < self.viewer.current_page]
@@ -1046,7 +1046,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none;
             if S.LOCAL.connected:
                 self.changePage(target)
 
-        elif e.key() == Qt.Key.Key_PageDown and S.LOCAL.BOOK:
+        elif e.key() == Qt.Key.Key_PageDown and S.LOCAL.PDF:
             # if Shift modifier pressed, it will search for the closest filled page in book
             if modifiers == Qt.KeyboardModifier.ShiftModifier:
                 keys = [i for i in S.LOCAL.BOOK if i > self.viewer.current_page]
@@ -1103,6 +1103,8 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none;
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
+    G.__undo__ = QUndoStack(app)
+    G.__undo__.setUndoLimit(10000)
     # checking if the current font is available in the system,
     # otherwise we load it from rsc/fonts folder
     # we also check for every additional fonts needed and listed in G.__additional_font__

@@ -30,7 +30,7 @@ __additional_fonts__ = ['Microsoft Uighur Bold', 'AGA Arabesque']
 __additional_fonts__.insert(0, __font__)
 
 # the file extension of the app
-
+__undo__ = None
 
 def get_font(size: float = 1, *args, **kwargs) -> QFont:
     """

@@ -672,7 +672,6 @@ class StatusBar(QStatusBar):
         self.repaint()
         QApplication.processEvents()
 
-    @G.log
     def updateSavedState(self, state: int):
         """
         Display or hide a small red bullet to indicates if file is saved or no

@@ -7,7 +7,7 @@ import html
 import tempfile
 import os
 
-from tools import G
+from tools import G, T
 from tools.translitteration import translitterate, re_ignore_hamza, clean_harakat
 
 
@@ -56,9 +56,13 @@ class LocalSettings(_Settings):
             self._db = db
             self._cursor = cursor
 
-            print(self._cursor.execute('SELECT * FROM book').fetchall())
             for page, content in self._cursor.execute('SELECT * FROM book').fetchall():
                 self._book[page] = html.unescape(content)
+
+        def unstyle(self, page: str):
+            page = T.cleanCssStyle(page)
+            print(page)
+            return page
 
         @G.log
         def savePage(self, page: int):
@@ -81,7 +85,10 @@ class LocalSettings(_Settings):
             self._mod.add(page)
 
         def unsetModified(self, page: int):
-            self._mod.remove(page)
+            try:
+                self._mod.remove(page)
+            except KeyError:
+                pass
 
         def isModified(self):
             return bool(len(self._mod))
@@ -93,16 +100,8 @@ class LocalSettings(_Settings):
             return self._book[item]
 
         def __setitem__(self, key, value):
-            print('updating', self._book[key] != value)
-            try:
-                assert self._book[key] != value
-            except AssertionError:
-                return
-            except KeyError:
-                pass
-            finally:
-                self._mod.add(key)
-                self._book[key] = value
+            self._mod.add(key)
+            self._book[key] = self.unstyle(value)
 
         def __contains__(self, item):
             return item in self._book
@@ -568,7 +567,6 @@ class LocalSettings(_Settings):
 
                 # if everything went fine we can set the BOOKMAP as active
                 self.BOOKMAP.active = True
-                print('BOOKMAP active')
 
             # this means we have no bookmap_datas
             except sqlite3.OperationalError:
@@ -684,11 +682,9 @@ class LocalSettings(_Settings):
         :param topic_delete: list of topics to be deleted
         """
         # loop to remove all topics from list
-        print(topic_delete)
         self.cursor.executemany(f"DELETE FROM topics WHERE name=? AND page=?",
                                 [(topic, self.page) for topic in topic_delete])
 
-        print(topic_add)
         # loop to add all topics from list
         for topic in topic_add:
             self.cursor.execute('''INSERT INTO topics (name, domain, page) VALUES (?, ?, ?)''',
