@@ -177,8 +177,6 @@ class TyperWIN(QMainWindow):
         self.typer.contentEdited.connect(self.setModified)
         self.summary_view.clicked.connect(self.updateTextCursor)
 
-        self.navigator.goto.connect(self.goTo)
-
         self.audio_recorder.audio_pike.connect(self.statusbar.record_volume.setValue)
         self.audio_recorder.progress.connect(lambda x: self.statusbar.updateRecording(x))
 
@@ -757,7 +755,9 @@ class TyperWIN(QMainWindow):
         """
         A simple function which prepare the Navigator
         """
-        self.navigator.buildMap(self._book)
+        self.navigator = Navigator(self)
+        self.navigator.goto.connect(self.goTo)
+        self.navigator.buildMap()
         self.navigator.show()
 
     def QuranDialog(self):

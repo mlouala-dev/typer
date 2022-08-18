@@ -798,15 +798,12 @@ class Navigator(QDialog):
         # adding the new line to the layout
         self.main_layout.addLayout(line, 0)
 
-    def buildMap(self, book: dict):
+    def buildMap(self):
         """
         this scan the given book dict and determine the corresponding pages' blocks
-        :param book: book dict from parent
         """
-        all_pages = book.keys()
-
         # abort if there is no page
-        if not len(all_pages):
+        if not S.LOCAL.BOOK and not len(S.LOCAL.BOOK):
             return
 
         # this should delete everything but doesn't work completly
@@ -830,11 +827,11 @@ class Navigator(QDialog):
         tmp_doc = QTextDocument()
 
         # for every page, we store to the temp doc
-        for i in all_pages:
-            tmp_doc.setHtml(book[i])
+        for i in S.LOCAL.BOOK:
+            tmp_doc.setHtml(S.LOCAL.BOOK[i])
 
             # we try to find all surats
-            match_surat = header_matcher.findall(book[i])
+            match_surat = header_matcher.findall(S.LOCAL.BOOK[i])
 
             # if ever we got one or more, adding the last in the page
             if match_surat:
