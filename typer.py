@@ -14,10 +14,10 @@ from PyQt5.QtSql import QSqlDatabase, QSqlQuery
 
 from UI import QuranWorker, Editor
 from UI.HadithWorker import HadithSearch
-from UI.Modules import Settings, TopicsBar, Navigator, GlobalSearch, Exporter, Jumper
+from UI.Modules import Settings, Navigator, GlobalSearch, Exporter, Jumper, TopicsBar
 from UI.MainComponents import StatusBar, Summary, TitleBar, Toolbar, SplashScreen
 
-from tools import G, PDF, Threads
+from tools import G, PDF, Threads, S
 
 # Exception catch for Qt
 
@@ -46,7 +46,7 @@ class TyperWIN(QMainWindow):
     _file: str
     _book = dict()
     _version = G.__ver__
-    _variant = 'Quran'
+    _variant = 'Mishkaat'
     _title = f"{G.__app__} {_variant}"
 
 
@@ -89,18 +89,10 @@ class TyperWIN(QMainWindow):
         self.container = QWidget(self)
         self.summary_view = Summary(self)
         self.typer = Editor.Typer(self)
+
         self.viewer = PDF.Viewer(self)
-
-        self.viewer_frame = QWidget(self)
-        viewer_frame_layout = QVBoxLayout(self.viewer_frame)
-        viewer_frame_layout.addWidget(self.viewer)
-
         self.topic_display = TopicsBar(self)
-        viewer_frame_layout.setContentsMargins(0, 0, 0, 0)
-        viewer_frame_layout.setSpacing(0)
-        viewer_frame_layout.addWidget(self.topic_display)
-        viewer_frame_layout.setAlignment(Qt.AlignTop)
-        self.topic_display.topic_dialog.valid.connect(self.saveTopics)
+        self.viewer_frame = PDF.ViewerFrame(self.viewer, self.topic_display)
 
         _splash.progress(30, "Loading Hadith Database...")
         self.hadith_dialog = HadithSearch(self)
@@ -129,13 +121,13 @@ class TyperWIN(QMainWindow):
         self.window_title = TitleBar(self)
 
         _splash.progress(55, "Loading UI Main Layout...")
-        splitter = QSplitter(Qt.Horizontal)
-        splitter.addWidget(self.viewer_frame)
-        splitter.addWidget(self.typer)
-        splitter.addWidget(self.summary_view)
-        splitter.setStretchFactor(0, 33)
-        splitter.setStretchFactor(1, 2)
-        splitter.setStretchFactor(2, 20)
+        self.splitter = QSplitter(Qt.Horizontal)
+        self.splitter.insertWidget(0, self.viewer_frame)
+        self.splitter.addWidget(self.typer)
+        self.splitter.addWidget(self.summary_view)
+        self.splitter.setStretchFactor(0, 33)
+        self.splitter.setStretchFactor(1, 2)
+        self.splitter.setStretchFactor(2, 20)
 
         _splash.progress(55, "Loading UI Status Bar...")
         self.statusbar = StatusBar()
@@ -147,7 +139,7 @@ class TyperWIN(QMainWindow):
         # Main layout operations
         _layout.addWidget(self.window_title)
         _layout.addWidget(self.toolbar)
-        _layout.addWidget(splitter)
+        _layout.addWidget(self.splitter)
         _layout.setRowStretch(0, 0)
         _layout.setRowStretch(1, 0)
         _layout.setRowStretch(2, 1)
@@ -167,13 +159,12 @@ class TyperWIN(QMainWindow):
         self.modified.clear()
 
         # DATABASES
+        if not S.LOCAL.BOOKMAP.active:
+            self.toolbar.buttons['book_jumper'].setEnabled(False)
 
         # additional books data (for other variants)
-        _splash.progress(80, "Loading book's database...")
-        with G.SQLConnection('book.db') as db:
-            self.jumper.init_db(db)
-
         _splash.progress(85, "Loading Quran's database...")
+
         with G.SQLConnection('quran.db') as db:
             _splash.progress(95, "Init Quran's widget...")
             self.quran_quote.init_db(db)
@@ -188,7 +179,7 @@ class TyperWIN(QMainWindow):
         # SIGNALS
         self.typer.cursorPositionChanged.connect(self.summary_view.updateSummaryHighLight)
         self.summary_view.clicked.connect(self.updateTextCursor)
-        self.typer.textChanged.connect(self.setModified)
+        self.typer.contentEdited.connect(self.setModified)
 
         self.navigator.goto.connect(self.goTo)
 
@@ -197,8 +188,6 @@ class TyperWIN(QMainWindow):
 
         self.viewer.documentLoaded.connect(partial(self.statusbar.updateStatus, 100, "Reference Loaded"))
         self.viewer.pageChanged.connect(self.changePage)
-        self.viewer.pageChanged.connect(self.statusbar.updatePage)
-        self.viewer.pageChanged.connect(self.topic_display.changePage)
         self.exporter.PDF_exporter.progress.connect(self.statusbar.updateStatus)
 
         def insertReference(s, v):
@@ -212,6 +201,7 @@ class TyperWIN(QMainWindow):
         self.quran_search.result_goto.connect(self.goToReference)
 
         self.jumper.result_goto.connect(self.changePage)
+        self.jumper.result_goto.connect(self.viewer.load_page)
         self.jumper.result_insert.connect(self.typer.insertBookSource)
         self.hadith_dialog.result_click.connect(self.typer.insertHtml)
 
@@ -220,12 +210,12 @@ class TyperWIN(QMainWindow):
 
         self.window_title.min_button.clicked.connect(self.showMinimized)
         self.window_title.close_button.clicked.connect(self.close)
+        self.window_title.geometryChanged.connect(self.bakeGeometry)
         self.windowTitleChanged.connect(self.window_title.setTitle)
 
         self.setWindowTitle(f'{self._title} v{G.__ver__}')
 
         super(TyperWIN, self).show()
-        self.hadith_dialog.show()
         self.typer.setFocus()
 
         # if app ran from a file opening, loads it
@@ -289,14 +279,11 @@ class TyperWIN(QMainWindow):
 
         # marking file as saving
         self.statusbar.updateSavedState(1)
-        self.modified.clear()
 
         self._file = filename
 
-        self.updateStatus(15, 'Reconnecting DB...')
-        self.reconnectDBFile()
         self.updateStatus(30, 'Loading project')
-        self.loadBook()
+        S.LOCAL.loadSettings(self._file)
         self.updateStatus(50, 'Loading settings')
         self.loadSettings()
         self.updateStatus(85, 'Loading book')
@@ -307,36 +294,15 @@ class TyperWIN(QMainWindow):
         # we mark the file as saved since it's freshly loaded
         self.statusbar.updateSavedState(2)
 
-    @G.log
-    def backup(self):
-        """
-        make a vacuum of the current file into backup.db, in case of crash of fail at save
-        TODO: autosave of the current page ?
-        """
-        self.updateStatus(0, 'Backup done')
-
-        cwd = G.rsc_path('backup.db')
-        # we first try to remove the old backup file
-        try:
-            os.remove(cwd)
-
-        except FileNotFoundError as e:
-            G.exception(e)
-
-        # now we vacuum our file in it
-        self.db_file.exec_(f"VACUUM main INTO '{cwd}';")
-
-        self.updateStatus(100, 'Backup done')
-
     def loadProject(self):
         """
         Load a project file
         """
         # check if the current page exists in the book
-        if self.page_nb in self._book:
+        if self.page_nb in S.LOCAL.BOOK:
             self.typer.clear()
 
-            self.typer.setHtml(self._book[self.page_nb])
+            self.typer.setHtml(S.LOCAL.BOOK[self.page_nb])
 
             # positioning the cursor in the last saved position
             tc = self.typer.textCursor()
@@ -378,7 +344,7 @@ class TyperWIN(QMainWindow):
         """
 
         # if file hasn't been saved yet : ask for file
-        if not self.db_file:
+        if not S.LOCAL.db:
             self.newProjectDialog()
             return
 
@@ -386,40 +352,15 @@ class TyperWIN(QMainWindow):
         self.statusbar.updateSavedState(1)
 
         # make sure the file's db is connected
-        self.reconnectDBFile()
-        self.backup()
+        S.LOCAL.backup()
 
         # save current page
-        self._book[self.page_nb] = self.typer.toHtml()
-
-        # get total modified page for progress display
-        delta, total = 100 / max(1, len(self.modified)), 0
-
-        for page in self.modified:
-            if len(self.typer.toPlainText()) and page in self._book:
-                q = self.db_file.exec_(f'SELECT * FROM book WHERE page={page}')
-                q.next()
-
-                # make sure we can get our page back
-                quoted_page = html.escape(self._book[page])
-
-                # update the page in db if existing
-                if q.value(0):
-                    self.db_file.exec_(f'UPDATE book SET text="{quoted_page}" WHERE page={page}')
-
-                # else create new one
-                else:
-                    self.db_file.exec_(f'INSERT INTO book (text, page) VALUES ("{quoted_page}", {page})')
-
-                self.statusbar.updateStatus(total, f'Page {page} saved')
-                total += delta
+        S.LOCAL.BOOK[self.page_nb] = self.typer.toHtml()
+        S.LOCAL.BOOK.saveAllPage()
 
         # update widgets
         self.statusbar.updateSavedState(2)
         self.toolbar.buttons['save'].setDisabled(True)
-
-        # flagging as not modified
-        self.modified.clear()
 
         # final save process
         self.saveSettings()
@@ -466,8 +407,8 @@ class TyperWIN(QMainWindow):
 
         # updating the PDF view
         if ok:
-            self.viewer.current_page = page
-            self.viewer.load_page(page)
+            self.changePage(page)
+            self.viewer.load_page()
 
     @G.log
     def goToReference(self, s, v, cmd=''):
@@ -491,7 +432,7 @@ class TyperWIN(QMainWindow):
             self.viewer.load_page(page)
 
             # if the PDF is "connected" then update the current document
-            if self._settings['connect_to_ref']:
+            if S.LOCAL.connected:
                 self.changePage(page)
 
     def loadReferenceDialog(self):
@@ -499,7 +440,7 @@ class TyperWIN(QMainWindow):
         Open a dialog to load a new reference (PDF)
         """
         # if file hasn't been saved yet : ask for file
-        if not self.db_file:
+        if not S.LOCAL.db:
             res = QMessageBox.critical(
                 None,
                 "File's not saved",
@@ -513,7 +454,7 @@ class TyperWIN(QMainWindow):
 
             self.newProjectDialog()
 
-        current_dir = os.path.dirname(self._file)
+        current_dir = os.path.dirname(S.LOCAL.filename)
 
         dialog = QFileDialog(None, "Open a reference's PDF", current_dir)
         dialog.setFileMode(dialog.ExistingFile)
@@ -522,28 +463,14 @@ class TyperWIN(QMainWindow):
         dialog.setAcceptMode(dialog.AcceptOpen)
 
         if dialog.exec_() == dialog.Accepted:
-            self._settings['reference'] = filename = dialog.selectedFiles()[0]
+            filename = dialog.selectedFiles()[0]
 
-            # we first check if the reference PDF is in same folder as project,
-            # if so, we make the path relative, otherwise absolute
-
-            if filename.startswith(current_dir):
-                filename = filename.replace(current_dir, '')
-
-            # we add some new reference parameters
-            self._settings.update({'reference': filename, 'page': 0})
+            S.LOCAL.digestPDF(filename)
 
             self.saveProject()
             self.loadReference()
 
-            self.db_file.exec_('''
-            CREATE TABLE "topics" (
-                "name"	TEXT,
-                "page"	INTEGER,
-                "domain"	TEXT    DEFAULT 'theme'
-            )
-            ''')
-
+            self.updateStatus(90, 'PDF Connected and Loaded')
             self.viewer_frame.show()
             self.saveSettings()
 
@@ -552,23 +479,15 @@ class TyperWIN(QMainWindow):
         """
         Load the current reference in settings
         """
-        path = self._settings['reference']
 
-        if path != '':
-            # check if path is relative '/...' or absolute
-            if path.startswith('/'):
-                path = G.abs_path(path[1:])
-
-            # load the topics linked to the page
-            self.topic_display.load_topics(self.reconnectDBFile())
-
+        if S.LOCAL.PDF:
             try:
                 # trying to open the PDF and load in the viewer
-                self.viewer.load_doc(path)
-                self.viewer.load_page(int(self._settings['page']))
+                self.viewer.load_doc()
+                self.viewer.load_page()
 
                 self.toolbar.buttons['viewer'].setDisabled(False)
-                self.statusbar.setConnection(os.path.basename(path))
+                self.statusbar.setConnection(S.LOCAL.pdf_name)
 
             except RuntimeError as e:
                 G.exception(e)
@@ -592,42 +511,36 @@ class TyperWIN(QMainWindow):
         Update the current page
         """
         # we first save the current page to book
-        if self._settings['connect_to_ref'] and len(self.typer.toPlainText()):
-            self._book[self.page_nb] = self.typer.toHtml()
+        if S.LOCAL.connected and len(self.typer.toPlainText()):
+            S.LOCAL.BOOK[self.page_nb] = self.typer.toHtml()
 
-        self.typer.clear()
+        elif len(self.typer.toPlainText()):
+            S.LOCAL.BOOK[0] = self.typer.toHtml()
 
         self.page_nb = page
 
+        if not S.LOCAL.connected:
+            page = 0
+
+        else:
+            self.topic_display.changePage(page)
+
+        self.typer.clear()
+
         # load the current page if exists
         try:
-            self.typer.document().setHtml(self._book[self.page_nb])
+            self.typer.document().setHtml(S.LOCAL.BOOK[page])
             self.typer.ensureCursorVisible()
 
         except KeyError:
             pass
 
-        self.statusbar.updatePage(page)
-        self.saveCurrentPage(page)
+        self.statusbar.updatePage(self.page_nb)
+        S.LOCAL.page = self.page_nb
 
         return True
 
     # SETTINGS
-
-    @G.log
-    def setSettings(self, setting: str, state: str | int):
-        """
-        Apply setting
-        :param setting: setting's name
-        :param state: setting's attribute
-        """
-        if setting in self._settings:
-            self._settings[setting] = state
-
-        self.saveSettings()
-
-        # set the current page as modified
-        self.setModified()
 
     @G.log
     def loadSettings(self):
@@ -635,47 +548,37 @@ class TyperWIN(QMainWindow):
         Load current settings from current project
         """
 
-        # we first load the project's words dictionnary
-        w = dict()
-        try:
-            q = self.db_file.exec_("SELECT * FROM dict")
-        except AttributeError as e:
-            G.exception(e)
-            return
-
         # we reset the occurence list of the text editor
         self.typer.occurences.clear()
         self.typer.occurences['news'] = set()
         self.typer.occurences['updated'] = set()
 
-        while q.next():
-            # we get the word and its occurence
-            word, value = q.value(0), q.value(1)
-
+        for word, num in S.LOCAL.DICT.items():
             # we get the first three characters and store the candidates
             try:
-                self.typer.occurences[word[:3]]["candidates"][word] = value
+                self.typer.occurences[word[:3]]["candidates"][word] = num
             except KeyError as e:
                 self.typer.occurences[word[:3]] = {
                     "best": word,
                     "candidates": {
-                        word: value
+                        word: num
                     }
                 }
 
-        # now we load the rest of settings
-        q = self.db_file.exec_("SELECT * FROM settings")
-        self._settings.clear()
-        while q.next():
-            self._settings[q.value('field')] = q.value('value')
+        # we update the visual settings
+        self.summary_view.setVisible(S.LOCAL.isSummaryVisible())
+        self.viewer_frame.setVisible(S.LOCAL.isViewerVisible())
 
-        # we update the widgets' visibility
-        self.summary_view.setVisible(bool(self._settings['summary_visible']))
-        self.viewer_frame.setVisible(bool(self._settings['viewer_visible']))
+        self.setGeometry(*S.LOCAL.geometry)
+
+        if S.LOCAL.maximized:
+            self.showMaximized()
+
+        self.dockViewer(not S.LOCAL.viewer_external)
 
         # if it's not connected to a PDF reference, we update the viewer and current page
-        if not self._settings['connect_to_ref']:
-            if len(self._book) > 1:
+        if not S.LOCAL.connected:
+            if len(S.LOCAL.BOOK) > 1:
                 QMessageBox.warning(
                     None,
                     "Bad data",
@@ -684,20 +587,14 @@ class TyperWIN(QMainWindow):
                     defaultButton=QMessageBox.Ok
                 )
 
-            # otherwise we switch the current page to 0
-            self.changePage(0)
-
-            for page in self._book:
-                # we update the first page with the rest of the book
-                if page != 0:
-                    self._book[0] += self._book.pop(page)
-                    break
-
+        self.changePage(S.LOCAL.page)
         self.loadReference()
+
+        self.toolbar.buttons['book_jumper'].setEnabled(S.LOCAL.BOOKMAP.active)
 
         # we update the cursor
         cursor = self.typer.textCursor()
-        cursor.setPosition(self._settings['last_position'], cursor.MoveMode.MoveAnchor)
+        cursor.setPosition(S.LOCAL.position, cursor.MoveMode.MoveAnchor)
 
         self.typer.ensureCursorVisible()
         self.typer.setTextCursor(cursor)
@@ -706,122 +603,43 @@ class TyperWIN(QMainWindow):
     def saveSettings(self):
         """
         Save current settings and occurence list
-        :return:
         """
         words = self.typer.occurences
 
-        # getting the step of progress
-        # FIXME: actually not used since it take a lot of ressource to refresh the UI..
-        try:
-            length = sum(map(lambda x: len(x['candidates']), [words[y] for y in words if len(y) == 3]))
-            s = 0, 100 / float(length)
-        except ZeroDivisionError:
-            s = 100
-        finally:
-            p = 0
-
-        # we first check if database is still connected
-        self.reconnectDBFile()
-
-        # and we appends all fresh words
+        # and we append all fresh words
         for root in words:
             if len(root) == 3:
                 for word in words[root]["candidates"]:
                     occurence = words[root]["candidates"][word]
                     # adding new occurence word
                     if word in words["news"]:
-                        self.db_file.exec_(f'INSERT INTO dict (occurence, word) VALUES ({occurence}, "{word}")')
+                        S.LOCAL.addDictEntry(word, occurence)
 
                     # if the word was already in the occurence list database, just update the occurence num
                     elif word in words["updated"]:
-                        self.db_file.exec_(f'UPDATE dict SET occurence={occurence} WHERE word="{word}"')
-
-                    # increment step progress
-                    # TODO: updating the progressBar was slowing the process, update every 10 words ?
-                    # p += s
+                        S.LOCAL.updateDictEntry(word, occurence)
 
         words["news"].clear()
         words["updated"].clear()
 
-        # check if database is still connected
-        # FIXME: why the db disconnects ?
-        self.reconnectDBFile()
-
-        # saving other settings
-        self.db_file.exec_(f"UPDATE settings SET value=\"{self._settings['reference']}\" WHERE field='reference'")
-        self.db_file.exec_(f"UPDATE settings SET value=\"{self._settings['connect_to_ref']}\" WHERE field='connect_to_ref'")
+        S.LOCAL.page = self.page_nb
+        S.LOCAL.saveAllSettings()
 
         self.saveVisibilitySettings()
-        self.saveCurrentPage(self.page_nb)
 
         # making a backup of the current file
-        # self.backup()
+        S.LOCAL.backup()
 
     @G.log
     def saveVisibilitySettings(self):
         """
         Only save the visibility settings of the UI, to make sure it's fast enough to be seamless
         """
-        try:
-            self.db_file.exec_(f"UPDATE settings SET value={self.typer.textCursor().position()} WHERE field='last_position'")
-            self.db_file.exec_(f"UPDATE settings SET value='{int(self.summary_view.isVisible())}' WHERE field='summary_visible'")
-            self.db_file.exec_(f"UPDATE settings SET value='{int(self.viewer_frame.isVisible())}' WHERE field='viewer_visible'")
+        S.LOCAL.position = self.typer.textCursor().position()
+        S.LOCAL.summary = self.summary_view.isVisible()
+        S.LOCAL.viewer = self.viewer_frame.isVisible()
 
-        except AttributeError as e:
-            G.exception(e)
-            # we kind of force the save of these settings, bullet proof !
-            pass
-
-    @G.log
-    def saveCurrentPage(self, page: int):
-        """
-        Light function to only update current page in project settings
-        :param page: page settings to update
-        """
-        self.db_file.exec_(f"UPDATE settings SET value={page} WHERE field='page'")
-
-    # BOOK
-
-    @G.log
-    def loadBook(self):
-        """
-        Load pages' data from the project file
-        """
-        try:
-            self.typer.clear()
-            self._book.clear()
-
-            # append each page from the SQL db
-            q = self.db_file.exec_("SELECT * FROM book")
-
-            while q.next():
-                self._book[q.value('page')] = html.unescape(q.value('text'))
-
-        except AttributeError as e:
-            G.exception(e)
-            pass
-
-    @G.log
-    def saveTopics(self, topic_add: list, topic_delete: list):
-        """
-        Update the topics for the current page
-        :param topic_add: list of topics to be added
-        :param topic_delete: list of topics to be deleted
-        """
-        # we first make sure the db is connected
-        self.reconnectDBFile()
-
-        # loop to remove all topics from list
-        for topic in topic_delete:
-            self.db_file.exec_(f"DELETE FROM topics WHERE name=\"{topic}\" AND context={self.page_nb}")
-
-        # loop to add all topics from list
-        for topic in topic_add:
-            q = self.db_file.exec_(f"SELECT * FROM topics WHERE name=\"{topic}\" AND context={self.page_nb}").next()
-
-            # if the topic doesn't exist on this page, we add it
-            if not q:
-                self.db_file.exec_(f"INSERT INTO topics ('name', 'page') VALUES (\"{topic}\", {self.page_nb})")
+        S.LOCAL.saveVisualSettings()
 
     # OTHER
 
@@ -829,14 +647,21 @@ class TyperWIN(QMainWindow):
         """
         Update which page will need to be saved and marked as modified
         """
-        self.modified.add(self.page_nb)
 
-        # displaying the red bullet to indicates file isn't saved
-        self.statusbar.updateSavedState(0)
+        try:
+            assert S.LOCAL.BOOK[S.LOCAL.page] != self.typer.toHtml()
+        except KeyError:
+            pass
+        except AssertionError:
+            return
+        finally:
+            # displaying the red bullet to indicates file isn't saved
+            S.LOCAL.setModifiedFlag()
+            self.statusbar.updateSavedState(0)
 
-        # save button now enabled
-        self.toolbar.buttons['save'].setDisabled(False)
-        self.toolbar.buttons['saveas'].setDisabled(False)
+            # save button now enabled
+            self.toolbar.buttons['save'].setDisabled(False)
+            self.toolbar.buttons['saveas'].setDisabled(False)
 
     @G.log
     def createNewFile(self, filename):
@@ -861,78 +686,19 @@ class TyperWIN(QMainWindow):
 
                 return
 
-        # if successfully flushed we create the db
-        connection = QSqlDatabase.addDatabase("QSQLITE")
-        connection.setDatabaseName(filename)
-
-        # just checking if the db has been opened
-        if not connection.open():
-            QMessageBox.critical(
-                None,
-                "Typer - DB Error",
-                "<b>Database Error</b> :\n %s" % connection.lastError().databaseText(),
-            )
-
-            return
-
-        query = QSqlQuery()
-        # we defined the automatic vaccum of the SQLLite file to prevent big size
-        query.exec_('''PRAGMA auto_vacuum = '1';''')
-
-        query.exec_('''
-        CREATE TABLE "book" (
-            "id"	INTEGER UNIQUE,
-            "text"	BLOB,
-            "page"	INTEGER DEFAULT 1,
-            PRIMARY KEY("id" AUTOINCREMENT)
-        )''')
-
-        query.exec_('''
-        CREATE TABLE "pages" (
-            "id"	INTEGER UNIQUE,
-            "name"	TEXT,
-            PRIMARY KEY("id" AUTOINCREMENT)
-        )''')
-
-        query.exec_('''
-        CREATE TABLE "dict" (
-            "word"	TEXT,
-            "occurence"	INTEGER
-        )''')
-
-        query.exec_('''
-        CREATE TABLE "settings" (
-            "field"	TEXT,
-            "value"	INTEGER
-        )''')
-
-        # the default settings
-        # TODO: Change
-        settings = {
-            'last_position': '0',
-            'summary_visible': '0',
-            'reference': '',
-            'page': '0',
-            'connect_to_ref': '0',
-            'viewer_visible': '0',
-            'dark_mode': '1'
-        }
-
-        for stg in settings:
-            query.exec_(f"INSERT INTO settings ('field', 'value') VALUES ('{stg}', '{settings[stg]}');")
+        S.LOCAL.createSettings(filename)
 
         # adding the current page to the db
-        self._book[0] = self.typer.toHtml()
-        query.exec_(f"INSERT INTO book (text, page) VALUES ('{html.escape(self._book[0])}', 0)")
+        S.LOCAL.BOOK[0] = self.typer.toHtml()
+        S.LOCAL.BOOK.savePage(0)
 
     @G.debug
     def checkChanges(self):
         """
         Checking if changes has been done, returns true if everythin went fine
         """
-        # check the modified list and reconnect the database if it's disconnected
-        if len(self.modified) and self.reconnectDBFile():
-
+        # check the modified list
+        if S.LOCAL.isModified():
             dialog = QMessageBox.critical(
                 None,
                 "Typer - changes not saved",
@@ -1024,9 +790,7 @@ class TyperWIN(QMainWindow):
             'book': self._book,
             'typer': self.typer,
             'viewer': self.viewer,
-            'topics': self.topic_display.topics,
-            'dark_mode': self.dark_mode,
-            'multi_page': self._settings['connect_to_ref']
+            'dark_mode': self.dark_mode
         })
 
         # then display export's dialog
@@ -1053,7 +817,7 @@ class TyperWIN(QMainWindow):
         """
         Show / Hide the given widget
         """
-        if widget == self.viewer_frame and self._settings['reference'] != '' or widget != self.viewer_frame:
+        if widget == self.viewer_frame and S.LOCAL.PDF or widget != self.viewer_frame:
             # toggle visibility
             widget.setVisible(not widget.isVisible())
 
@@ -1199,7 +963,6 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none;
 
         self.setWindowTitle(f'{self.getFilesName()} - {self._title} v{G.__ver__}')
 
-
     @staticmethod
     def defaultDialogContext(title='', path=G.__abs_path__, filemode=QFileDialog.AnyFile) -> QFileDialog:
         """
@@ -1219,7 +982,37 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none;
 
         return dialog
 
+    @G.debug
+    def bakeGeometry(self):
+        if not self.isMaximized():
+            geo = self.geometry()
+            S.LOCAL.geometry = (geo.left(), geo.top(), geo.width(), geo.height())
+
+        S.LOCAL.maximized = self.isMaximized()
+
+        if not self.viewer_frame.parent():
+            vgeo = self.viewer_frame.geometry()
+
+            S.LOCAL.viewer_geometry = (vgeo.left(), vgeo.top(), vgeo.width(), vgeo.height())
+
+    def dockViewer(self, state: bool):
+        self.viewer_frame.hide()
+
+        if state:
+            self.splitter.insertWidget(0, self.viewer_frame)
+            self.viewer_frame.setMaximumWidth(int(self.width() / 3))
+        else:
+            self.viewer_frame.setParent(None)
+            self.viewer_frame.setGeometry(*S.LOCAL.viewer_geometry)
+            self.viewer_frame.setMaximumWidth(QWIDGETSIZE_MAX)
+
+        self.viewer_frame.show()
+
     # INHERIT
+    def showMaximized(self):
+        # saving geometry state before maxizing
+        self.bakeGeometry()
+        super(TyperWIN, self).showMaximized()
 
     def keyPressEvent(self, e: QKeyEvent):
         """
@@ -1245,28 +1038,34 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none;
                 self.jumper.show()
 
         # Override the page_up and page_down to switch between project's pages
-        elif e.key() == Qt.Key.Key_PageUp:
+        elif e.key() == Qt.Key.Key_PageUp and S.LOCAL.BOOK:
             # if Shift modifier pressed, it will search for the closest filled page in book
             if modifiers == Qt.KeyboardModifier.ShiftModifier:
-                keys = [i for i in sorted(self._book.keys()) if i < self.viewer.current_page]
+                keys = [i for i in S.LOCAL.BOOK if i < self.viewer.current_page]
                 target = keys[-1] if len(keys) else self.viewer.current_page
             else:
                 target = max(0, self.viewer.current_page - 1)
 
-            self.viewer.load_page(target)
-            if self._settings['connect_to_ref'] == 1:
+            S.LOCAL.page = target
+
+            self.viewer.load_page()
+
+            if S.LOCAL.connected:
                 self.changePage(target)
 
-        elif e.key() == Qt.Key.Key_PageDown:
+        elif e.key() == Qt.Key.Key_PageDown and S.LOCAL.BOOK:
             # if Shift modifier pressed, it will search for the closest filled page in book
             if modifiers == Qt.KeyboardModifier.ShiftModifier:
-                keys = [i for i in sorted(self._book.keys()) if i > self.viewer.current_page]
+                keys = [i for i in S.LOCAL.BOOK if i > self.viewer.current_page]
                 target = keys[0] if len(keys) else self.viewer.current_page
             else:
                 target = min(self.viewer.current_page + 1, self.viewer.doc.page_count - 1)
 
-            self.viewer.load_page(target)
-            if self._settings['connect_to_ref'] == 1:
+            S.LOCAL.page = target
+
+            self.viewer.load_page()
+
+            if S.LOCAL.connected:
                 self.changePage(target)
 
     def closeEvent(self, e: QCloseEvent) -> None:
@@ -1274,7 +1073,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none;
         Preventing the app to close if not saved
         """
 
-        if len(self.modified):
+        if S.LOCAL.isModified() or (len(self.typer.toPlainText()) and not len(S.LOCAL.BOOK)):
 
             # we display a dialog to ask user choice
             res = QMessageBox.warning(
@@ -1291,14 +1090,21 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none;
             # if used wants to cancel we abort the save
             elif res == QMessageBox.Cancel:
                 e.ignore()
+                return
 
-    def resizeEvent(self, e: QResizeEvent) -> None:
-        """
-        Overrides the resize event to force scale on the pdf viewer
-        """
-        if self.viewer_frame.isVisible():
-            # preventing it to scale too much
-            self.viewer_frame.setMaximumWidth(self.width() // 3)
+        self.bakeGeometry()
+        S.LOCAL.saveVisualSettings()
+
+        if S.LOCAL.viewer_external:
+            self.viewer_frame.close()
+
+        if S.LOCAL.PDF:
+            try:
+                self.viewer.doc.close()
+            except ValueError:
+                pass
+            finally:
+                os.unlink(S.LOCAL.PDF)
 
 
 if __name__ == "__main__":

@@ -68,6 +68,7 @@ class TitleBar(QFrame):
 
     default_style = (32, "QFrame#TitleBar { background:#363636;border-top:2px solid grey; }")
     maximized_style = (30, "QFrame#TitleBar { background:#363636; }")
+    geometryChanged = pyqtSignal()
 
     def __init__(self, parent: QMainWindow = None):
         self.win = parent
@@ -174,6 +175,9 @@ class TitleBar(QFrame):
 
         # setting pressed state
         self.pressing = False
+
+        # emit signal to save the geometry settings
+        self.geometryChanged.emit()
 
     def setTitle(self, title=""):
         """

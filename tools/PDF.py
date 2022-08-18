@@ -12,7 +12,8 @@ from PyQt5 import QtPrintSupport
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
-from tools import G
+
+from tools import G, S
 
 
 class Viewer(QWidget):
@@ -30,14 +31,20 @@ class Viewer(QWidget):
         super(Viewer, self).__init__(parent)
         self.win = parent
         self.current_page = 0
+        self.ratio = 1
         self.pixmap = QPixmap()
 
-        layout = QGridLayout(self)
+        layout = QVBoxLayout(self)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
         self.view = QLabel(self)
         self.view.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.view, 0, 0)
+        self.view.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+
+        layout.addWidget(self.view, stretch=1)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
+
         self.setLayout(layout)
 
         # if filename is provided we load it - for debug
@@ -81,8 +88,9 @@ class Viewer(QWidget):
         else:
             self.current_page = min(self.current_page + 1, self.doc.page_count - 1)
 
+        S.LOCAL.page = self.current_page
         # displaying the new page
-        self.load_page(self.current_page)
+        self.load_page()
 
     def mouseDoubleClickEvent(self, e: QMouseEvent):
         """
@@ -92,12 +100,13 @@ class Viewer(QWidget):
             self.win.goTo()
 
     @G.log
-    def load_doc(self, fn):
+    def load_doc(self):
         """
         Loading the given PDF document
         :param fn: the PDF's filename
         """
-        self.doc = fitz.Document(fn)
+        self.doc = fitz.Document(S.LOCAL.PDF)
+        self.ratio = self.doc.page_cropbox(0).width / self.doc.page_cropbox(0).height
 
         # extract the table of content
         self.toc = self.doc.get_toc()
@@ -106,7 +115,7 @@ class Viewer(QWidget):
         self.documentLoaded.emit()
 
     @G.log
-    def load_page(self, page_num=None):
+    def load_page(self, *args):
         """
         Load the given page of the loaded PDF
         :param page_num: the page number
@@ -116,14 +125,8 @@ class Viewer(QWidget):
         if not self.doc:
             return
 
-        # if no page number specified, we take the current_page var
-        if page_num is None:
-            page_num = self.current_page
-
-        # clamping value to make sure we're not out of range
-        else:
-            page_num = max(min(page_num, self.doc.page_count - 1), 0)
-            self.current_page = page_num
+        page_num = max(min(S.LOCAL.page, self.doc.page_count - 1), 0)
+        self.current_page = page_num
 
         # redraw pixmap
         self.redrawPixmap(page_num)
@@ -148,6 +151,7 @@ class Viewer(QWidget):
 
         # setting it as a QLabel's Pixmap
         self.view.setPixmap(pixmap)
+        self.view.setScaledContents(True)
 
     def makePixmap(self, page_num: int, for_printing=False) -> QPixmap:
         """
@@ -160,7 +164,7 @@ class Viewer(QWidget):
         page_data = self.doc.load_page(page_num)
 
         # upscaling ratio for highres (300 dpi)
-        ratio = 10 if for_printing else 1
+        ratio = 10 if for_printing else 2
 
         # get the pixmap from a 1:1 ratio with no alpha
         page = page_data.get_pixmap(matrix=fitz.Matrix(ratio, ratio), alpha=False)
@@ -174,7 +178,11 @@ class Viewer(QWidget):
             page.width,
             page.height,
             page.stride,
-            image_format)
+            image_format
+        )
+
+        if S.LOCAL.viewer_invert:
+            image_data.invertPixels()
 
         self.pixmap = QPixmap()
         self.pixmap.convertFromImage(image_data)
@@ -186,6 +194,34 @@ class Viewer(QWidget):
         super(Viewer, self).resizeEvent(e)
 
         self.redrawPixmap(self.current_page)
+
+
+class ViewerFrame(QWidget):
+    def __init__(self, viewer: Viewer, topics_display: QWidget):
+        super(ViewerFrame, self).__init__()
+        self.viewer = viewer
+        self.viewer.pageChanged.connect(lambda x: self.setWindowTitle(f'Page {x}'))
+        self.viewer.documentLoaded.connect(self.forceResize)
+        self.setWindowIcon(G.icon('Book-Picture'))
+
+        viewer_frame_layout = QVBoxLayout(self)
+        viewer_frame_layout.addWidget(viewer, stretch=1)
+        self.setLayout(viewer_frame_layout)
+
+        viewer_frame_layout.setContentsMargins(0, 0, 0, 0)
+        viewer_frame_layout.setSpacing(0)
+        viewer_frame_layout.addWidget(topics_display, stretch=1)
+        viewer_frame_layout.setAlignment(Qt.AlignTop)
+
+    def forceResize(self):
+        w, h = self.width(), int(self.width() / self.viewer.ratio)
+        self.resize(QSize(w, h))
+
+    def resizeEvent(self, e: QResizeEvent):
+        w = e.size().width()
+        h = int(w / self.viewer.ratio)
+        e.ignore()
+        self.resize(QSize(w, h))
 
 
 class PDF_Exporter(QThread):
