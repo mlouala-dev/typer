@@ -660,6 +660,7 @@ class Typer(QTextEdit):
         """
         tc = self.textCursor()
 
+        tc.beginEditBlock()
         # getting the blocks boundary
         start_block = self.document().findBlock(tc.selectionStart()).blockNumber()
         end_block = self.document().findBlock(tc.selectionEnd()).blockNumber()
@@ -668,6 +669,8 @@ class Typer(QTextEdit):
         for i in range(start_block, end_block + 1):
             block = self.document().findBlockByNumber(i)
             func(block)
+
+        tc.endEditBlock()
 
     def offsetIndent(self, direction: int, block: QTextBlock):
         """
