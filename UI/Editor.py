@@ -773,6 +773,7 @@ class Typer(QTextEdit):
         """
         # getting the block under cursor,
         tc = self.textCursor()
+        tc.beginEditBlock()
         tc.select(tc.SelectionType.BlockUnderCursor)
 
         # if block has no length
@@ -864,19 +865,24 @@ class Typer(QTextEdit):
 
             self.setCurrentCharFormat(cf)
 
+        tc.endEditBlock()
+
     @G.log
     def insertBookSource(self, obj: S.LocalSettings.BookMap.Kitab | S.LocalSettings.BookMap.Bab | S.LocalSettings.BookMap.Hadith):
+        tc = self.textCursor()
+        tc.beginEditBlock()
+
         if isinstance(obj, S.LocalSettings.BookMap.Kitab):
             self.insertPlainText(obj.name)
             self.toggleFormat(Styles.Kitab)
-            tc = self.textCursor()
             tc.insertBlock()
 
         elif isinstance(obj, S.LocalSettings.BookMap.Bab):
             self.insertPlainText(obj.name)
             self.toggleFormat(Styles.Bab)
-            tc = self.textCursor()
             tc.insertBlock()
+
+        tc.endEditBlock()
 
     @staticmethod
     def extractTextFragment(t: str, wide=False) -> str:
