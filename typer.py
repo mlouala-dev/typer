@@ -363,19 +363,6 @@ class TyperWIN(QMainWindow):
         self.saveSettings()
         self.statusbar.updateStatus(100, f"Book saved to '<i>{self.getFilesName()}</i>'")
 
-    @G.log
-    def reconnectDBFile(self) -> QSqlDatabase:
-        """
-        if DB is closed / disconnected, we check the the state
-        :return: None if file doesn't exists
-        """
-        if self._file and os.path.isfile(self._file):
-            connection = QSqlDatabase.addDatabase("QSQLITE")
-            connection.setDatabaseName(self._file)
-            self.db_file = connection.database()
-
-            return self.db_file
-
     # REFERENCE
 
     @G.log
@@ -729,7 +716,7 @@ class TyperWIN(QMainWindow):
         """
 
         # if the current file is saved and
-        if not self.recording and self.reconnectDBFile() and len(self.db_file.tables()):
+        if not self.recording and len(self.db_file.tables()):
             self.updateStatus(0, 'Start recording')
 
             # we define the audio file's name
@@ -737,7 +724,7 @@ class TyperWIN(QMainWindow):
             now_format = now.strftime("%d-%m-%Y_%H-%M-%S")
 
             # we extract the current file name
-            file_name = os.path.split(self.db_file.databaseName())[1].split(".")[0]
+            file_name = os.path.split(self._file)[1].split(".")[0]
             self.audio_recorder.filename = f"{file_name}_{now_format}_{now}"
 
             # starting audio record
