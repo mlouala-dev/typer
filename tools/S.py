@@ -626,7 +626,7 @@ class LocalSettings(_Settings):
                 previous_hid = 1
 
                 # if we have some PDF data we look after a book's map
-                for page, kitab, bab, hid, subid in self.cursor.execute('SELECT * FROM bookmap_pages').fetchall():
+                for page, kitab, bab, hid, subid in self.cursor.execute('SELECT * FROM bm_pages').fetchall():
                     page = LocalSettings.BookMap.Page(
                         page=page,
                         kid=kitab,
@@ -637,13 +637,13 @@ class LocalSettings(_Settings):
                     previous_hid = hid
                     self.BOOKMAP.pages.append(page)
 
-                for kid, name, page in self.cursor.execute('SELECT * FROM bookmap_kutub').fetchall():
+                for kid, name, page in self.cursor.execute('SELECT * FROM bm_kutub').fetchall():
                     kitab = self.BOOKMAP.kutub[kid] = LocalSettings.BookMap.Kitab(
                         name=clean_harakat(name),
                         kid=kid,
                         page=self.BOOKMAP.pages[page]
                     )
-                    for bid, bname, bpage in self.cursor.execute(f'SELECT id, name, page FROM bookmap_abwab WHERE kitab={kid}').fetchall():
+                    for bid, bname, bpage in self.cursor.execute(f'SELECT id, name, page FROM bm_abwab WHERE kitab={kid}').fetchall():
                         if bname:
                             bab = LocalSettings.BookMap.Bab(
                                 name=clean_harakat(bname),
@@ -655,7 +655,7 @@ class LocalSettings(_Settings):
                             self.BOOKMAP.abwab.append(bab)
                             kitab.abwab.append(bab)
 
-                for hid, subid, kitab, bab, hadith, grade in self.cursor.execute('SELECT * FROM bookmap_ahadith').fetchall():
+                for hid, subid, kitab, bab, hadith, grade in self.cursor.execute('SELECT * FROM bm_ahadith').fetchall():
                     hadith = LocalSettings.BookMap.Hadith(
                         hid=hid,
                         sub_id=subid,
