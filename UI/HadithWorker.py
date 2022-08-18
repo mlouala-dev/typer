@@ -93,6 +93,7 @@ class Hadith:
 class HadithSearch(QDialog):
     db: QSqlDatabase
     hadiths: [Hadith]
+    loading_step = pyqtSignal(int, int)
     result_click = pyqtSignal(str)
 
     def __init__(self, parent=None):
@@ -143,8 +144,18 @@ class HadithSearch(QDialog):
         self.close()
 
     def init_db(self, db: QSqlDatabase = None):
-        q = db.exec_('SELECT * FROM ahadith ORDER BY id DESC')
+        """
+        Loading the hadith database from hadith.db
+        :param db: the QSQlDatabase object
+        """
+        # getting the current number of hadiths
+        length = db.exec_('SELECT COUNT(*) FROM ahadith')
+        length.next()
 
+        s = int(length.value(0) / 100)  # the step
+        c = 0   # current hadith count
+
+        q = db.exec_('SELECT * FROM ahadith ORDER BY id DESC')
         while q.next():
             hadith = Hadith(
                 hid=q.value('id'),
@@ -157,6 +168,10 @@ class HadithSearch(QDialog):
             hadith.addTranslation(sq.value('hadith'), sq.value('rawi'), sq.value('grade'))
 
             self.hadiths.append(hadith)
+            if not c % s:
+                self.loading_step.emit(c, int(c / s))
+
+            c += 1
 
     def preview(self, e: QKeyEvent):
         if isinstance(e, QKeyEvent):
