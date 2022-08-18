@@ -45,7 +45,6 @@ background: qlineargradient(x1: 0, y1: 0.5, x2: 1, y2: 0.5, stop: 0 #0054AA, sto
         self.message.setStyleSheet("color:black;")
         self.setFixedSize(700, 390)
 
-    @G.debug
     def progress(self, v=0, msg=""):
         """
         Update slashscreen's progress
@@ -466,6 +465,10 @@ class Summary(QTreeWidget):
         :param document: the current open text document
         """
 
+        # abort if hidden
+        if self.isHidden():
+            return
+
         def emptyChild(b: QTextBlock) -> dict:
             """
             Returns a simple dictionnary for the given block
@@ -669,6 +672,7 @@ class StatusBar(QStatusBar):
         self.repaint()
         QApplication.processEvents()
 
+    @G.log
     def updateSavedState(self, state: int):
         """
         Display or hide a small red bullet to indicates if file is saved or no

@@ -628,8 +628,9 @@ class Typer(QTextEdit):
 
             self.new_word = True
 
-        # if we reach this point this mean changes occured on the text
-        self.contentEdited.emit()
+        # if there is a character we update the changed state
+        if len(e.text()):
+            self.contentEdited.emit()
 
     def insertNote(self):
         """

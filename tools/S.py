@@ -80,6 +80,9 @@ class LocalSettings(_Settings):
         def setModified(self, page: int):
             self._mod.add(page)
 
+        def unsetModified(self, page: int):
+            self._mod.remove(page)
+
         def isModified(self):
             return bool(len(self._mod))
 
@@ -90,6 +93,7 @@ class LocalSettings(_Settings):
             return self._book[item]
 
         def __setitem__(self, key, value):
+            print('updating', self._book[key] != value)
             try:
                 assert self._book[key] != value
             except AssertionError:
@@ -660,6 +664,10 @@ class LocalSettings(_Settings):
     def setModifiedFlag(self):
         if len(self.BOOK):
             self.BOOK.setModified(self.page if self.connected else 0)
+
+    def unsetModifiedFlag(self):
+        if len(self.BOOK):
+            self.BOOK.unsetModified(self.page if self.connected else 0)
 
     # Dict
     def addDictEntry(self, word: str, occurence: int):

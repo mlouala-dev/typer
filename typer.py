@@ -174,9 +174,8 @@ class TyperWIN(QMainWindow):
         _splash.deleteLater()
 
         # SIGNALS
-        self.typer.cursorPositionChanged.connect(self.summary_view.updateSummaryHighLight)
-        self.summary_view.clicked.connect(self.updateTextCursor)
         self.typer.contentEdited.connect(self.setModified)
+        self.summary_view.clicked.connect(self.updateTextCursor)
 
         self.navigator.goto.connect(self.goTo)
 
@@ -204,6 +203,7 @@ class TyperWIN(QMainWindow):
 
         self.typer.contentChanged.connect(partial(self.summary_view.build, self.typer.document()))
         self.typer.contentChanged.connect(self.summary_view.updateSummaryHighLight)
+        self.typer.cursorPositionChanged.connect(self.summary_view.updateSummaryHighLight)
 
         self.window_title.min_button.clicked.connect(self.showMinimized)
         self.window_title.close_button.clicked.connect(self.close)
@@ -627,25 +627,34 @@ class TyperWIN(QMainWindow):
 
     # OTHER
 
+    @G.debug
     def setModified(self):
         """
         Update which page will need to be saved and marked as modified
         """
 
+        state = True
+
         try:
             assert S.LOCAL.BOOK[S.LOCAL.page] != self.typer.toHtml()
+
         except KeyError:
             pass
+
         except AssertionError:
-            return
-        finally:
-            # displaying the red bullet to indicates file isn't saved
+            S.LOCAL.unsetModifiedFlag()
+            state = False
+
+        else:
             S.LOCAL.setModifiedFlag()
-            self.statusbar.updateSavedState(0)
+
+        finally:
+            # displaying the bullet to indicates file's state
+            self.statusbar.updateSavedState(0 if state else 2)
 
             # save button now enabled
-            self.toolbar.buttons['save'].setDisabled(False)
-            self.toolbar.buttons['saveas'].setDisabled(False)
+            self.toolbar.buttons['save'].setDisabled(not state)
+            self.toolbar.buttons['saveas'].setDisabled(not state)
 
     @G.log
     def createNewFile(self, filename):
