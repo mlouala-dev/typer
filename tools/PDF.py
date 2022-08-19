@@ -661,7 +661,7 @@ class PDF_Exporter(QThread):
 
             # and get all the pages as text
             for page in doc:
-                txt_doc.append(page.getText())
+                txt_doc.append(page.get_text())
 
         # deleting the pdf temporary file
         os.unlink(fp)
