@@ -818,17 +818,36 @@ class Typer(QTextEdit):
     @G.log
     def insertBookSource(self, obj: S.LocalSettings.BookMap.Kitab | S.LocalSettings.BookMap.Bab | S.LocalSettings.BookMap.Hadith):
         tc = self.textCursor()
+        tc.select(tc.SelectionType.BlockUnderCursor)
+        # if block has no length
+        is_empty_block = not len(tc.selectedText())
+
+        tc = self.textCursor()
         tc.beginEditBlock()
 
-        if isinstance(obj, S.LocalSettings.BookMap.Kitab):
-            self.insertPlainText(obj.name)
-            self.toggleFormat(Styles.Kitab)
+        if is_empty_block:
+            if isinstance(obj, S.LocalSettings.BookMap.Kitab):
+                self.insertPlainText('كتاب ' + obj.name)
+                self.toggleFormat(Styles.Kitab)
+
+            elif isinstance(obj, S.LocalSettings.BookMap.Bab):
+                self.insertPlainText('باب ' + obj.name)
+                self.toggleFormat(Styles.Bab)
+
+            elif isinstance(obj, S.LocalSettings.BookMap.Hadith):
+                self.insertHtml(f'<h3><center>{obj.toHtml()}</center></h3>')
             tc.insertBlock()
 
-        elif isinstance(obj, S.LocalSettings.BookMap.Bab):
-            self.insertPlainText(obj.name)
-            self.toggleFormat(Styles.Bab)
-            tc.insertBlock()
+        else:
+            reset_style = '<span style=""> </span>'
+            if isinstance(obj, S.LocalSettings.BookMap.Kitab):
+                self.insertHtml(f'<span style="color:#267dff; font-weight:600;">كتاب {obj.name}</span>{reset_style}')
+
+            elif isinstance(obj, S.LocalSettings.BookMap.Bab):
+                self.insertHtml(f'<span style="color:#73c3ff;">باب {obj.name}</span>{reset_style}')
+
+            elif isinstance(obj, S.LocalSettings.BookMap.Hadith):
+                self.insertHtml(f'{obj.toHtml()}{reset_style}')
 
         tc.endEditBlock()
 

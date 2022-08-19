@@ -80,7 +80,7 @@ class Header(TyperStyle):
     The Alt+1 style
     """
     id = 1
-    children = ['TitleStyle', 'SubTitleStyle']
+    children = ['Title', 'SubTitle']
 
     def apply(self, block: QTextBlockFormat, textchar: QTextCharFormat):
         block.setAlignment(Qt.AlignCenter)
@@ -98,7 +98,7 @@ class Title(TyperStyle):
     The Alt+2 style
     """
     id = 2
-    children = ['SubTitleStyle']
+    children = ['Subtitle']
 
     def apply(self, block: QTextBlockFormat, textchar: QTextCharFormat):
         block.setAlignment(Qt.AlignLeft)
@@ -157,16 +157,19 @@ class SuratAR(TyperStyle):
 
 class KitabAR(SuratAR):
     id = 981
+    children = ['BabAR', 'HadithAR']
     pass
 
 
 class BabAR(SuratAR):
     id = 982
+    children = ['HadithAR']
 
     def apply(self, block: QTextBlockFormat, textchar: QTextCharFormat):
         super(BabAR, self).apply(block, textchar)
-
-        block.setLineHeight(60.0, 1)
+        block.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        block.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        block.setLineHeight(90.0, 1)
 
         f = textchar.font()
         f.setBold(True)
@@ -175,6 +178,23 @@ class BabAR(SuratAR):
         textchar.setFont(f)
         textchar.setForeground(QBrush(QColor(115, 195, 255)))
         textchar.setFontPointSize(30.0)
+
+
+class HadithAR(TyperStyle):
+    id = 983
+
+    def apply(self, block: QTextBlockFormat, textchar: QTextCharFormat):
+        block.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        block.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+
+        f = textchar.font()
+        f.setBold(False)
+        f.setItalic(False)
+        f.setUnderline(False)
+        default = QTextCharFormat()
+        textchar.setFont(f)
+        textchar.setForeground(default.foreground())
+        textchar.setFontPointSize(21.0)
 
 
 class SuratFR(TyperStyle):
@@ -250,6 +270,7 @@ class Styles:
     Ayat = Ayat()
     Kitab = KitabAR()
     Bab = BabAR()
+    Hadith = HadithAR()
 
 
 # the keyboard's shortcut connections

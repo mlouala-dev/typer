@@ -823,7 +823,7 @@ class Navigator(QDialog):
         this scan the given book dict and determine the corresponding pages' blocks
         """
         # abort if there is no page
-        if not S.LOCAL.BOOK and not len(S.LOCAL.BOOK):
+        if not S.LOCAL.BOOK or not len(S.LOCAL.BOOK):
             return
 
         # this should delete everything but doesn't work completly
@@ -1266,7 +1266,7 @@ class Jumper(QDialog):
                 self.result_goto.emit(S.LOCAL.BOOKMAP.getPageResult(cmd).page - 1)
 
             else:
-                self.result_insert.emit(S.LOCAL.BOOKMAP.getTextResult(cmd))
+                self.result_insert.emit(S.LOCAL.BOOKMAP.getObjectResult(cmd))
 
             self.close()
 

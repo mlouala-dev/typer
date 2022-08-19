@@ -6,6 +6,7 @@ import sqlite3
 import html
 import tempfile
 import os
+import re
 
 from tools import G
 from tools.translitteration import translitterate, re_ignore_hamza, clean_harakat
@@ -178,6 +179,14 @@ class LocalSettings(_Settings):
                 self.content = content
                 self.grade = grade
 
+            def toHtml(self):
+                h = re.sub(r"« (.*?) »", r'<b>"\1"</b>', self.content)
+                h = re.sub(r"\{ (.*) \}", r'''<span style="font-weight:600; color:#169b4c;">﴾ \1 ﴿</span>''', h)
+                h = re.sub(r"\{\( (.*) \)\}", r'''<span style="font-weight:600; color:#169b4c;">﴾ \1 ﴿</span>''', h)
+                n = f'<span style="font-weight:600; color:#9b6a28;">{self.id}</span>'
+                n += f' <span style="font-weight:600; color:#bb9a48;"><i>[{self.sub_id}]</i></span>'
+                return f'''{n} {h} <i>({self.grade})</i>'''
+
         class Page:
             def __init__(self, page=0, kid=0, bid=0, previous_hid=1, hid=1):
                 self.page = page
@@ -334,6 +343,9 @@ class LocalSettings(_Settings):
                 return result.page
             elif isinstance(result, LocalSettings.BookMap.Hadith):
                 return self.getPage(result.id)
+
+        def getObjectResult(self, cmd=''):
+            return self._query(cmd)
 
     class Dict:
         class Word:

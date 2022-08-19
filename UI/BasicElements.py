@@ -3,7 +3,7 @@
 Some very basic elements used by the UI
 """
 from PyQt5.QtCore import *
-from PyQt5.QtGui import QColor, QTextOption, QFont, QPainter, QKeyEvent
+from PyQt5.QtGui import QColor, QTextOption, QFont, QPainter, QKeyEvent, QTextFormat
 from PyQt5.QtWidgets import *
 
 
@@ -29,6 +29,8 @@ class AyatModelItem(QStyledItemDelegate):
     """
     Custome itemDelegate for proper arabic text display and multiline
     """
+    color = QColor(115, 195, 255)
+
     to = QTextOption()
     to.setTextDirection(Qt.LayoutDirection.RightToLeft)
     to.setWrapMode(to.WrapMode.WordWrap)
@@ -44,8 +46,12 @@ class AyatModelItem(QStyledItemDelegate):
         # drawing with QPainter
         painter.fillRect(option.rect, bg)
         painter.setFont(self.font)
+
+        painter.setPen(self.color)
         newrect = QRectF(option.rect)
         newrect.setY(newrect.y() + self.font.pointSize() - 10)
+        newrect.translate(10, 0)
+        newrect.setWidth(newrect.width() - 20)
 
         painter.drawText(newrect, index.data(), option=self.to)
 
@@ -57,6 +63,8 @@ class MultiLineModelItem(AyatModelItem):
     """
     Same as before, for latin text
     """
+    color = Qt.white
+
     to = QTextOption()
     to.setTextDirection(Qt.LayoutDirection.LeftToRight)
     to.setWrapMode(to.WrapMode.WordWrap)

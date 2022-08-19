@@ -118,7 +118,7 @@ class HadithSearch(QDialog):
         self.result_label = QLabel(self)
         self.main_layout.addWidget(self.result_label)
 
-        self.arabic_font = G.get_font(1.4)
+        self.arabic_font = G.get_font(1.5)
         self.translation_font = G.get_font(1.3)
         ayat_model_ar = AyatModelItem(font=self.arabic_font)
         ayat_model_fr = MultiLineModelItem(font=self.translation_font)
