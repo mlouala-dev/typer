@@ -473,15 +473,16 @@ class Typer(QTextEdit):
             if tc.block().userData().state != G.State_Correction:
                 # and imports all word to our frequency list
                 splitted_text = text.split(" ")
+                exit_seq = set(''.join(G.exit_keys.values()))
+
                 for i, word_text in enumerate(splitted_text[1:]):
                     try:
-                        assert len(word_text) >= 3 or len(splitted_text[i]) >= 3
-                        assert word_text[0] in string.ascii_letters or splitted_text[i][0] in string.ascii_letters
+                        assert len(word_text) > 3 and len(splitted_text[i]) > 3
+                        assert word_text[0] in string.ascii_letters and splitted_text[i][0] in string.ascii_letters
 
-                        for char in G.new_word_keys.values():
-                            # skipping the word if contains bad characters
-                            if char in word_text or char in splitted_text[i]:
-                                raise IndexError
+                        # if there is a character intersection between these sequences it means it contains
+                        # bad characters
+                        assert not len(set(word_text).union(set(splitted_text[i])).intersection(exit_seq))
 
                     except (AssertionError, IndexError):
                         continue
