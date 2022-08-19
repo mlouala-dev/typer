@@ -10,11 +10,11 @@ from shutil import copyfile
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
-from PyQt5.QtSql import QSqlDatabase, QSqlQuery
+from PyQt5.QtSql import QSqlDatabase
 
 from UI import QuranWorker, Editor
 from UI.HadithWorker import HadithSearch
-from UI.Modules import Settings, Navigator, GlobalSearch, Exporter, Jumper, TopicsBar
+from UI.Modules import Settings, Navigator, GlobalSearch, Exporter, Jumper, TopicsBar, BreadCrumbs
 from UI.MainComponents import StatusBar, Summary, TitleBar, Toolbar, SplashScreen
 
 from tools import G, PDF, Threads, S
@@ -113,6 +113,8 @@ class TyperWIN(QMainWindow):
         self.summary_view.hide()
 
         self.toolbar = Toolbar(self)
+        self.breadcrumbs = BreadCrumbs(self)
+        self.breadcrumbs.setHidden(True)
 
         _splash.progress(55, "Loading UI Window Title...")
         self.window_title = TitleBar(self)
@@ -136,10 +138,12 @@ class TyperWIN(QMainWindow):
         # Main layout operations
         _layout.addWidget(self.window_title)
         _layout.addWidget(self.toolbar)
+        _layout.addWidget(self.breadcrumbs)
         _layout.addWidget(self.splitter)
         _layout.setRowStretch(0, 0)
         _layout.setRowStretch(1, 0)
-        _layout.setRowStretch(2, 1)
+        _layout.setRowStretch(2, 0)
+        _layout.setRowStretch(3, 1)
         _layout.setColumnStretch(0, 1)
         _layout.setSpacing(0)
         _layout.setContentsMargins(0, 0, 0, 0)
@@ -175,6 +179,8 @@ class TyperWIN(QMainWindow):
 
         # SIGNALS
         self.typer.contentEdited.connect(self.setModified)
+        self.breadcrumbs.goto.connect(self.changePage)
+        self.breadcrumbs.goto.connect(self.viewer.load_page)
         self.summary_view.clicked.connect(self.updateTextCursor)
 
         self.audio_recorder.audio_pike.connect(self.statusbar.record_volume.setValue)
@@ -482,6 +488,9 @@ class TyperWIN(QMainWindow):
                 self.viewer_frame.hide()
                 return
 
+            if len(S.LOCAL.BOOKMAP.pages):
+                self.breadcrumbs.show()
+
         else:
             # if ever path isn't valid we hide the PDF viewer
             self.viewer_frame.hide()
@@ -518,6 +527,8 @@ class TyperWIN(QMainWindow):
             pass
 
         self.statusbar.updatePage(self.page_nb)
+        self.breadcrumbs.updatePage(self.page_nb)
+
         S.LOCAL.page = self.page_nb
 
         return True
@@ -1004,11 +1015,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none;
                 target = max(0, self.viewer.current_page - 1)
 
             S.LOCAL.page = target
-
             self.viewer.load_page()
-
-            if S.LOCAL.connected:
-                self.changePage(target)
 
         elif e.key() == Qt.Key.Key_PageDown and S.LOCAL.BOOK:
             # if Shift modifier pressed, it will search for the closest filled page in book
@@ -1019,11 +1026,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none;
                 target = min(self.viewer.current_page + 1, self.viewer.doc.page_count - 1)
 
             S.LOCAL.page = target
-
             self.viewer.load_page()
-
-            if S.LOCAL.connected:
-                self.changePage(target)
 
     def closeEvent(self, e: QCloseEvent) -> None:
         """

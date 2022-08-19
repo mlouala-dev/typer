@@ -16,6 +16,183 @@ from tools import G, S
 from tools.PDF import PDF_Exporter
 
 
+class BreadCrumbs(QWidget):
+    goto = pyqtSignal(int)
+
+    class Level(QLabel):
+        colors = ['267dff', '73c3ff', 'fff']
+        hoverChanged = pyqtSignal(bool)
+        clicked = pyqtSignal(QMouseEvent, int, int)
+
+        def __init__(self, level=1, parent=None):
+            self.level = level
+            self.last = level == 3
+            self.hover = False
+            self.nextHover = False
+            self.t = ''
+            self.n = -1
+
+            super().__init__('', parent)
+            self.setContentsMargins(10, 3, 25, 1)
+            self.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+            self.setMouseTracking(True)
+
+        def mousePressEvent(self, e: QMouseEvent):
+            if e.button() == 1:
+                self.clicked.emit(e, self.level, self.n)
+
+        def enterEvent(self, e):
+            self.hover = True
+            self.hoverChanged.emit(True)
+            self.repaint()
+
+        def leaveEvent(self, e):
+            self.hover = False
+            self.hoverChanged.emit(False)
+            self.repaint()
+
+        def formatText(self, text=''):
+            num = f'{self.n}.&#x200e; ' if self.n != -1 else ''
+            return f'{num}<b><span style="color:#{self.colors[self.level - 1]}">{text}</span></b>'
+
+        def setText(self, p_str):
+            self.t = p_str
+            super().setText(self.formatText(self.t))
+
+        def setNum(self, num):
+            self.n = num
+            super().setText(self.formatText(self.t))
+
+        def nextStateChanged(self, state):
+            self.nextHover = state
+            self.repaint()
+
+        def paintEvent(self, event):
+            default_bg = QBrush(QColor(78, 78, 78))
+            on_color = QBrush(QColor(38, 38, 38))
+            on_line = QColor(48, 48, 48) if not self.hover else QColor(38, 125, 255)
+            button_color = on_color if self.hover else default_bg
+            qp = QPainter(self)
+            qp.setRenderHint(QPainter.Antialiasing)
+            qp.setPen(Qt.NoPen)
+            qp.setBrush(button_color)
+            if self.level == 1:
+                qp.drawRoundedRect(QRect(0, 0, self.width() // 2 + 15, self.height()), 15, 15)
+            else:
+                qp.drawRect(QRect(0, 0, self.width() // 2, self.height()))
+
+            if not self.last:
+                qp.setBrush(default_bg if not self.nextHover else on_color)
+                qp.drawRect(QRect(self.width() // 2, 0, self.width() // 2 + 5, self.height()))
+
+            qp.setBrush(button_color)
+            qp.drawPolygon(QPolygon([
+                QPoint(self.width() // 2, -10),
+                QPoint(self.width() // 2, self.height() + 10),
+                QPoint(self.width() - 20, self.height() + 10),
+                QPoint(self.width(), self.height() // 2),
+                QPoint(self.width() - 20, -10)
+            ]), Qt.OddEvenFill)
+
+            qp.setPen(QPen(on_line, 3))
+            qp.drawLines([QLine(
+                    QPoint(self.width() - 20, self.height() + 10),
+                    QPoint(self.width(), self.height() // 2)
+                ), QLine(
+                    QPoint(self.width(), self.height() // 2),
+                    QPoint(self.width() - 20, -10)
+                )
+            ])
+
+            super().paintEvent(event)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFont(G.get_font(1.2))
+        self.setFixedHeight(30)
+        self.setContentsMargins(0, 0, 0, 0)
+        layout = QHBoxLayout()
+        self.setMouseTracking(True)
+
+        self.l1 = BreadCrumbs.Level(1)
+        self.l1.clicked.connect(self.crumbPressed)
+        self.l2 = BreadCrumbs.Level(2)
+        self.l2.clicked.connect(self.crumbPressed)
+        self.l3 = BreadCrumbs.Level(3)
+        self.l2.hoverChanged.connect(self.l1.nextStateChanged)
+        self.l3.hoverChanged.connect(self.l2.nextStateChanged)
+
+        self.levels = [self.l1, self.l2, self.l3]
+
+        layout.addWidget(self.l1, stretch=0)
+        layout.addWidget(self.l2, stretch=0)
+        layout.addWidget(self.l3, stretch=0)
+        layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        layout.setContentsMargins(10, 0, 0, 0)
+        layout.setSpacing(0)
+
+        self.setLayout(layout)
+
+    def setLevel(self, level: int, text: str = '', num: int = -1):
+        self.levels[level - 1].setHidden(text == '')
+        self.levels[level - 1].setText(text)
+        self.levels[level - 1].setNum(num)
+
+    def crumbPressed(self, e: QMouseEvent, level: int, num: int = -1):
+        global_pos = self.mapToGlobal(e.pos())
+        menu = QMenu()
+
+        if level == 1:
+            for kitab in S.LOCAL.BOOKMAP.kutub.values():
+                action = QAction(kitab.name, menu)
+                if kitab.id == num:
+                    action.setIcon(G.icon('Accept'))
+                action.triggered.connect(partial(self.goto.emit, int(kitab.page) - 1))
+                menu.addAction(action)
+        elif level == 2:
+            kitab = S.LOCAL.BOOKMAP.getKitab(S.LOCAL.BOOKMAP.pages[S.LOCAL.page].kid)
+            for bab in kitab.abwab:
+                action = QAction(bab.name, menu)
+                if bab.id == num:
+                    action.setIcon(G.icon('Accept'))
+                action.triggered.connect(partial(self.goto.emit, int(bab.page) - 1))
+                menu.addAction(action)
+
+        menu.exec_(global_pos)
+
+    @G.log
+    def updatePage(self, page):
+        page += 1
+        if S.LOCAL.PDF:
+            p = S.LOCAL.BOOKMAP.pages[page]
+
+            try:
+                k = S.LOCAL.BOOKMAP.getKitab(p.kid)
+                kitab = k.name
+            except KeyError:
+                kitab = ''
+
+            try:
+                b = S.LOCAL.BOOKMAP.getBab(p.bid, p.kid)
+                bab = b.name
+            except KeyError:
+                bab = ''
+
+            if len(p.hids):
+                h = S.LOCAL.BOOKMAP.getPageHadith(page)[0]
+                hadith = h.content
+                hadith_num = h.sub_id
+                if len(hadith) > 30:
+                    hadith = f'{hadith[:30]} (...)'
+            else:
+                hadith = ''
+                hadith_num = -1
+
+            self.setLevel(1, kitab, p.kid)
+            self.setLevel(2, bab, p.bid)
+            self.setLevel(3, hadith, hadith_num)
+
+
 class TopicsBar(QWidget):
     """
     The panel display the current topics for the given page

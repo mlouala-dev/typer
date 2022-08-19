@@ -124,10 +124,14 @@ class LocalSettings(_Settings):
                 :type page: Jumper.Page
                 """
                 self.id = kid
-                self.name = name
+                self._name = name
                 self.page = page
                 self.abwab = list()
                 self.ahadith = list()
+
+            @property
+            def name(self):
+                return f'كتاب {self._name}'
 
             def getBab(self, bid: int):
                 """
@@ -156,9 +160,13 @@ class LocalSettings(_Settings):
                 """
                 self.id = bid
                 self.kid = kid
-                self.name = name
+                self._name = name
                 self.page = page
                 self.ahadith = list()
+
+            @property
+            def name(self):
+                return f'باب {self._name}'
 
             def getHadith(self, hid: int):
                 """
@@ -194,6 +202,9 @@ class LocalSettings(_Settings):
                 self.bid = bid
                 self.hids = frozenset(range(previous_hid, hid))
 
+            def __int__(self):
+                return self.page
+
             def __contains__(self, item):
                 return item in self.hids
 
@@ -225,7 +236,7 @@ class LocalSettings(_Settings):
             else:
                 raise KeyError
 
-        def getPage(self, hid: int) -> Page:
+        def getHadithPage(self, hid: int) -> Page:
             """
             returns the page for the given id
             :param hid: the id of the searched object
@@ -233,6 +244,9 @@ class LocalSettings(_Settings):
             for page in self.pages:
                 if hid in page:
                     return page
+
+        def getPageHadith(self, page: int) -> [Hadith]:
+            return [h for h in self.datas if h.id in self.pages[page].hids]
 
         def findKitab(self, needle: str) -> Kitab:
             for index, kitab in self.kutub.items():
@@ -342,7 +356,7 @@ class LocalSettings(_Settings):
             elif isinstance(result, LocalSettings.BookMap.Bab):
                 return result.page
             elif isinstance(result, LocalSettings.BookMap.Hadith):
-                return self.getPage(result.id)
+                return self.getHadithPage(result.id)
 
         def getObjectResult(self, cmd=''):
             return self._query(cmd)

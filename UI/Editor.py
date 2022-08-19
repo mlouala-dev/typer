@@ -828,11 +828,11 @@ class Typer(QTextEdit):
 
         if is_empty_block:
             if isinstance(obj, S.LocalSettings.BookMap.Kitab):
-                self.insertPlainText('كتاب ' + obj.name)
+                self.insertPlainText(obj.name)
                 self.toggleFormat(Styles.Kitab)
 
             elif isinstance(obj, S.LocalSettings.BookMap.Bab):
-                self.insertPlainText('باب ' + obj.name)
+                self.insertPlainText(obj.name)
                 self.toggleFormat(Styles.Bab)
 
             elif isinstance(obj, S.LocalSettings.BookMap.Hadith):
