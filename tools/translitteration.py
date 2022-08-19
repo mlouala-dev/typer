@@ -260,14 +260,14 @@ def translitterate(text: str, no_harakat=False) -> str:
 
     # looping through all words' characters
     for harf in letters:
-        next: Letter
-        pre: Letter
+        POST: Letter
+        PRE: Letter
 
         i = harf.id
         letter = harf.letter
         accent = harf.accent
-        next = harf.next
-        pre = harf.previous
+        POST = harf.next
+        PRE = harf.previous
 
         # if previous word's done, checking it should end with a ى
         if letter == " ":
@@ -277,29 +277,29 @@ def translitterate(text: str, no_harakat=False) -> str:
             char_cnt += 1
 
         # this indicates if we're on the last character of a word
-        char_last = i < (len(letters) - 1) and next.letter == ' ' or i == (len(letters) - 1)
+        char_last = i < (len(letters) - 1) and POST.letter == ' ' or i == (len(letters) - 1)
 
         # the alif character can 'wear' different hamza variant depending
         # on it's tashkil but also the previous one
         if letter == "'":
-            if accent == "a" and (pre.accent == '' or pre.accent == 'a') and char_cnt >= 2 and not char_last:
+            if accent == "a" and (PRE.accent == '' or PRE.accent == 'a') and char_cnt >= 2 and not char_last:
                 final += "أ"
-            elif accent == "u" and (i == 0 or (i > 0 and pre.letter == " ")):
+            elif accent == "u" and (i == 0 or (i > 0 and PRE.letter == " ")):
                 final += "أ"
             elif char_cnt == 1:
                 final += "ا"
-                harf.accent = ""
+                harf.accent = accent = ""
             elif char_last and accent == "a":
                 final += "ى"
             elif char_last and accent == "":
                 final += "ء"
-            elif accent == 'a' and 'a' in pre.accent:
+            elif accent == 'a' and 'a' in PRE.accent:
                 final += "ء"
-            elif 'i' in accent and not pre.accent == '' or 'i' in pre.accent and not pre.letter == 'b':
+            elif 'i' in accent and not PRE.accent == '' or 'i' in PRE.accent and not PRE.letter == 'b':
                 final += "ئ"
-            elif 'i' in accent and pre.accent == '':
+            elif 'i' in accent and PRE.accent == '':
                 final += "إ"
-            elif 'u' in pre.accent:
+            elif 'u' in PRE.accent:
                 final += "ؤ"
             else:
                 final += matching[letter]
@@ -309,12 +309,12 @@ def translitterate(text: str, no_harakat=False) -> str:
             final += matching[letter]
 
         # if the letter is doubled and the previous didn't have accent like 'zilla'
-        if i > 0 and pre.letter == letter and pre.accent == '' and len(pre.accent) < 2:
+        if i > 0 and PRE.letter == letter and PRE.accent == '' and len(PRE.accent) < 2:
             final = final[:-1]
             final += "ّ"
 
         # we add a sheddah when words starts with 'al' and a harf shamsiyya like 'alshams'
-        if letter in huruf_shamsya and char_cnt >= 3 and pre == L and pre.previous == Alif:
+        if letter in huruf_shamsya and char_cnt >= 3 and PRE == L and PRE.previous == Alif:
             final += "ّ"
 
         # if this is not a space, we check its tashkil
@@ -353,16 +353,20 @@ def translitterate(text: str, no_harakat=False) -> str:
         try:
             # if the previous letter was not a space and ending with a 'a' we usually have ة
             if accent == 'a':
-                if i >= 1 and pre.letter != " " and char_last:
+                if i >= 1 and PRE.letter != " " and char_last:
                     final += "ة"
 
+            if PRE.previous.previous == Alif and PRE.previous == L and PRE == La and letter == 'h':
+                final = final[:-7] if accent != "" else final[:-6]
+                final += "الله"
+
             # special case for 'lillah'
-            if pre.previous.previous == Li and pre.previous != L and pre == La and letter == 'h':
+            elif PRE.previous.previous == Li and PRE.previous != L and PRE == La and letter == 'h':
                 final = final[:-5] if accent != "" else final[:-4]
                 final += "للّه"
 
             # special case for 'lillah'
-            if pre.previous.previous == Li and pre.previous == L and pre == La and letter == 'h':
+            elif PRE.previous.previous == Li and PRE.previous == L and PRE == La and letter == 'h':
                 final = final[:-7] if accent != "" else final[:-6]
                 final += "لِلّه"
 
@@ -376,5 +380,4 @@ def translitterate(text: str, no_harakat=False) -> str:
 
 
 if __name__ == "__main__":
-    print(translitterate('''lillahi maa fii alsamaawaati wa al'arD'''))
-    print(translitterate('''kam qarya ahlaknaa ba"dahum'''))
+    print(translitterate('''allahu akbar'''))
