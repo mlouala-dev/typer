@@ -104,7 +104,10 @@ class HadithSearch(QDialog):
         self.setWindowIcon(G.icon('Book-Keeping'))
 
         self._win = parent
-        self.main_layout = QVBoxLayout(self)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(main_layout)
+        self.sub_layout = QVBoxLayout(self)
 
         self.search_field = SearchField(self)
         self.search_field.keyPressed.connect(self.preview)
@@ -113,10 +116,10 @@ class HadithSearch(QDialog):
         self.search = QPushButton("Search")
         self.search.clicked.connect(self.preview)
 
-        self.main_layout.addLayout(LineLayout(self, self.search_field, self.search))
+        self.sub_layout.addLayout(LineLayout(self, self.search_field, self.search))
 
         self.result_label = QLabel(self)
-        self.main_layout.addWidget(self.result_label)
+        self.sub_layout.addWidget(self.result_label)
 
         self.arabic_font = G.get_font(1.5)
         self.translation_font = G.get_font(1.3)
@@ -127,12 +130,18 @@ class HadithSearch(QDialog):
         self.result_view.setContentsMargins(3, 3, 3, 3)
         self.result_view.itemClicked.connect(self.itemClicked)
 
-        self.main_layout.addWidget(self.result_view)
+        self.sub_layout.addWidget(self.result_view)
         self.result_view.setColumnCount(2)
         self.setFixedHeight(800)
-        self.setFixedWidth(1000)
+        self.setMinimumWidth(800)
         self.result_view.setColumnWidth(0, 400)
         self.result_view.setColumnWidth(1, 400)
+
+        self.progress = QProgressBar()
+        self.progress.setFixedHeight(5)
+        self.progress.setTextVisible(False)
+        main_layout.addLayout(self.sub_layout, 1)
+        main_layout.addWidget(self.progress, 0)
 
     def itemClicked(self, item: QTreeWidgetItem, column: int):
         hadith: Hadith
@@ -179,7 +188,14 @@ class HadithSearch(QDialog):
 
         if (e is False or e.key() == Qt.Key.Key_Return) and len(self.search_field.text()):
             needle = self.search_field.text()
+
             result_count = 0
+            s = 100 / len(self.hadiths)
+
+            self.result_view.clear()
+
+            self.result_label.setText(f'<i>Searching...</i>')
+
             for hid, hadith in enumerate(self.hadiths):
                 if needle in hadith:
                     fm_ar = QFontMetrics(self.arabic_font)
@@ -189,13 +205,17 @@ class HadithSearch(QDialog):
                     hadith_fr = hadith.toTranslatedPlainText()
                     item = QTreeWidgetItem(self.result_view, [hadith_ar, hadith_fr])
 
-                    h_ar = math.floor(fm_ar.width(hadith_ar) / self.result_view.columnWidth(0))
-                    h_fr = math.ceil(fm_fr.width(hadith_fr) / self.result_view.columnWidth(1))
+                    h_ar = math.floor(.8 * fm_ar.width(hadith_ar) / self.result_view.columnWidth(0))
+                    h_fr = math.ceil(.8 * fm_fr.width(hadith_fr) / self.result_view.columnWidth(1))
 
                     item.setData(1, Qt.ItemDataRole.UserRole, hid)
                     item.setSizeHint(0, QSize(self.result_view.columnWidth(0), h_ar * fm_ar.height()))
                     item.setSizeHint(1, QSize(self.result_view.columnWidth(1), h_fr * fm_fr.height()))
                     result_count += 1
+
+                c = int(s * hid)
+                if c % 2 == 0:
+                    self.progress.setValue(c)
 
             self.result_label.setText(f'{result_count} occurences found')
 
