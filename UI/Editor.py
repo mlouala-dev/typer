@@ -475,12 +475,12 @@ class Typer(QTextEdit):
                 splitted_text = text.split(" ")
                 for i, word_text in enumerate(splitted_text[1:]):
                     try:
-                        assert len(word_text) <= 3
-                        assert word_text[0] not in string.ascii_letters
+                        assert len(word_text) >= 3 or len(splitted_text[i]) >= 3
+                        assert word_text[0] in string.ascii_letters or splitted_text[i][0] in string.ascii_letters
 
                         for char in G.new_word_keys.values():
                             # skipping the word if contains bad characters
-                            if char in word_text:
+                            if char in word_text or char in splitted_text[i]:
                                 raise IndexError
 
                     except (AssertionError, IndexError):
