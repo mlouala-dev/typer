@@ -144,15 +144,16 @@ class BreadCrumbs(QWidget):
 
         if level == 1:
             for kitab in S.LOCAL.BOOKMAP.kutub.values():
-                action = QAction(kitab.name, menu)
+                action = QAction(f'{kitab.id}.\u200e{kitab.name} ({int(kitab.page)})', menu)
                 if kitab.id == num:
                     action.setIcon(G.icon('Accept'))
                 action.triggered.connect(partial(self.goto.emit, int(kitab.page) - 1))
                 menu.addAction(action)
+
         elif level == 2:
             kitab = S.LOCAL.BOOKMAP.getKitab(S.LOCAL.BOOKMAP.pages[S.LOCAL.page].kid)
             for bab in kitab.abwab:
-                action = QAction(bab.name, menu)
+                action = QAction(f'{bab.id}.\u200e{bab.name} ({int(bab.page)})', menu)
                 if bab.id == num:
                     action.setIcon(G.icon('Accept'))
                 action.triggered.connect(partial(self.goto.emit, int(bab.page) - 1))
@@ -162,9 +163,8 @@ class BreadCrumbs(QWidget):
 
     @G.log
     def updatePage(self, page):
-        page += 1
         if S.LOCAL.PDF:
-            p = S.LOCAL.BOOKMAP.pages[page]
+            p = S.LOCAL.BOOKMAP.getPage(page)
 
             try:
                 k = S.LOCAL.BOOKMAP.getKitab(p.kid)
@@ -173,13 +173,13 @@ class BreadCrumbs(QWidget):
                 kitab = ''
 
             try:
-                b = S.LOCAL.BOOKMAP.getBab(p.bid, p.kid)
+                b = S.LOCAL.BOOKMAP.getKitab(p.kid).getBab(p.bid)
                 bab = b.name
             except KeyError:
                 bab = ''
 
             if len(p.hids):
-                h = S.LOCAL.BOOKMAP.getPageHadith(page)[0]
+                h = S.LOCAL.BOOKMAP.getHadithByPage(page)[0]
                 hadith = h.content
                 hadith_num = h.sub_id
                 if len(hadith) > 30:

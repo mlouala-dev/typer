@@ -137,6 +137,7 @@ class LocalSettings(_Settings):
                 """
                 :rtype: Jumper.Bab
                 """
+                print(f"searching {bid}")
                 for bab in self.abwab:
                     if bab.id == bid:
                         return bab
@@ -236,6 +237,11 @@ class LocalSettings(_Settings):
             else:
                 raise KeyError
 
+        def getPage(self, page: int) -> Page:
+            for p in self.pages:
+                if int(p) == page:
+                    return p
+
         def getHadithPage(self, hid: int) -> Page:
             """
             returns the page for the given id
@@ -245,7 +251,7 @@ class LocalSettings(_Settings):
                 if hid in page:
                     return page
 
-        def getPageHadith(self, page: int) -> [Hadith]:
+        def getHadithByPage(self, page: int) -> [Hadith]:
             return [h for h in self.datas if h.id in self.pages[page].hids]
 
         def findKitab(self, needle: str) -> Kitab:
@@ -667,7 +673,7 @@ class LocalSettings(_Settings):
                     kitab = self.BOOKMAP.kutub[kid] = LocalSettings.BookMap.Kitab(
                         name=clean_harakat(name),
                         kid=kid,
-                        page=self.BOOKMAP.pages[page]
+                        page=self.BOOKMAP.getPage(page)
                     )
                     for bid, bname, bpage in self.cursor.execute(f'SELECT id, name, page FROM bm_abwab WHERE kitab={kid}').fetchall():
                         if bname:
@@ -675,7 +681,7 @@ class LocalSettings(_Settings):
                                 name=clean_harakat(bname),
                                 bid=bid,
                                 kid=kid,
-                                page=self.BOOKMAP.pages[bpage]
+                                page=self.BOOKMAP.getPage(bpage)
                             )
 
                             self.BOOKMAP.abwab.append(bab)
