@@ -137,7 +137,6 @@ class LocalSettings(_Settings):
                 """
                 :rtype: Jumper.Bab
                 """
-                print(f"searching {bid}")
                 for bab in self.abwab:
                     if bab.id == bid:
                         return bab
