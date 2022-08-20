@@ -477,7 +477,7 @@ class Typer(QTextEdit):
 
                 for i, word_text in enumerate(splitted_text[1:]):
                     try:
-                        assert len(word_text) > 3 and len(splitted_text[i]) > 3
+                        assert len(word_text) > 3 and len(splitted_text[i]) >= 2
                         assert word_text[0] in string.ascii_letters and splitted_text[i][0] in string.ascii_letters
 
                         # if there is a character intersection between these sequences it means it contains
