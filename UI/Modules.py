@@ -12,7 +12,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 
 from UI.BasicElements import LineLayout, ListWidget, AyatModelItem, NumberModelItem, SearchField
-from tools import G, S
+from tools import G, S, T
 from tools.PDF import PDF_Exporter
 
 
@@ -529,7 +529,7 @@ class GlobalSearch(QDialog):
         :param needle: the search needle
         :return: a correctly formed pattern based on the options
         """
-        exit_chars = "|".join(G.new_word_keys.values())
+        exit_chars = "|".join(T.Keys.NewWord.values())
 
         # if regex we just get it has it is
         if self.regex_check.isChecked():

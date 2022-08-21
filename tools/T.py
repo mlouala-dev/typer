@@ -4,75 +4,110 @@ Some handful text operations especially on HTML code
 NOT IMPLEMENTED YET
 """
 import re
+from html.parser import HTMLParser
 from PyQt5.QtGui import QTextCursor
 
 
-class HTML:
-    css = r"[\w\d;: \-_'#.]"
-    clean_font_family = re.compile(f"(<span style=\"{css}*?)( ?font-family:'.*?';)({css}*\">)")
-    clean_font_size = re.compile(f"(<span style=\"{css}*?)( ?font-size:[\d.\w]+;)({css}*\">)")
-    clean_b = re.compile(r"<span style=\" ?font-weight:600;\">(.*?)</span>")
-    clean_i = re.compile(r"<span style=\" ?font-style:italic;\">(.*?)</span>")
-    clean_empty_span = re.compile(r"<span style=\" *?\">(.*?)</span>")
+class HTML(HTMLParser):
+    """
+    Core operations over HTML, based on html.parser
+    """
+    class TAG:
+        tag = ''
+        tags = {}
+        _content = ''
 
-    clean_empty_line = re.compile(r"^<p style=\".*?><br /></p>$", re.MULTILINE)
+        @property
+        def content(self):
+            return self._content
 
-    clean_p = re.compile(r"^<p.*?>(.*?)(</p>)?$", re.MULTILINE)
+        def __repr__(self):
+            tags = [self.tag] + [f'{key}="{tag}"' for key, tag in self.tags.items()]
+            return f'<{" ".join(tags)}>{self.content}</{self.tag}>'
 
-    block_checker = {
-        'h1': {'needle': 'xx-large'},
-        'h2': {'needle': 'x-large'},
-        'h3': {'needle': 'large'},
-    }
+        def __str__(self):
+            return repr(self)
 
-    for tag in block_checker:
-        block_checker[tag]['check'] = re.compile(f"^<span style=\"{css}*?font-size:" + block_checker[tag]['needle'] + f";{css}*?font-weight:600;{css}*?\">")
-        block_checker[tag]['clean'] = re.compile(f" font-size:" + block_checker[tag]['needle'] + f"; font-weight:600;")
+    class P(TAG):
+        tag = 'p'
 
-    def cleanCssStyle(self, text: str):
-        text = self.clean_font_family.sub(r'\1\3', text)
-        text = self.clean_font_size.sub(r'\1\3', text)
-        text = self.clean_b.sub(r'<b>\1</b>', text)
-        text = self.clean_i.sub(r'<i>\1</i>', text)
-        text = self.clean_empty_span.sub(r'\1', text)
+        @property
+        def content(self):
+            print(len(self._content))
+            return '\n'.join(map(str, self._content))
 
-        return text
+        def __init__(self, pos=0):
+            self.id = pos
+            self._content = []
+            self.tags = {}
 
-    def applyBlockTag(self, textCursor: QTextCursor, tag: str):
-        textCursor.beginEditBlock()
-        block = self.cleanCssStyle(self.getHtmlBlock(textCursor))
+        def addContent(self, obj: object):
+            self._content.append(obj)
 
-        apply = True
-        for block_tag in self.block_checker:
-            if len(self.block_checker[tag]['check'].findall(block)):
-                block = self.block_checker[tag]['clean'].sub('', block)
-                block = self.clean_empty_span.sub(r'\1', block)
-                if block_tag == tag:
-                    apply = False
+        def __iadd__(self, other):
+            self.addContent(other)
 
-        if apply:
-            block = f'<{tag}>{block}</{tag}>'
+    class SPAN(TAG):
+        tag = 'span'
 
-        num = textCursor.blockNumber()
-        textCursor.removeSelectedText()
+        def __init__(self):
+            self._content = ''
+            self.tags = {}
 
-        if num != 0:
-            textCursor.insertBlock()
+        def __iadd__(self, other):
+            self._content += other
 
-        textCursor.insertHtml(block)
-        textCursor.endEditBlock()
+    class BR:
+        @property
+        def content(self):
+            return '<br>'
 
-    def getHtmlBlock(self, textCursor: QTextCursor):
-        textCursor.select(QTextCursor.SelectionType.BlockUnderCursor)
-        block = textCursor.selection().toHtml()
+    paragraphs: [P]
 
-        block = self.clean_empty_line.sub('', block)
+    def __init__(self):
+        self.paragraphs = []
+        self.counter = 0
+        self.wip_object = ''
+        super().__init__()
 
-        # remove the triming <p> tag
-        block = self.clean_p.sub(r'\1', block)
+    def feed(self, data: str) -> None:
+        self.counter = 0
 
-        # avoiding a bug in Qt Html selection for Block under cursor, it returns this block and an empty one
-        return self.extractTextFragment(block)
+        super().feed(data)
+
+    def handle_starttag(self, tag, attrs):
+        if tag == 'p':
+            self.counter += 1
+            p = HTML.P(self.counter)
+
+            for key, tag in attrs:
+                p.tags[key] = tag
+
+            self.wip_object = p
+
+            self.paragraphs.append(p)
+
+        elif tag == 'span':
+            p = self.paragraphs[-1]
+
+            span = HTML.SPAN()
+            self.wip_object = span
+
+            p.addContent(span)
+
+            for key, tag in attrs:
+                span.tags[key] = tag
+
+    def handle_endtag(self, tag):
+        p = self.paragraphs[-1]
+        if tag == 'span':
+            self.wip_object = p
+
+    def handle_data(self, data):
+        self.wip_object += data
+
+    def build(self):
+        return self.paragraphs[-4]
 
     @staticmethod
     def extractTextFragment(t: str, wide=False) -> str:
@@ -110,8 +145,28 @@ class Keys:
 
 
 class TEXT:
+    """
+    Core operations over TEXT
+    """
     re_exit_keys = re.compile(r'[' + ''.join(Keys.Exits.values()) + r']')
 
     def word_split(self, text):
         words = self.re_exit_keys.split(text)
         return words
+
+
+if __name__ == "__main__":
+    parser = HTML()
+    parser.feed('''<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
+<p align="center" dir='rtl' style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; line-height:87%;"><img src="./rsc/ayat_separator_LD.png" /></p>
+<p align="center" dir='rtl' style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; -qt-user-state:99; line-height:87%;"><span style=" font-family:'Microsoft Uighur'; font-size:17pt; font-weight:600; color:#267dff;">﴿ وَمِنْهُم مَّن يَقُولُ ائْذَن لِّي وَلَا تَفْتِنِّي ۚ أَلَا فِي الْفِتْنَةِ سَقَطُوا ۗ وَإِنَّ جَهَنَّمَ لَمُحِيطَةٌ بِالْكَافِرِينَ </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">﴾</span></p>
+<p align="center" dir='rtl' style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; -qt-user-state:99; line-height:87%;"><span style=" font-family:'Microsoft Uighur'; font-size:17pt;">(التوبة ٩‎:٤٩)</span></p>
+<p align="center" dir='rtl' style="-qt-paragraph-type:empty; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; line-height:87%; font-family:'Microsoft Uighur'; font-size:17pt;"><br /></p>
+<p style=" margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%;"><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; color:#267dff;">Parmi eux il y a qui disaient : </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; font-style:italic; color:#267dff;">&quot;Autorise moi </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">[à ne pas participer aux expéditions]</span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; font-style:italic; color:#267dff;"> et ne me jette pas dans la tentation&quot;</span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; color:#267dff;">.</span></p>
+<p align="justify" style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%; font-family:'Microsoft Uighur'; font-size:17pt; font-weight:600;"><br /></p>
+<p align="justify" style=" margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%;"><span style=" font-family:'Microsoft Uighur'; font-size:17pt; font-weight:600;">Cause de révélation : </span></p>
+<p align="justify" style=" margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:1; text-indent:10px; -qt-user-state:0; line-height:100%;"><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">الجَدّ بن قَيس a dit : </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-style:italic;">&quot;Autorise moi </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">[à ne pas participer] </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-style:italic;">et ne me jette pas dans la tentation&quot;</span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">. L'objet de sa tentation selon certains serait les بَنَات des بَنُو اصفَر ; les filles des byzantins, il a invoqué comme excuse d'être trop attaché aux femmes.</span></p>
+<p align="justify" style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%; font-family:'Microsoft Uighur'; font-size:14.4pt;"><br /></p>
+<p align="justify" style=" margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%;"><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; color:#267dff;">En faisant cela, il est déjà tombé dans la tentation, et l'enfer cernera les infidèles.</span></p>
+<p align="justify" style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%; font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; color:#267dff;"><br /><!--EndFragment--></p></body></html>''')
+    print(parser.build())
