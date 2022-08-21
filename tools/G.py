@@ -62,21 +62,6 @@ InsertRole = 0
 QuoteRole = 1
 
 
-# some escape characters
-new_phrase_keys = {
-    46: '.', 33: '!', 63: '?'
-}
-new_word_keys = {
-    40: '(', 41: ')', 44: ',', 58: ':', 59: ';', 45: '-', 32: ' ', 34: '"', **new_phrase_keys
-}
-
-quotes_keys = {
-    40: '(', 39: "'", 34: '"'
-}
-
-exit_keys = {60: "[", 62: "]", **new_word_keys, **quotes_keys}
-
-
 # the absolute path of the app
 __abs_path__ = dirname(argv[0])
 

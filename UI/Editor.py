@@ -12,9 +12,9 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 
 from UI import QuranWorker
-from UI.Modules import Conjugate, Jumper
+from UI.Modules import Conjugate
 from tools.styles import Styles, Styles_Shortcut, TyperStyle
-from tools import G, translitteration, S
+from tools import G, T, S, translitteration
 
 
 class Typer(QTextEdit):
@@ -134,453 +134,6 @@ class Typer(QTextEdit):
 
         self._word = value
 
-    def mousePressEvent(self, e: QMouseEvent) -> None:
-        """
-        When mouse is pressed we check what word we have and what we can do
-        """
-
-        modifiers = QApplication.keyboardModifiers()
-
-        # if alt modifier is on we directly display the word corrections
-        if modifiers == Qt.KeyboardModifier.AltModifier:
-            c = self.cursorForPosition(e.pos())
-            c.select(QTextCursor.WordUnderCursor)
-            text = c.selectedText()
-
-            solution_menu = QMenu(f'Suggestions for {text}', self)
-
-            # appending all the suggestions for the given word
-            self.buildSpellMenu(text, c, solution_menu)
-
-            solution_menu.exec_(self.mapToGlobal(e.pos()))
-
-        # otherwise we pop the classic popupmenu
-        else:
-            super(Typer, self).mousePressEvent(e)
-
-    def keyPressEvent(self, e: QKeyEvent) -> None:
-        """
-        The main function, handle every thing when a letter is typed
-        """
-        tc: QTextCursor
-
-        # getting the next character
-        tc = self.textCursor()
-        tc.movePosition(QTextCursor.NextCharacter, QTextCursor.KeepAnchor)
-        # we check if next character exists to prevent useless autocompletion display
-        next_character = tc.selectedText()
-
-        # getting the current word
-        tc = self.textCursor()
-        tc.select(tc.SelectionType.WordUnderCursor)
-        self.word = tc.selectedText()
-
-        # ARABIC GLYPHS #
-        # TODO: update with the ThanaaWaMadh font
-        lowered_text = tc.selectedText().lower()
-        if lowered_text in ("sws", "saws", "jj", "aas", "ra", 'raha', 'rahuma', 'rahum'):
-            # a glyph for Salla Allahu 'alayhi wa sallam
-            if lowered_text in ("sws", "saws"):
-                tc.insertText("ﷺ")
-
-            # a glyph for Jalla Jalaaluhu
-            elif lowered_text == "jj":
-                tc.insertText("ﷻ")
-
-            # for the other case we need images... until we implement the ThanaaWaMadh font
-            elif lowered_text in ("aas", "ra", 'raha', 'rahuma', 'rahum') and e.key() in G.new_word_keys:
-                # getting the image ressource path
-                path = G.rsc_path(f'{lowered_text}_LD.png')
-
-                # adding it as a HTML image
-                tc.insertHtml(f"<img src='{path}'>")
-
-            # setting word to null
-            self.word = ""
-
-        # if it matches our regex for 1st 1er 2nd 34eme etc
-        is_number = self.re_numbering.match(self.word)
-
-        # if the user corrected the ى manually, we update the text database
-        if e.text() == "ى" and (next_character in G.new_word_keys.values() or len(next_character) == 0):
-            translitteration.append_to_dict(self.word + "ى")
-
-        # it make the 'st' 'er' to superscript
-        elif is_number and e.key() in G.new_word_keys:
-            # getting the groups from the regex match
-            num = int(is_number.groups()[1] or is_number.groups()[4])
-            sup = is_number.groups()[2] or is_number.groups()[5]
-
-            # and insert the next char to force the <sup> tag to be closed
-            tc.insertHtml(f"{num}<sup>{sup}</sup><span>{e.text()}</span>")
-
-            # since we added the current char, no need to continue
-            return
-
-        # Quote text
-        elif e.key() in G.quotes_keys and len(self.textCursor().selectedText()):
-            self.quoteText(e.text())
-            return
-
-        # brackets override, this mean that < and > will become [ and ] useful when typing a translation
-        # and need to insert a translation note
-        elif e.key() in [60, 62]:   # 60 is < and 62 >
-
-            # the replacement pattern
-            eq = {60: "[", 62: "]"}
-            # if there is a selection, we apply quote to it
-            if len(self.textCursor().selectedText()):
-                self.quoteText("[")
-
-            # otherwise we just override the < and >
-            else:
-                self.textCursor().insertText(eq[e.key()])
-
-            # since we added what we want from this event, abort
-            return
-
-        # if we're not typing translitteration and we are at the end of the document
-        elif not self.translitterate_mode and (len(next_character) == 0 or next_character == '\u2029'):
-            if len(self.word):
-
-                # if we start a new word
-                if e.key() in G.new_word_keys:
-                    # we measure the time it took to type the previous word and applies an automatic
-                    # correction if ratio is under a given value
-                    ratio = (time() - self.word_time) / len(self.word)
-
-                    # needs to be implemented in settings and should be customizable by user
-                    if ratio <= 0.15 and not self.word[0].isupper():
-                        # applies an automatic spell correction, the ignore token to be sure we don't try
-                        # to correct the digits, proper names or glyphs
-                        suggestions = self.symspell.lookup(self.word, ignore_token=self.re_ignoretoken,
-                                                           max_edit_distance=1, verbosity=Verbosity.TOP,
-                                                           include_unknown=True, transfer_casing=True)
-
-                        # this is the first and closest correction
-                        correction = suggestions[0].term
-
-                        # automatically replace it if correction is different
-                        if tc.selectedText() != correction:
-                            tc.insertText(correction)
-
-                    # replacing the cursor
-                    tc_prev = self.textCursor()
-                    tc_prev.movePosition(QTextCursor.MoveOperation.PreviousWord, QTextCursor.MoveMode.KeepAnchor, 2)
-                    tc_prev.select(tc.SelectionType.WordUnderCursor)
-
-                    self.new_word = True
-
-        modifiers = QApplication.keyboardModifiers()
-
-        # resetting timing if backspace pressed for more accurate ratio
-        if e.key() == Qt.Key.Key_Backspace:
-            self.word_time = time()
-
-        # this means we enter the translitterate mode, this is equivalent to type on Alt+Gr
-        # TODO: find another less annoying shortcut, should be customizable by the user
-        if e.key() == Qt.Key.Key_Alt and modifiers == Qt.KeyboardModifier.ControlModifier:
-            tc = self.textCursor()
-
-            # selection has length
-            if tc.position() != tc.anchor():
-                txt = tc.selectedText()
-                tc.removeSelectedText()
-
-                # then we directly translitterate it
-                tc.insertText(translitteration.translitterate(txt))
-
-            # if there is no selection
-            else:
-                # revert state
-                self.translitterate_mode = not self.translitterate_mode
-
-                if self.translitterate_mode:
-                    # recording the current position for upcoming translitteration
-                    self.translitteration_bound = tc.position()
-
-                    # adding a special character to indicate we're in translitteration mode
-                    # TODO: we could indicate differently, maybe with a border, or a text color ?
-                    self.insertHtml(u"<span style='font-weight:bold;'>\u262a</span>")
-
-                # otherwise we just add a character to force the style to return to format
-                else:
-                    self.insertHtml("<span style='font-weight:normal;'>'</span>")
-
-                    # selecting all the text, from the first special character to the end
-                    tc.setPosition(tc.position(), tc.MoveMode.MoveAnchor)
-                    tc.movePosition(tc.MoveOperation.Left, tc.MoveMode.KeepAnchor,
-                                    tc.position() - self.translitteration_bound)
-                    txt = tc.selectedText()[1:-1]
-
-                    tc.removeSelectedText()
-
-                    # translitterate what's between the head and tail characters
-                    tc.insertText(translitteration.translitterate(txt))
-
-        # can't remember the purpose of this statement
-        if modifiers == (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier):
-            self.insertPlainText(e.text().lower())
-            return
-
-        # handling some special shortcuts
-        if (modifiers & Qt.KeyboardModifier.ControlModifier) and (modifiers & Qt.KeyboardModifier.ShiftModifier):
-
-            # to copy the HTML code of the selection
-            if e.key() == Qt.Key.Key_C:
-                tc = self.textCursor()
-                QApplication.clipboard().setText(tc.selection().toHtml())
-
-            # to paste the clipboard as HTML
-            elif e.key() == Qt.Key.Key_V:
-                self.insertHtml(QApplication.clipboard().text())
-                self.contentChanged.emit()
-
-            # to cut HTML code
-            elif e.key() == Qt.Key.Key_X:
-                tc = self.textCursor()
-                QApplication.clipboard().setText(tc.selection().toHtml())
-                tc.removeSelectedText()
-                self.contentChanged.emit()
-
-            # insert a force RTL character
-            elif e.key() == Qt.Key.Key_E:
-                self.insertHtml('&#x200e;')
-
-            # otherwise we just consider it a normal command
-            else:
-                super(Typer, self).keyPressEvent(e)
-
-        # the alt modifier is used to apply some fast styles
-        elif modifiers == Qt.KeyboardModifier.AltModifier:
-
-            # the main title shortcut
-            if e.key() in Styles_Shortcut:  # Alt+1
-
-                # apply the style to the whold text block
-                self.applyOverallBlock(partial(self.toggleFormat, Styles_Shortcut[e.key()]))
-
-                # and update parent's widget(s)
-                self.contentChanged.emit()
-
-            # unindent the text block
-            elif e.key() == Qt.Key.Key_Left:
-                self.applyOverallBlock(partial(self.offsetIndent, -1))
-
-            # indent the text block
-            elif e.key() == Qt.Key.Key_Right:
-                self.applyOverallBlock(partial(self.offsetIndent, 1))
-
-            # moving cursor to the previous text block
-            elif e.key() == Qt.Key.Key_Up:
-                tc.movePosition(tc.MoveOperation.PreviousBlock, tc.MoveMode.MoveAnchor)
-                self.setTextCursor(tc)
-
-            # moving cursor to the next text block
-            elif e.key() == Qt.Key.Key_Down:
-                tc.movePosition(tc.MoveOperation.NextBlock, tc.MoveMode.MoveAnchor)
-                self.setTextCursor(tc)
-
-            # add numerotation
-            # TODO: could be largely improved, customized numerotation, automatic determination of sub numering, etc
-            elif e.key() == Qt.Key.Key_N:
-                tc = self.textCursor()
-
-                # we get the current selection as html
-                html = self.extractTextFragment(tc.selection().toHtml(), wide=True)
-
-                res, cnt = '', 0
-                # every line patching pattern
-                for line in html.split('\n'):
-                    line_res = self.re_textblock.sub(fr'\1\2 <span style=" font-family:\'{G.__font__}\'; font-size:15pt; font-weight:600; color:#267dff;">{cnt})</span> \5\6<', line, count=1)
-                    res += line_res
-                    # ignoring the empty paragraphs
-                    if '-qt-paragraph-type:empty;' not in line:
-                        cnt += 1
-
-                # updating the selection
-                tc.insertHtml(res)
-
-                # since we're done with change, leaving
-                return
-
-            # add bullets
-            elif e.key() == Qt.Key.Key_B:
-                tc = self.textCursor()
-
-                # getting the current selection as html
-                html = self.extractTextFragment(tc.selection().toHtml(), wide=True)
-
-                res = ''
-                for line in html.split('\n'):
-                    line_res = self.re_textblock.sub(fr'\1\2 <span style=" font-family:\'{G.__font__}\'; font-size:15pt; font-weight:600; color:#267dff;">%s</span> \5\6<' % u'\u2022', line, count=1)
-                    res += line_res
-
-                tc.insertHtml(res)
-                return
-
-            # if we call some of the existing shortcuts... forward to parent
-            # TODO: dynamically load the existing shortcuts
-            elif e.key() in (Qt.Key.Key_H, Qt.Key.Key_V, Qt.Key.Key_R,
-                             Qt.Key.Key_F, Qt.Key.Key_C, Qt.Key.Key_G,
-                             Qt.Key.Key_A, Qt.Key.Key_E, Qt.Key.Key_S):
-                super(self._win.__class__, self._win).keyPressEvent(e)
-
-            else:
-                super(Typer, self).keyPressEvent(e)
-
-        # same for Control modifier... forward to parent
-        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() in (Qt.Key.Key_G, Qt.Key.Key_S):
-            super(self._win.__class__, self._win).keyPressEvent(e)
-
-        # some style to apply
-        # TODO: need to be stored in external library / user defined
-        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_B:
-            self.applyStyle(lambda x: x.bold(), lambda y: y.setBold)    # bold
-
-        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_Q:
-            self.applyStyle(lambda x: x.bold(), lambda y: y.setBold, QColor(22, 155, 76))
-
-        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_W:
-            self.applyStyle(lambda x: x.bold(), lambda y: y.setBold, QColor(38, 125, 255))
-
-        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_D:
-            self.applyStyle(None, None, QColor(68, 156, 205))
-
-        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_I:
-            self.applyStyle(lambda x: x.italic(), lambda y: y.setItalic)    # italic
-
-        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_U:
-            self.applyStyle(lambda x: x.underline(), lambda y: y.setUnderline)  # underline
-
-        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_H:
-            # inserts a custom bullet (for Quran tafsir purpose, ayat separator)
-            self.textCursor().insertHtml("""<span style=" font-family:'AGA Arabesque'; font-size:10pt; color:#9622D3;">_</span>""")
-
-        # forwarding to parent to jump through pages
-        elif e.key() in (Qt.Key.Key_PageUp, Qt.Key.Key_PageDown):
-            super(self._win.__class__, self._win).keyPressEvent(e)
-
-        # once return is pressed
-        elif e.key() == Qt.Key.Key_Return:
-            # we cleanup the previous block
-            tc.select(tc.SelectionType.BlockUnderCursor)
-            indent = tc.blockFormat().indent()
-            text = tc.selectedText()
-            text = text.replace("\u2029", "")
-
-            # first we make sure our block doesn't contains spelling errors
-            if tc.block().userData().state != G.State_Correction:
-                # and imports all word to our frequency list
-                splitted_text = text.split(" ")
-                exit_seq = set(''.join(G.exit_keys.values()))
-
-                for i, word_text in enumerate(splitted_text[1:]):
-                    try:
-                        assert len(word_text) > 3 and len(splitted_text[i]) >= 2
-                        assert word_text[0] in string.ascii_letters and splitted_text[i][0] in string.ascii_letters
-
-                        # if there is a character intersection between these sequences it means it contains
-                        # bad characters
-                        assert not len(set(word_text).union(set(splitted_text[i])).intersection(exit_seq))
-
-                    except (AssertionError, IndexError):
-                        continue
-
-                    else:
-                        word = S.LocalSettings.Dict.Word(word_text, previous=splitted_text[i])
-                        S.LOCAL.DICT.add(word)
-
-            # forward to superclass
-            super(Typer, self).keyPressEvent(e)
-
-            # light save settings
-            S.LOCAL.saveVisualSettings()
-
-            # apply the default style to the new paragraph
-            tc = self.textCursor()
-            tc.select(tc.SelectionType.BlockUnderCursor)
-            Styles.Default.applyStyle(tc)
-            block = tc.blockFormat()
-            block.setIndent(indent)
-            tc.setBlockFormat(block)
-
-        elif not (e.key() == Qt.Key.Key_Tab and self.auto_complete_available):
-            # forward Tab only if we're sure there is no autocomplete to do
-            super(Typer, self).keyPressEvent(e)
-
-        # we refresh the 'next character'
-        ntc = self.textCursor()
-        ntc.movePosition(QTextCursor.NextCharacter, QTextCursor.KeepAnchor)
-        # we check if next character exists to prevent useless autocompletion display
-        # encoding as unicode to make sure that next_char is empty, EOL was considered
-        # as a character
-        next_character = ntc.selectedText()
-
-        if self.auto_complete_available:
-            tc = self.textCursor()
-            tc.select(tc.SelectionType.WordUnderCursor)
-            self.word = tc.selectedText()
-
-            # getting the previous character
-            ptc = self.textCursor()
-            ptc.movePosition(QTextCursor.PreviousWord, QTextCursor.MoveMode.MoveAnchor, 2)
-            ptc.select(ptc.SelectionType.WordUnderCursor)
-            # we check if next character exists to prevent useless autocompletion display
-            previous_word = ptc.selectedText()
-
-            word = S.LocalSettings.Dict.Word(self.word, previous=previous_word)
-            candidate = S.LOCAL.DICT.find(word)
-
-            # if there is a candidate, we draw the autocomplete_label
-            # we also require that the next character is a new word character (' ' or ", etc...)
-            # OR that the cursor is at the end of the line
-            if candidate and len(candidate) > len(self.word) and \
-                    (next_character in G.new_word_keys.values() or tc.positionInBlock() == (tc.block().length() - 1)):
-                rect: QRectF
-                rect = self.cursorRect(self.textCursor())
-                res = candidate[len(self.word):]
-
-                # placing the label where the textCursor is
-                self.auto_complete_label.setFont(tc.charFormat().font())
-                fm = QFontMetrics(self.auto_complete_label.font())
-                w = fm.boundingRect(res).width() + 10
-
-                rect.setWidth(w)
-                rect.translate(2, 0)
-                self.auto_complete_label.setGeometry(rect)
-                self.auto_complete_label.setText(res)
-                self.auto_complete_label.show()
-
-            # if no candidate, hiding
-            else:
-                self.auto_complete_label.hide()
-
-        # finally, if Tab was pressed and there is an auto complete suggestion active
-        if e.key() == Qt.Key.Key_Tab and self.auto_complete_available and self.auto_complete_label.isVisible():
-            # inserting the suggestion
-            self.insertPlainText(self.auto_complete_label.text())
-
-            # resetting the auto_complete label
-            self.auto_complete_label.setText('')
-            self.auto_complete_label.hide()
-            self.word = ""
-
-            # update cursor
-            tc = self.textCursor()
-            tc.select(tc.SelectionType.WordUnderCursor)
-
-            # adding a space since the previous word should be complete
-            # if the next character is in the new word characters, we skip the space after
-            if next_character not in G.new_word_keys.values():
-                self.insertPlainText(" ")
-
-            self.new_word = True
-
-        # if there is a character we update the changed state
-        if len(e.text()):
-            self.contentEdited.emit()
-
     def insertNote(self):
         """
         adding a note in the current cursor's place
@@ -671,10 +224,6 @@ class Typer(QTextEdit):
         # apply the resulting font and char format
         cf.setFont(f)
         tc.setCharFormat(cf)
-
-    def insertFromMimeData(self, source: QMimeData) -> None:
-        if source.hasText():
-            self.insertPlainText(source.text())
 
     @G.debug
     def toggleFormat(self, style: TyperStyle = None, block: QTextBlock = None):
@@ -852,32 +401,13 @@ class Typer(QTextEdit):
 
         tc.endEditBlock()
 
-    @staticmethod
-    def extractTextFragment(t: str, wide=False) -> str:
-        """
-        This function get a QTextFragment, remove the <html><head> tags and extract only the wanted code
-        :param t: the HTML complete Text Fragment code
-        :param wide: if we want the complete block (True) or just the selection (False)
-        :return: HTML code extracted
-        """
-        try:
-            assert not wide
-            # getting what's inside the Start / End tags
-            html = t.split('<!--StartFragment-->')[1].split('<!--EndFragment-->')[0]
-
-        # if there is no match, extracting from body to the end and remove - if exists - the Start / End tags
-        except (IndexError, AssertionError):
-            html = t.split('<body>')[1].replace('<!--StartFragment-->', '').split('<!--EndFragment-->')[0]
-
-        return html
-
     def quoteText(self, quote):
         """
         Adding the char around the selection
         :param quote: the quote character, either " ' ( or [
         """
         # getting the HTML code of the selection
-        html = self.extractTextFragment(self.textCursor().selection().toHtml())
+        html = T.HTML.extractTextFragment(self.textCursor().selection().toHtml())
 
         # an equivalence list of the quote characters
         eq = {
@@ -922,6 +452,7 @@ class Typer(QTextEdit):
     def addWord(self, word: str, state):
         """
         add a new word to the dictionary
+        TODO: upgrade to S.GLOBAL
         :param word: new word
         :param state: just the state sent by the signal
         """
@@ -933,6 +464,596 @@ class Typer(QTextEdit):
 
         # reloading the dictionary
         self._win.dictionnary.start()
+
+    # MENUS
+
+    def openConjugate(self, cursor: QTextCursor, word: str, state: bool):
+        """
+        Show up the Conjugate dialog
+        :param cursor: the current word's textCursor
+        :param word: the verb
+        :param state: got by the signal
+        """
+        # display the dialog
+        self.conjugateDialog.load(cursor, word)
+        self.conjugateDialog.show()
+
+    def buildSynMenu(self, word: str, cursor: QTextCursor, menu: QMenu):
+        """
+        Generate the synonyms menu from the db
+        TODO: maybe this should return a list of synonyms, and the main function add them in the popup menu
+        :param word: the word we want to search the synonyms for
+        :param cursor: the textCursor
+        :param menu: the source popupmenu
+        :return: the length of synonyms found
+        """
+        def synonym(w: str) -> set:
+            """
+            get all synonyms for the current word and all words this one is a synonym for
+            TODO: maybe that's redundant ? compare
+            :param w: the word
+            :return: a set of the synonyms
+            """
+            s = set()
+            # 'synonyme' field search all synonyms for the word
+            # 'mot' field search all words this word is a synonym for
+            for field in ('synonyme', 'mot'):
+                res = self.cursor.execute(f'SELECT {field} FROM synonyme WHERE mot="{w}"').fetchall()
+
+                # extending the set with results
+                s.update(set([a[0] for a in res]))
+
+            return s
+
+        # getting the synonyms
+        synonyms = synonym(word)
+
+        # if no synonyms found, we try to get the original form of the word
+        # TODO: search only if word is a verb, make a reusable function
+        if not len(synonyms):
+            try:
+                # if we found the current word in 'forme' field it means the word is a conjugated form of a verbe
+                source, mode, temps, id = self.cursor.execute(
+                    f'SELECT source, mode, temps, id FROM conjugaison WHERE forme="{word}"').fetchone()
+
+            except TypeError:
+                pass
+
+            # since its a conjugated form, we search all synonyms of the orignal verb, then re-apply the same
+            # conjugation to the synonyms found
+            else:
+                syns = ", ".join([f'"{s}"' for s in synonym(source)])
+                conjugated_syns = self.cursor.execute(
+                    f'SELECT forme FROM conjugaison WHERE source IN ({syns}) AND mode={mode} AND temps={temps} AND id={id}')
+                synonyms.update([a[0] for a in conjugated_syns.fetchall()])
+
+        # adding results to menu
+        self.insertItemsToMenu(synonyms, cursor, menu)
+
+        return len(synonyms)
+
+    def buildSpellMenu(self, text: str, cursor: QTextCursor, menu: QMenu):
+        """
+        Create a menu for the current corrections
+        :param text: the word to correct
+        :param cursor: the current textCursor
+        :param menu: the menu to append the results
+        :return: the length of the suggestions
+        """
+
+        # looking for corrections
+        suggestions = self.symspell.lookup(text, ignore_token=self.re_ignoretoken, max_edit_distance=2,
+                                           verbosity=Verbosity.CLOSEST, include_unknown=False, transfer_casing=False)
+
+        # adding results to menu
+        self.insertItemsToMenu([a.term for a in suggestions], cursor, menu)
+
+        return len(suggestions)
+
+    def insertItemsToMenu(self, terms: set | list, cursor: QTextCursor, menu: QMenu):
+        """
+        Add the items to the given menu setting the cursor as data
+        :param terms: the items to iter
+        :param cursor: the textCursor as data
+        :param menu: the QMenu to insert
+        """
+        # looping through items
+        for solution in terms:
+            action = QAction(solution, menu)
+
+            # adding the cursor as a userData
+            action.setData((cursor, solution))
+            menu.addAction(action)
+
+        # for all these action trigger the correctWord function
+        if menu.actions():
+            menu.triggered.connect(self.correctWord)
+
+    # OVERRIDES
+
+    def mousePressEvent(self, e: QMouseEvent) -> None:
+        """
+        When mouse is pressed we check what word we have and what we can do
+        """
+
+        modifiers = QApplication.keyboardModifiers()
+
+        # if alt modifier is on we directly display the word corrections
+        if modifiers == Qt.KeyboardModifier.AltModifier:
+            c = self.cursorForPosition(e.pos())
+            c.select(QTextCursor.WordUnderCursor)
+            text = c.selectedText()
+
+            solution_menu = QMenu(f'Suggestions for {text}', self)
+
+            # appending all the suggestions for the given word
+            self.buildSpellMenu(text, c, solution_menu)
+
+            solution_menu.exec_(self.mapToGlobal(e.pos()))
+
+        # otherwise we pop the classic popupmenu
+        else:
+            super(Typer, self).mousePressEvent(e)
+
+    def keyPressEvent(self, e: QKeyEvent) -> None:
+        """
+        The main function, handle every thing when a letter is typed
+        """
+        tc: QTextCursor
+
+        # getting the next character
+        tc = self.textCursor()
+        tc.movePosition(QTextCursor.NextCharacter, QTextCursor.KeepAnchor)
+        # we check if next character exists to prevent useless autocompletion display
+        next_character = tc.selectedText()
+
+        # getting the current word
+        tc = self.textCursor()
+        tc.select(tc.SelectionType.WordUnderCursor)
+        self.word = tc.selectedText()
+
+        # ARABIC GLYPHS #
+        # TODO: update with the ThanaaWaMadh font
+        lowered_text = tc.selectedText().lower()
+        if lowered_text in ("sws", "saws", "jj", "aas", "ra", 'raha', 'rahuma', 'rahum'):
+            # a glyph for Salla Allahu 'alayhi wa sallam
+            if lowered_text in ("sws", "saws"):
+                tc.insertText("ﷺ")
+
+            # a glyph for Jalla Jalaaluhu
+            elif lowered_text == "jj":
+                tc.insertText("ﷻ")
+
+            # for the other case we need images... until we implement the ThanaaWaMadh font
+            elif lowered_text in ("aas", "ra", 'raha', 'rahuma', 'rahum') and e.key() in T.Keys.NewWord:
+                # getting the image ressource path
+                path = G.rsc_path(f'{lowered_text}_LD.png')
+
+                # adding it as a HTML image
+                tc.insertHtml(f"<img src='{path}'>")
+
+            # setting word to null
+            self.word = ""
+
+        # if it matches our regex for 1st 1er 2nd 34eme etc
+        is_number = self.re_numbering.match(self.word)
+
+        # if the user corrected the ى manually, we update the text database
+        if e.text() == "ى" and (next_character in T.Keys.NewWord.values() or len(next_character) == 0):
+            translitteration.append_to_dict(self.word + "ى")
+
+        # it make the 'st' 'er' to superscript
+        elif is_number and e.key() in T.Keys.NewWord:
+            # getting the groups from the regex match
+            num = int(is_number.groups()[1] or is_number.groups()[4])
+            sup = is_number.groups()[2] or is_number.groups()[5]
+
+            # and insert the next char to force the <sup> tag to be closed
+            tc.insertHtml(f"{num}<sup>{sup}</sup><span>{e.text()}</span>")
+
+            # since we added the current char, no need to continue
+            return
+
+        # Quote text
+        elif e.key() in T.Keys.Quotes and len(self.textCursor().selectedText()):
+            self.quoteText(e.text())
+            return
+
+        # brackets override, this mean that < and > will become [ and ] useful when typing a translation
+        # and need to insert a translation note
+        elif e.key() in [60, 62]:   # 60 is < and 62 >
+
+            # the replacement pattern
+            eq = {60: "[", 62: "]"}
+            # if there is a selection, we apply quote to it
+            if len(self.textCursor().selectedText()):
+                self.quoteText("[")
+
+            # otherwise we just override the < and >
+            else:
+                self.textCursor().insertText(eq[e.key()])
+
+            # since we added what we want from this event, abort
+            return
+
+        # if we're not typing translitteration and we are at the end of the document
+        elif not self.translitterate_mode and (len(next_character) == 0 or next_character == '\u2029'):
+            if len(self.word):
+
+                # if we start a new word
+                if e.key() in T.Keys.NewWord:
+                    # we measure the time it took to type the previous word and applies an automatic
+                    # correction if ratio is under a given value
+                    ratio = (time() - self.word_time) / len(self.word)
+
+                    # needs to be implemented in settings and should be customizable by user
+                    if ratio <= 0.15 and not self.word[0].isupper():
+                        # applies an automatic spell correction, the ignore token to be sure we don't try
+                        # to correct the digits, proper names or glyphs
+                        suggestions = self.symspell.lookup(self.word, ignore_token=self.re_ignoretoken,
+                                                           max_edit_distance=1, verbosity=Verbosity.TOP,
+                                                           include_unknown=True, transfer_casing=True)
+
+                        # this is the first and closest correction
+                        correction = suggestions[0].term
+
+                        # automatically replace it if correction is different
+                        if tc.selectedText() != correction:
+                            tc.insertText(correction)
+
+                    # replacing the cursor
+                    tc_prev = self.textCursor()
+                    tc_prev.movePosition(QTextCursor.MoveOperation.PreviousWord, QTextCursor.MoveMode.KeepAnchor, 2)
+                    tc_prev.select(tc.SelectionType.WordUnderCursor)
+
+                    self.new_word = True
+
+        modifiers = QApplication.keyboardModifiers()
+
+        # resetting timing if backspace pressed for more accurate ratio
+        if e.key() == Qt.Key.Key_Backspace:
+            self.word_time = time()
+
+        # this means we enter the translitterate mode, this is equivalent to type on Alt+Gr
+        # TODO: find another less annoying shortcut, should be customizable by the user
+        if e.key() == Qt.Key.Key_Alt and modifiers == Qt.KeyboardModifier.ControlModifier:
+            tc = self.textCursor()
+
+            # selection has length
+            if tc.position() != tc.anchor():
+                txt = tc.selectedText()
+                tc.removeSelectedText()
+
+                # then we directly translitterate it
+                tc.insertText(translitteration.translitterate(txt))
+
+            # if there is no selection
+            else:
+                # revert state
+                self.translitterate_mode = not self.translitterate_mode
+
+                if self.translitterate_mode:
+                    # recording the current position for upcoming translitteration
+                    self.translitteration_bound = tc.position()
+
+                    # adding a special character to indicate we're in translitteration mode
+                    # TODO: we could indicate differently, maybe with a border, or a text color ?
+                    self.insertHtml(u"<span style='font-weight:bold;'>\u262a</span>")
+
+                # otherwise we just add a character to force the style to return to format
+                else:
+                    self.insertHtml("<span style='font-weight:normal;'>'</span>")
+
+                    # selecting all the text, from the first special character to the end
+                    tc.setPosition(tc.position(), tc.MoveMode.MoveAnchor)
+                    tc.movePosition(tc.MoveOperation.Left, tc.MoveMode.KeepAnchor,
+                                    tc.position() - self.translitteration_bound)
+                    txt = tc.selectedText()[1:-1]
+
+                    tc.removeSelectedText()
+
+                    # translitterate what's between the head and tail characters
+                    tc.insertText(translitteration.translitterate(txt))
+
+        # can't remember the purpose of this statement
+        if modifiers == (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier):
+            self.insertPlainText(e.text().lower())
+            return
+
+        # handling some special shortcuts
+        if (modifiers & Qt.KeyboardModifier.ControlModifier) and (modifiers & Qt.KeyboardModifier.ShiftModifier):
+
+            # to copy the HTML code of the selection
+            if e.key() == Qt.Key.Key_C:
+                tc = self.textCursor()
+                QApplication.clipboard().setText(tc.selection().toHtml())
+
+            # to paste the clipboard as HTML
+            elif e.key() == Qt.Key.Key_V:
+                self.insertHtml(QApplication.clipboard().text())
+                self.contentChanged.emit()
+
+            # to cut HTML code
+            elif e.key() == Qt.Key.Key_X:
+                tc = self.textCursor()
+                QApplication.clipboard().setText(tc.selection().toHtml())
+                tc.removeSelectedText()
+                self.contentChanged.emit()
+
+            # insert a force RTL character
+            elif e.key() == Qt.Key.Key_E:
+                self.insertHtml('&#x200e;')
+
+            # otherwise we just consider it a normal command
+            else:
+                super(Typer, self).keyPressEvent(e)
+
+        # the alt modifier is used to apply some fast styles
+        elif modifiers == Qt.KeyboardModifier.AltModifier:
+
+            # the main title shortcut
+            if e.key() in Styles_Shortcut:  # Alt+1
+
+                # apply the style to the whold text block
+                self.applyOverallBlock(partial(self.toggleFormat, Styles_Shortcut[e.key()]))
+
+                # and update parent's widget(s)
+                self.contentChanged.emit()
+
+            # unindent the text block
+            elif e.key() == Qt.Key.Key_Left:
+                self.applyOverallBlock(partial(self.offsetIndent, -1))
+
+            # indent the text block
+            elif e.key() == Qt.Key.Key_Right:
+                self.applyOverallBlock(partial(self.offsetIndent, 1))
+
+            # moving cursor to the previous text block
+            elif e.key() == Qt.Key.Key_Up:
+                tc.movePosition(tc.MoveOperation.PreviousBlock, tc.MoveMode.MoveAnchor)
+                self.setTextCursor(tc)
+
+            # moving cursor to the next text block
+            elif e.key() == Qt.Key.Key_Down:
+                tc.movePosition(tc.MoveOperation.NextBlock, tc.MoveMode.MoveAnchor)
+                self.setTextCursor(tc)
+
+            # add numerotation
+            # TODO: could be largely improved, customized numerotation, automatic determination of sub numering, etc
+            elif e.key() == Qt.Key.Key_N:
+                tc = self.textCursor()
+
+                # we get the current selection as html
+                html = T.HTML.extractTextFragment(tc.selection().toHtml(), wide=True)
+
+                res, cnt = '', 0
+                # every line patching pattern
+                for line in html.split('\n'):
+                    line_res = self.re_textblock.sub(fr'\1\2 <span style=" font-family:\'{G.__font__}\'; font-size:15pt; font-weight:600; color:#267dff;">{cnt})</span> \5\6<', line, count=1)
+                    res += line_res
+                    # ignoring the empty paragraphs
+                    if '-qt-paragraph-type:empty;' not in line:
+                        cnt += 1
+
+                # updating the selection
+                tc.insertHtml(res)
+
+                # since we're done with change, leaving
+                return
+
+            # add bullets
+            elif e.key() == Qt.Key.Key_B:
+                tc = self.textCursor()
+
+                # getting the current selection as html
+                html = T.HTML.extractTextFragment(tc.selection().toHtml(), wide=True)
+
+                res = ''
+                for line in html.split('\n'):
+                    line_res = self.re_textblock.sub(fr'\1\2 <span style=" font-family:\'{G.__font__}\'; font-size:15pt; font-weight:600; color:#267dff;">%s</span> \5\6<' % u'\u2022', line, count=1)
+                    res += line_res
+
+                tc.insertHtml(res)
+                return
+
+            # if we call some of the existing shortcuts... forward to parent
+            # TODO: dynamically load the existing shortcuts
+            elif e.key() in (Qt.Key.Key_H, Qt.Key.Key_V, Qt.Key.Key_R,
+                             Qt.Key.Key_F, Qt.Key.Key_C, Qt.Key.Key_G,
+                             Qt.Key.Key_A, Qt.Key.Key_E, Qt.Key.Key_S):
+                super(self._win.__class__, self._win).keyPressEvent(e)
+
+            else:
+                super(Typer, self).keyPressEvent(e)
+
+        # same for Control modifier... forward to parent
+        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() in (Qt.Key.Key_G, Qt.Key.Key_S):
+            super(self._win.__class__, self._win).keyPressEvent(e)
+
+        # some style to apply
+        # TODO: need to be stored in external library / user defined
+        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_B:
+            self.applyStyle(lambda x: x.bold(), lambda y: y.setBold)    # bold
+
+        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_Q:
+            self.applyStyle(lambda x: x.bold(), lambda y: y.setBold, QColor(22, 155, 76))
+
+        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_W:
+            self.applyStyle(lambda x: x.bold(), lambda y: y.setBold, QColor(38, 125, 255))
+
+        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_D:
+            self.applyStyle(None, None, QColor(68, 156, 205))
+
+        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_I:
+            self.applyStyle(lambda x: x.italic(), lambda y: y.setItalic)    # italic
+
+        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_U:
+            self.applyStyle(lambda x: x.underline(), lambda y: y.setUnderline)  # underline
+
+        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_H:
+            # inserts a custom bullet (for Quran tafsir purpose, ayat separator)
+            self.textCursor().insertHtml("""<span style=" font-family:'AGA Arabesque'; font-size:10pt; color:#9622D3;">_</span>""")
+
+        # forwarding to parent to jump through pages
+        elif e.key() in (Qt.Key.Key_PageUp, Qt.Key.Key_PageDown):
+            super(self._win.__class__, self._win).keyPressEvent(e)
+
+        # once return is pressed
+        elif e.key() == Qt.Key.Key_Return:
+            # we cleanup the previous block
+            tc.select(tc.SelectionType.BlockUnderCursor)
+            indent = tc.blockFormat().indent()
+            text = tc.selectedText()
+            text = text.replace("\u2029", "")
+
+            # first we make sure our block doesn't contains spelling errors
+            if tc.block().userData().state != G.State_Correction:
+                # and imports all word to our frequency list
+                splitted_text = text.split(" ")
+                exit_seq = set(''.join(T.Keys.Exits.values()))
+
+                for i, word_text in enumerate(splitted_text[1:]):
+                    try:
+                        assert len(word_text) > 3 and len(splitted_text[i]) >= 2
+                        assert word_text[0] in string.ascii_letters and splitted_text[i][0] in string.ascii_letters
+
+                        # if there is a character intersection between these sequences it means it contains
+                        # bad characters
+                        assert not len(set(word_text).union(set(splitted_text[i])).intersection(exit_seq))
+
+                    except (AssertionError, IndexError):
+                        continue
+
+                    else:
+                        word = S.LocalSettings.Dict.Word(word_text, previous=splitted_text[i])
+                        S.LOCAL.DICT.add(word)
+
+            # forward to superclass
+            super(Typer, self).keyPressEvent(e)
+
+            # light save settings
+            S.LOCAL.saveVisualSettings()
+
+            # apply the default style to the new paragraph
+            tc = self.textCursor()
+            tc.select(tc.SelectionType.BlockUnderCursor)
+            Styles.Default.applyStyle(tc)
+            block = tc.blockFormat()
+            block.setIndent(indent)
+            tc.setBlockFormat(block)
+
+        elif not (e.key() == Qt.Key.Key_Tab and self.auto_complete_available):
+            # forward Tab only if we're sure there is no autocomplete to do
+            super(Typer, self).keyPressEvent(e)
+
+        # we refresh the 'next character'
+        ntc = self.textCursor()
+        ntc.movePosition(QTextCursor.NextCharacter, QTextCursor.KeepAnchor)
+        # we check if next character exists to prevent useless autocompletion display
+        # encoding as unicode to make sure that next_char is empty, EOL was considered
+        # as a character
+        next_character = ntc.selectedText()
+
+        if self.auto_complete_available:
+            tc = self.textCursor()
+            tc.select(tc.SelectionType.WordUnderCursor)
+            self.word = tc.selectedText()
+
+            # getting the previous character
+            ptc = self.textCursor()
+            ptc.movePosition(QTextCursor.PreviousWord, QTextCursor.MoveMode.MoveAnchor, 2)
+            ptc.select(ptc.SelectionType.WordUnderCursor)
+            # we check if next character exists to prevent useless autocompletion display
+            previous_word = ptc.selectedText()
+
+            word = S.LocalSettings.Dict.Word(self.word, previous=previous_word)
+            candidate = S.LOCAL.DICT.find(word)
+
+            # if there is a candidate, we draw the autocomplete_label
+            # we also require that the next character is a new word character (' ' or ", etc...)
+            # OR that the cursor is at the end of the line
+            if candidate and len(candidate) > len(self.word) and \
+                    (next_character in T.Keys.NewWord.values() or tc.positionInBlock() == (tc.block().length() - 1)):
+                rect: QRectF
+                rect = self.cursorRect(self.textCursor())
+                res = candidate[len(self.word):]
+
+                # placing the label where the textCursor is
+                self.auto_complete_label.setFont(tc.charFormat().font())
+                fm = QFontMetrics(self.auto_complete_label.font())
+                w = fm.boundingRect(res).width() + 10
+
+                rect.setWidth(w)
+                rect.translate(2, 0)
+                self.auto_complete_label.setGeometry(rect)
+                self.auto_complete_label.setText(res)
+                self.auto_complete_label.show()
+
+            # if no candidate, hiding
+            else:
+                self.auto_complete_label.hide()
+
+        # finally, if Tab was pressed and there is an auto complete suggestion active
+        if e.key() == Qt.Key.Key_Tab and self.auto_complete_available and self.auto_complete_label.isVisible():
+            # inserting the suggestion
+            self.insertPlainText(self.auto_complete_label.text())
+
+            # resetting the auto_complete label
+            self.auto_complete_label.setText('')
+            self.auto_complete_label.hide()
+            self.word = ""
+
+            # update cursor
+            tc = self.textCursor()
+            tc.select(tc.SelectionType.WordUnderCursor)
+
+            # adding a space since the previous word should be complete
+            # if the next character is in the new word characters, we skip the space after
+            if next_character not in T.Keys.NewWord.values():
+                self.insertPlainText(" ")
+
+            self.new_word = True
+
+        # if there is a character we update the changed state
+        if len(e.text()):
+            self.contentEdited.emit()
+
+    def canInsertFromMimeData(self, source):
+        """
+        Allows the paste of image in the document
+        :param source: MimeData source
+        :return: ability to insert
+        """
+        # overrides if the source is an image
+        if source.hasImage():
+            return True
+
+        # otherwise return the normal behavior
+        else:
+            return super(Typer, self).canInsertFromMimeData(source)
+
+    def insertFromMimeData(self, source: QMimeData) -> None:
+        if source.hasText():
+            self.insertPlainText(source.text())
+
+        # special behavior if we have an image
+        # TODO: should be different, maybe only accept vector images ? maybe ask for a filename path ?
+        if source.hasImage():
+            image = QImage(QVariant(source.imageData()).value())
+
+            # convert the image as a bytearray to source
+            ba = QByteArray()
+            buffer = QBuffer(ba)
+            buffer.open(QIODevice.WriteOnly)
+            image.save(buffer, 'PNG')
+            img_str = ba.toBase64().data()
+
+            # insert the image data
+            cursor = self.textCursor()
+            cursor.insertHtml(f'<img style="width:100%" src="data:image/png;base64,{img_str.decode()}" />')
+
+        # continue with the default behavior
+        super(Typer, self).insertFromMimeData(source)
 
     def contextMenuEvent(self, e: QContextMenuEvent):
         """
@@ -1073,146 +1194,6 @@ class Typer(QTextEdit):
 
         # displaying the final popup menu
         menu.exec_(global_pos)
-
-    def openConjugate(self, cursor: QTextCursor, word: str, state: bool):
-        """
-        Show up the Conjugate dialog
-        :param cursor: the current word's textCursor
-        :param word: the verb
-        :param state: got by the signal
-        """
-        # display the dialog
-        self.conjugateDialog.load(cursor, word)
-        self.conjugateDialog.show()
-
-    def buildSynMenu(self, word: str, cursor: QTextCursor, menu: QMenu):
-        """
-        Generate the synonyms menu from the db
-        TODO: maybe this should return a list of synonyms, and the main function add them in the popup menu
-        :param word: the word we want to search the synonyms for
-        :param cursor: the textCursor
-        :param menu: the source popupmenu
-        :return: the length of synonyms found
-        """
-        def synonym(w: str) -> set:
-            """
-            get all synonyms for the current word and all words this one is a synonym for
-            TODO: maybe that's redundant ? compare
-            :param w: the word
-            :return: a set of the synonyms
-            """
-            s = set()
-            # 'synonyme' field search all synonyms for the word
-            # 'mot' field search all words this word is a synonym for
-            for field in ('synonyme', 'mot'):
-                res = self.cursor.execute(f'SELECT {field} FROM synonyme WHERE mot="{w}"').fetchall()
-
-                # extending the set with results
-                s.update(set([a[0] for a in res]))
-
-            return s
-
-        # getting the synonyms
-        synonyms = synonym(word)
-
-        # if no synonyms found, we try to get the original form of the word
-        # TODO: search only if word is a verb, make a reusable function
-        if not len(synonyms):
-            try:
-                # if we found the current word in 'forme' field it means the word is a conjugated form of a verbe
-                source, mode, temps, id = self.cursor.execute(
-                    f'SELECT source, mode, temps, id FROM conjugaison WHERE forme="{word}"').fetchone()
-
-            except TypeError:
-                pass
-
-            # since its a conjugated form, we search all synonyms of the orignal verb, then re-apply the same
-            # conjugation to the synonyms found
-            else:
-                syns = ", ".join([f'"{s}"' for s in synonym(source)])
-                conjugated_syns = self.cursor.execute(
-                    f'SELECT forme FROM conjugaison WHERE source IN ({syns}) AND mode={mode} AND temps={temps} AND id={id}')
-                synonyms.update([a[0] for a in conjugated_syns.fetchall()])
-
-        # adding results to menu
-        self.insertItemsToMenu(synonyms, cursor, menu)
-
-        return len(synonyms)
-
-    def buildSpellMenu(self, text: str, cursor: QTextCursor, menu: QMenu):
-        """
-        Create a menu for the current corrections
-        :param text: the word to correct
-        :param cursor: the current textCursor
-        :param menu: the menu to append the results
-        :return: the length of the suggestions
-        """
-
-        # looking for corrections
-        suggestions = self.symspell.lookup(text, ignore_token=self.re_ignoretoken, max_edit_distance=2,
-                                           verbosity=Verbosity.CLOSEST, include_unknown=False, transfer_casing=False)
-
-        # adding results to menu
-        self.insertItemsToMenu([a.term for a in suggestions], cursor, menu)
-
-        return len(suggestions)
-
-    def insertItemsToMenu(self, terms: set | list, cursor: QTextCursor, menu: QMenu):
-        """
-        Add the items to the given menu setting the cursor as data
-        :param terms: the items to iter
-        :param cursor: the textCursor as data
-        :param menu: the QMenu to insert
-        """
-        # looping through items
-        for solution in terms:
-            action = QAction(solution, menu)
-
-            # adding the cursor as a userData
-            action.setData((cursor, solution))
-            menu.addAction(action)
-
-        # for all these action trigger the correctWord function
-        if menu.actions():
-            menu.triggered.connect(self.correctWord)
-
-    def canInsertFromMimeData(self, source):
-        """
-        Allows the paste of image in the document
-        :param source: MimeData source
-        :return: ability to insert
-        """
-        # overrides if the source is an image
-        if source.hasImage():
-            return True
-
-        # otherwise return the normal behavior
-        else:
-            return super(Typer, self).canInsertFromMimeData(source)
-
-    def insertFromMimeData(self, source):
-        """
-        Overrides the insertFromMimeData
-        :param source: the MimeData source
-        """
-        # special behavior if we have an image
-        # TODO: should be different, maybe only accept vector images ? maybe ask for a filename path ?
-        if source.hasImage():
-            image = QImage(QVariant(source.imageData()).value())
-
-            # convert the image as a bytearray to source
-            ba = QByteArray()
-            buffer = QBuffer(ba)
-            buffer.open(QIODevice.WriteOnly)
-            image.save(buffer, 'PNG')
-            img_str = ba.toBase64().data()
-
-            # insert the image data
-            cursor = self.textCursor()
-            cursor.insertHtml(f'<img style="width:100%" src="data:image/png;base64,{img_str.decode()}" />')
-
-        # continue with the default behavior
-        super(Typer, self).insertFromMimeData(source)
 
 
 class TyperHighlighter(QSyntaxHighlighter):
