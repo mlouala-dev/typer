@@ -116,18 +116,22 @@ class TitleBar(QFrame):
         self.start = QPoint(0, 0)
         self.pressing = False
 
-    def toggleMaximized(self):
-        state = self.win.isMaximized()
-        height, style = self.default_style if state else self.maximized_style
+    def setMaximized(self, state=True):
+        # loading a style tuple
+        height, style = self.maximized_style if state else self.default_style
 
-        if not state:
+        if state:
             self.win.showMaximized()
         else:
             self.win.showNormal()
 
         # making some visual ajustements
-        self.setStyleSheet(style)
         self.setFixedHeight(height)
+        self.setStyleSheet(style)
+
+    def toggleMaximized(self):
+        state = not self.win.isMaximized()
+        self.setMaximized(state)
 
     def mouseDoubleClickEvent(self, e: QMouseEvent):
         self.toggleMaximized()

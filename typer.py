@@ -548,7 +548,7 @@ class TyperWIN(QMainWindow):
         self.setGeometry(*S.LOCAL.geometry)
 
         if S.LOCAL.maximized:
-            self.showMaximized()
+            self.window_title.setMaximized(True)
 
         self.dockViewer(not S.LOCAL.viewer_external)
 
