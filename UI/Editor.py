@@ -613,7 +613,6 @@ class Typer(QTextEdit):
         self.word = tc.selectedText()
 
         # ARABIC GLYPHS #
-        # TODO: update with the ThanaaWaMadh font
         lowered_text = tc.selectedText().lower()
         ThanaaWaMadh = {
             'aas': 'e',
@@ -760,11 +759,6 @@ class Typer(QTextEdit):
 
                     # translitterate what's between the head and tail characters
                     tc.insertText(translitteration.translitterate(txt))
-
-        # can't remember the purpose of this statement
-        if modifiers == (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier):
-            self.insertPlainText(e.text().lower())
-            return
 
         # handling some special shortcuts
         if (modifiers & Qt.KeyboardModifier.ControlModifier) and (modifiers & Qt.KeyboardModifier.ShiftModifier):
@@ -1051,9 +1045,9 @@ class Typer(QTextEdit):
         if source.hasText():
             self.insertPlainText(source.text())
 
-        # special behavior if we have an image
-        # TODO: should be different, maybe only accept vector images ? maybe ask for a filename path ?
-        if source.hasImage():
+        elif source.hasImage():
+            # special behavior if we have an image
+            # TODO: should be different, maybe only accept vector images ? maybe ask for a filename path ?
             image = QImage(QVariant(source.imageData()).value())
 
             # convert the image as a bytearray to source
@@ -1067,8 +1061,9 @@ class Typer(QTextEdit):
             cursor = self.textCursor()
             cursor.insertHtml(f'<img style="width:100%" src="data:image/png;base64,{img_str.decode()}" />')
 
-        # continue with the default behavior
-        super(Typer, self).insertFromMimeData(source)
+        else:
+            # continue with the default behavior
+            super(Typer, self).insertFromMimeData(source)
 
     def contextMenuEvent(self, e: QContextMenuEvent):
         """
@@ -1083,6 +1078,7 @@ class Typer(QTextEdit):
         # create a standard context menu on the pos
         try:
             menu = self.createStandardContextMenu(pos)
+
         except TypeError as e:
             G.exception(e)
             menu = self.createStandardContextMenu()
