@@ -4,11 +4,11 @@ Some handful text operations especially on HTML code
 NOT IMPLEMENTED YET
 """
 import re
+from string import ascii_letters, digits, whitespace
 from html.parser import HTMLParser
-from PyQt5.QtGui import QTextCursor
 
 
-class HTML(HTMLParser):
+class HtmlOperator(HTMLParser):
     """
     Core operations over HTML, based on html.parser
     """
@@ -78,7 +78,7 @@ class HTML(HTMLParser):
     def handle_starttag(self, tag, attrs):
         if tag == 'p':
             self.counter += 1
-            p = HTML.P(self.counter)
+            p = self.P(self.counter)
 
             for key, tag in attrs:
                 p.tags[key] = tag
@@ -90,7 +90,7 @@ class HTML(HTMLParser):
         elif tag == 'span':
             p = self.paragraphs[-1]
 
-            span = HTML.SPAN()
+            span = self.SPAN()
             self.wip_object = span
 
             p.addContent(span)
@@ -141,32 +141,71 @@ class Keys:
         40: '(', 39: "'", 34: '"'
     }
 
-    Exits = {60: "[", 62: "]", **NewWord, **Quotes}
+    Exits = {60: "[", 62: "]", **NewWord}
 
 
-class TEXT:
+class TextOperator:
     """
     Core operations over TEXT
     """
-    re_exit_keys = re.compile(r'[' + ''.join(Keys.Exits.values()) + r']')
+    re_exit_keys = re.compile(f'[{re.escape("".join(Keys.Exits.values()))}]')
+    seq_exit_keys = set(Keys.Exits.values()).union(set(digits)).union(set(whitespace))
 
-    def word_split(self, text):
-        words = self.re_exit_keys.split(text)
-        return words
+    def valid(self, word: str, length: int = 1) -> bool:
+        """
+        return if a word is valid in app's acception
+        """
+        elect = len(word) >= length and word[0] in ascii_letters
+        elect &= not len(set(word).intersection(self.seq_exit_keys))
+        return elect
+
+    def split(self, paragraph: str) -> [[str]]:
+        """
+        split the given paragraph as phrase with words as string inside
+        !! this is not for a common use, only for the autosuggestion system
+        """
+        phrases = [[]]
+        for word in self.re_exit_keys.split(paragraph):
+            # if the given word in invalid, we break as a new phrase to make sure we'll only keep the
+            # coherent suggestion
+            if self.valid(word):
+                phrases[-1].append(word)
+            else:
+                phrases.append([])
+
+        # filtering the empty phrases
+        return filter(lambda x: len(x), phrases)
+
+
+HTML = HtmlOperator()
+TEXT = TextOperator()
 
 
 if __name__ == "__main__":
-    parser = HTML()
-    parser.feed('''<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-<p align="center" dir='rtl' style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; line-height:87%;"><img src="./rsc/ayat_separator_LD.png" /></p>
-<p align="center" dir='rtl' style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; -qt-user-state:99; line-height:87%;"><span style=" font-family:'Microsoft Uighur'; font-size:17pt; font-weight:600; color:#267dff;">﴿ وَمِنْهُم مَّن يَقُولُ ائْذَن لِّي وَلَا تَفْتِنِّي ۚ أَلَا فِي الْفِتْنَةِ سَقَطُوا ۗ وَإِنَّ جَهَنَّمَ لَمُحِيطَةٌ بِالْكَافِرِينَ </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">﴾</span></p>
-<p align="center" dir='rtl' style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; -qt-user-state:99; line-height:87%;"><span style=" font-family:'Microsoft Uighur'; font-size:17pt;">(التوبة ٩‎:٤٩)</span></p>
-<p align="center" dir='rtl' style="-qt-paragraph-type:empty; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; line-height:87%; font-family:'Microsoft Uighur'; font-size:17pt;"><br /></p>
-<p style=" margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%;"><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; color:#267dff;">Parmi eux il y a qui disaient : </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; font-style:italic; color:#267dff;">&quot;Autorise moi </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">[à ne pas participer aux expéditions]</span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; font-style:italic; color:#267dff;"> et ne me jette pas dans la tentation&quot;</span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; color:#267dff;">.</span></p>
-<p align="justify" style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%; font-family:'Microsoft Uighur'; font-size:17pt; font-weight:600;"><br /></p>
-<p align="justify" style=" margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%;"><span style=" font-family:'Microsoft Uighur'; font-size:17pt; font-weight:600;">Cause de révélation : </span></p>
-<p align="justify" style=" margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:1; text-indent:10px; -qt-user-state:0; line-height:100%;"><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">الجَدّ بن قَيس a dit : </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-style:italic;">&quot;Autorise moi </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">[à ne pas participer] </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-style:italic;">et ne me jette pas dans la tentation&quot;</span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">. L'objet de sa tentation selon certains serait les بَنَات des بَنُو اصفَر ; les filles des byzantins, il a invoqué comme excuse d'être trop attaché aux femmes.</span></p>
-<p align="justify" style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%; font-family:'Microsoft Uighur'; font-size:14.4pt;"><br /></p>
-<p align="justify" style=" margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%;"><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; color:#267dff;">En faisant cela, il est déjà tombé dans la tentation, et l'enfer cernera les infidèles.</span></p>
-<p align="justify" style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%; font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; color:#267dff;"><br /><!--EndFragment--></p></body></html>''')
-    print(parser.build())
+#     parser = HTML()
+#     parser.feed('''<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
+# <p align="center" dir='rtl' style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; line-height:87%;"><img src="./rsc/ayat_separator_LD.png" /></p>
+# <p align="center" dir='rtl' style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; -qt-user-state:99; line-height:87%;"><span style=" font-family:'Microsoft Uighur'; font-size:17pt; font-weight:600; color:#267dff;">﴿ وَمِنْهُم مَّن يَقُولُ ائْذَن لِّي وَلَا تَفْتِنِّي ۚ أَلَا فِي الْفِتْنَةِ سَقَطُوا ۗ وَإِنَّ جَهَنَّمَ لَمُحِيطَةٌ بِالْكَافِرِينَ </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">﴾</span></p>
+# <p align="center" dir='rtl' style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; -qt-user-state:99; line-height:87%;"><span style=" font-family:'Microsoft Uighur'; font-size:17pt;">(التوبة ٩‎:٤٩)</span></p>
+# <p align="center" dir='rtl' style="-qt-paragraph-type:empty; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; line-height:87%; font-family:'Microsoft Uighur'; font-size:17pt;"><br /></p>
+# <p style=" margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%;"><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; color:#267dff;">Parmi eux il y a qui disaient : </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; font-style:italic; color:#267dff;">&quot;Autorise moi </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">[à ne pas participer aux expéditions]</span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; font-style:italic; color:#267dff;"> et ne me jette pas dans la tentation&quot;</span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; color:#267dff;">.</span></p>
+# <p align="justify" style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%; font-family:'Microsoft Uighur'; font-size:17pt; font-weight:600;"><br /></p>
+# <p align="justify" style=" margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%;"><span style=" font-family:'Microsoft Uighur'; font-size:17pt; font-weight:600;">Cause de révélation : </span></p>
+# <p align="justify" style=" margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:1; text-indent:10px; -qt-user-state:0; line-height:100%;"><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">الجَدّ بن قَيس a dit : </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-style:italic;">&quot;Autorise moi </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">[à ne pas participer] </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-style:italic;">et ne me jette pas dans la tentation&quot;</span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">. L'objet de sa tentation selon certains serait les بَنَات des بَنُو اصفَر ; les filles des byzantins, il a invoqué comme excuse d'être trop attaché aux femmes.</span></p>
+# <p align="justify" style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%; font-family:'Microsoft Uighur'; font-size:14.4pt;"><br /></p>
+# <p align="justify" style=" margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%;"><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; color:#267dff;">En faisant cela, il est déjà tombé dans la tentation, et l'enfer cernera les infidèles.</span></p>
+# <p align="justify" style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%; font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; color:#267dff;"><br /><!--EndFragment--></p></body></html>''')
+#     print(parser.build())
+
+    text = '''Ce Coran est une révélation (ou Il l'a fait descendre) du Seigneur des Mondes, est descendu avec l'Esprit Fidèle (Jibril ￼) Il l'a fait descendre sur ton coeur afin que tu sois du nombre des avertisseurs [auprès de ta communauté] en une langue arabe claire. Le Coran (ou la mention du Prophète ﷺ  ou la mention de la religion de l'islam) figure dans les livres (زُبُر) des premiers anciens (la Torah, le انجِيل et les autres livres célestes) N'est pas un signe pour les détracteurs que le fait que les érudits des بَنُ اسرَائِيل le (il y a différents avis sur ce ضَمِير : les propos du Coran, le Prophète) connaissent et si nous l'avions fait descendre sur quelques non arabe et qu'il leur aurait récité il n'y croiraient pas car ça a été révélé en notre langue. Et iil n'y croiront pas aoir d'avoir le châtiment douloureux.
+
+Ainsi nous l'avons fait entrer dans les coeurs des criminels
+
+19/05
+20/05
+une fourmi avait avert lorsque Soulayman ￼ avait voulu traverser : elle aussi a un soucis pour ses semblables. 
+Soulayman a entendu une fourmi 
+C'est une sourate مَكِّيَّة
+Voici les versets d'un Livre explicite (le Coran) un guide [vers le paradis] et une bonne annonce [de récompense] pour les croyants, ceux ...
+Ceux qui ne croient pas en l'au-delà, nous embellissons à leurs yeux leurs actions, ils pensent être dans le bien, la condition qui valide les actes de biens c'est la foi, certains font de mauvaises actions et se croient être dans le bien. Et ils se montreront hésitants [dans ce monde], Allah nous montre que sans la foi, même si certaines sont reconnues comme étant de bonnes actions'''
+    print(TEXT.split(text))

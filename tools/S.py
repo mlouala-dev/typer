@@ -416,6 +416,7 @@ class LocalSettings(_Settings):
                 self.updates.clear()
 
         def add(self, word: Word):
+            print('new word : ', word)
             try:
                 self[word].count += 1
                 self.updates.add(self[word])

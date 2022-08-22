@@ -892,7 +892,7 @@ class Typer(QTextEdit):
 
         elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_H:
             # inserts a custom bullet (for Quran tafsir purpose, ayat separator)
-            self.textCursor().insertHtml("""<span style=" font-family:'AGA Arabesque'; font-size:10pt; color:#9622D3;">_</span>""")
+            self.textCursor().insertText('\u06de ')
 
         # forwarding to parent to jump through pages
         elif e.key() in (Qt.Key.Key_PageUp, Qt.Key.Key_PageDown):
@@ -909,24 +909,19 @@ class Typer(QTextEdit):
             # first we make sure our block doesn't contains spelling errors
             if tc.block().userData().state != G.State_Correction:
                 # and imports all word to our frequency list
-                splitted_text = text.split(" ")
-                exit_seq = set(''.join(T.Keys.Exits.values()))
+                # we split the paragraph in phrase, so the previous word suggestion will be coherent
+                for phrase in T.TEXT.split(text):
+                    for i, word_text in enumerate(phrase[1:]):
+                        # in this configuration, phrase[i] will point the previous word
+                        try:
+                            assert len(word_text) >= 4 and len(phrase[i]) >= 2
 
-                for i, word_text in enumerate(splitted_text[1:]):
-                    try:
-                        assert len(word_text) > 3 and len(splitted_text[i]) >= 2
-                        assert word_text[0] in string.ascii_letters and splitted_text[i][0] in string.ascii_letters
+                        except (AssertionError, IndexError):
+                            continue
 
-                        # if there is a character intersection between these sequences it means it contains
-                        # bad characters
-                        assert not len(set(word_text).union(set(splitted_text[i])).intersection(exit_seq))
-
-                    except (AssertionError, IndexError):
-                        continue
-
-                    else:
-                        word = S.LocalSettings.Dict.Word(word_text, previous=splitted_text[i])
-                        S.LOCAL.DICT.add(word)
+                        else:
+                            word = S.LocalSettings.Dict.Word(word_text, previous=phrase[i])
+                            S.LOCAL.DICT.add(word)
 
             # forward to superclass
             super(Typer, self).keyPressEvent(e)
