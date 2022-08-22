@@ -615,25 +615,31 @@ class Typer(QTextEdit):
         # ARABIC GLYPHS #
         # TODO: update with the ThanaaWaMadh font
         lowered_text = tc.selectedText().lower()
-        if lowered_text in ("sws", "saws", "jj", "aas", "ra", 'raha', 'rahuma', 'rahum'):
+        ThanaaWaMadh = {
+            'aas': 'e',
+            'ra': 'h',
+            'raha': 'i',
+            'rahuma': 'j',
+            'rahum': 'k'
+        }
+        if lowered_text in ("sws", "saws", "jj", "aas", "ra", 'raha', 'rahuma', 'rahum') and e.key() in T.Keys.Exits:
             # a glyph for Salla Allahu 'alayhi wa sallam
             if lowered_text in ("sws", "saws"):
-                tc.insertText("ﷺ")
+                tc.insertText("ﷺ" + e.text())
 
             # a glyph for Jalla Jalaaluhu
             elif lowered_text == "jj":
-                tc.insertText("ﷻ")
+                tc.insertText("ﷻ" + e.text())
 
             # for the other case we need images... until we implement the ThanaaWaMadh font
-            elif lowered_text in ("aas", "ra", 'raha', 'rahuma', 'rahum') and e.key() in T.Keys.NewWord:
-                # getting the image ressource path
-                path = G.rsc_path(f'{lowered_text}_LD.png')
-
-                # adding it as a HTML image
-                tc.insertHtml(f"<img src='{path}'>")
+            else:
+                # adding it as a HTML special font
+                tc.insertHtml(f'''<span style="font-family:'ThanaaWaMadh';">{ThanaaWaMadh[lowered_text]}</span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">{e.text()}</span>''')
 
             # setting word to null
             self.word = ""
+
+            return
 
         # if it matches our regex for 1st 1er 2nd 34eme etc
         is_number = self.re_numbering.match(self.word)
@@ -892,7 +898,21 @@ class Typer(QTextEdit):
 
         elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_H:
             # inserts a custom bullet (for Quran tafsir purpose, ayat separator)
-            self.textCursor().insertText('\u06de ')
+            tc = self.textCursor()
+            tc.beginEditBlock()
+            bullet = '<span style="color:#9622d3;">\u06de</span>'
+
+            # we first determine if we need extra spaces or no
+            if T.TEXT.prev_char(self.textCursor()) not in string.whitespace:
+                tc.insertText(' ')
+
+            next_char = T.TEXT.next_char(self.textCursor())
+            if not len(next_char) or next_char not in string.whitespace:
+                bullet = f'{bullet} '
+
+            tc.insertHtml(bullet)
+            tc.endEditBlock()
+            return
 
         # forwarding to parent to jump through pages
         elif e.key() in (Qt.Key.Key_PageUp, Qt.Key.Key_PageDown):

@@ -26,7 +26,7 @@ __debug_level__ = logging.CRITICAL
 
 # the font(s) used by the app
 __font__ = 'Microsoft Uighur'
-__additional_fonts__ = ['Microsoft Uighur Bold', 'AGA Arabesque']
+__additional_fonts__ = ['Microsoft Uighur Bold', 'AGA Arabesque', 'ThanaaWaMadh']
 __additional_fonts__.insert(0, __font__)
 
 # the file extension of the app

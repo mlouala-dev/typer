@@ -7,6 +7,8 @@ import re
 from string import ascii_letters, digits, whitespace
 from html.parser import HTMLParser
 
+from PyQt5.QtGui import QTextCursor
+
 
 class HtmlOperator(HTMLParser):
     """
@@ -175,6 +177,14 @@ class TextOperator:
 
         # filtering the empty phrases
         return filter(lambda x: len(x), phrases)
+
+    def next_char(self, textCursor: QTextCursor) -> str:
+        textCursor.movePosition(QTextCursor.NextCharacter, QTextCursor.KeepAnchor)
+        return textCursor.selectedText()
+
+    def prev_char(self, textCursor: QTextCursor) -> str:
+        textCursor.movePosition(QTextCursor.PreviousCharacter, QTextCursor.KeepAnchor)
+        return textCursor.selectedText()
 
 
 HTML = HtmlOperator()
