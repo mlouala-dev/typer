@@ -858,34 +858,64 @@ class Settings(QDialog):
         self._doc = self._typer.document()
         self.setFixedSize(600, 400)
 
-        self.document_layout = QVBoxLayout()
-        self.setLayout(self.document_layout)
+        document_layout = QGridLayout()
+        document_layout.setAlignment(Qt.AlignTop)
 
-        self.connected_box = self.addOption('connected', 'Connect to PDF\'s pages')
-        self.viewer_external_box = self.addOption('viewer_external', 'External PDF Viewer Frame')
-        self.viewer_invert_box = self.addOption('viewer_invert', 'Invert PDF Viewer Colors')
+        # GLOBAL SETTINGS
+        self.group_global = QGroupBox('Global Settings')
+        self.group_global_layout = QVBoxLayout()
+        self.group_global_layout.setAlignment(Qt.AlignTop)
+        self.group_global.setLayout(self.group_global_layout)
+
+        self.theme = QComboBox()
+        themes = [s for s in S.GLOBAL.themes.keys()]
+        self.theme.addItems(themes)
+        self.theme.currentIndexChanged.connect(partial(self.updateGlobalSettings, 'theme'))
+        self.group_global_layout.addWidget(self.theme)
+
+        self.update_default_path_box = self.addGlobalOption('update_default_path', 'Update default path')
+
+        self.auto_load_box = self.addGlobalOption('auto_load', 'Automatically load previous file')
+
         self.verbose_level = QComboBox()
-        self.verbose_level.addItems([
-            'critical',
-            'error',
-            'warning',
-            'info',
-            'debug',
-            'silent'
-        ])
+        self.verbose_level.addItems(['critical', 'error', 'warning', 'info', 'debug', 'silent'])
         self.verbose_level.setCurrentIndex(self.verbose_eq.index(G.__debug_level__))
-        self.verbose_level.currentIndexChanged.connect(partial(self.update_settings, 'verbose_level'))
+        self.verbose_level.currentIndexChanged.connect(partial(self.updateGlobalSettings, 'verbose_level'))
+        self.group_global_layout.addWidget(self.verbose_level)
 
-        self.layout().addWidget(self.verbose_level)
+        # LOCAL SETTINGS
+        self.group_local = QGroupBox('Local Settings')
+        self.group_local_layout = QVBoxLayout()
+        self.group_local_layout.setAlignment(Qt.AlignTop)
+        self.group_local.setLayout(self.group_local_layout)
 
-    def addOption(self, name: str, nice_name: str):
-        checkbox = QCheckBox(self)
-        self.layout().addLayout(LineLayout(self, nice_name, checkbox))
-        checkbox.clicked.connect(partial(self.update_settings, name))
+        self.connected_box = self.addLocalOption('connected', 'Connect to PDF\'s pages')
 
+        self.viewer_external_box = self.addLocalOption('viewer_external', 'External PDF Viewer Frame')
+
+        self.viewer_invert_box = self.addLocalOption('viewer_invert', 'Invert PDF Viewer Colors')
+
+        document_layout.addWidget(self.group_global)
+        document_layout.addWidget(self.group_local)
+        self.setLayout(document_layout)
+
+    @staticmethod
+    def addOption(nice_name: str, layout: QVBoxLayout):
+        checkbox = QCheckBox()
+        layout.addLayout(LineLayout(None, nice_name, checkbox))
         return checkbox
 
-    def update_settings(self, domain, state):
+    def addLocalOption(self, name: str, nice_name: str):
+        checkbox = self.addOption(nice_name, self.group_local_layout)
+        checkbox.clicked.connect(partial(self.updateLocalSettings, name))
+        return checkbox
+
+    def addGlobalOption(self, name: str, nice_name: str):
+        checkbox = self.addOption(nice_name, self.group_global_layout)
+        checkbox.clicked.connect(partial(self.updateGlobalSettings, name))
+        return checkbox
+
+    def updateLocalSettings(self, domain, state):
         """
         TODO: change everything, we should call a function like that but trigger signals to the parent instead
         """
@@ -916,15 +946,33 @@ class Settings(QDialog):
             S.LOCAL.viewer_invert = state
             self._win.viewer.redrawPixmap(self._win.viewer.current_page)
 
-        elif domain == 'verbose_level':
+        S.LOCAL.saveSetting(domain)
+
+    def updateGlobalSettings(self, domain, state):
+        """
+        TODO: cf Local remarks
+        """
+        if domain == 'verbose_level':
             G.__debug_level__ = self.verbose_eq[state]
             G.logger.setLevel(self.verbose_eq[state])
-            print('verbose changed to', G.__debug_level__)
 
-        if domain in ('connected', 'viewer_external', 'viewer_invert'):
-            S.LOCAL.saveSetting(domain)
+        elif domain == 'theme':
+            S.GLOBAL.setTheme(self.theme.itemText(state))
+
+        elif domain == 'update_default_path':
+            S.GLOBAL.update_default_path = state
+
+        elif domain == 'auto_load':
+            S.GLOBAL.auto_load = state
+
+        if domain != 'verbose_level':
+            S.GLOBAL.saveSetting(domain)
 
     def show(self):
+        self.theme.setCurrentIndex(list(S.GLOBAL.themes.keys()).index(S.GLOBAL.theme))
+        self.update_default_path_box.setChecked(S.GLOBAL.update_default_path)
+        self.auto_load_box.setChecked(S.GLOBAL.auto_load)
+
         self.connected_box.setChecked(S.LOCAL.connected)
         self.connected_box.setEnabled(S.LOCAL.hasPDF())
         self.viewer_external_box.setChecked(S.LOCAL.viewer_external)
@@ -1197,7 +1245,7 @@ class Exporter(QDialog):
         """
         Opens a dialog to select the PDF filepath
         """
-        dialog = QFileDialog(None, "Pick saved PDF's filepath", G.abs_path())
+        dialog = QFileDialog(None, "Pick saved PDF's filepath", S.GLOBAL.default_path)
         dialog.setFileMode(dialog.AnyFile)
         dialog.setDefaultSuffix("pdf")
         dialog.setNameFilter("PDF Files (*.pdf)")

@@ -8,6 +8,10 @@ import tempfile
 import os
 import re
 
+from PyQt5.QtWidgets import QApplication, QStyleFactory
+from PyQt5.QtGui import QPalette, QColor
+from PyQt5.QtCore import Qt
+
 from tools import G
 from tools.translitteration import translitterate, re_ignore_hamza, clean_harakat
 
@@ -15,17 +19,147 @@ from tools.translitteration import translitterate, re_ignore_hamza, clean_haraka
 class _Settings:
     db: sqlite3.Connection
     cursor: sqlite3.Cursor
+    defaults = {}
 
     def __init__(self):
         self.db = None
         self.cursor = None
         self.filename = ''
-        pass
+
+    def create_db_link(self):
+        if self.db:
+            self.db.close()
+
+        self.db = sqlite3.connect(self.filename)
+        self.cursor = self.db.cursor()
+
+    def buildCoreSettings(self):
+        creation_query = '''
+        DROP TABLE IF EXISTS "settings";
+        CREATE TABLE "settings" (
+            "field"	TEXT,
+            "value"	BLOB
+        );
+        '''
+
+        try:
+            self.cursor.executescript(creation_query)
+        except sqlite3.OperationalError:
+            return False
+
+        for field, default_value in self.defaults.items():
+            self.cursor.execute('INSERT INTO settings ("field", "value") VALUES (?, ?)', (field, default_value))
+
+        self.db.commit()
+        return self.loadCoreSettings()
+
+    def loadCoreSettings(self) -> dict:
+        try:
+            settings = {key: stg for key, stg in self.cursor.execute('SELECT * FROM settings').fetchall()}
+
+        except sqlite3.OperationalError:
+            G.error("inconsistent config file, rebuild")
+            settings = self.buildCoreSettings()
+
+        return settings
+
+    @G.log
+    def saveSetting(self, setting):
+        self.cursor.execute('UPDATE settings SET value=? WHERE field=?', (self.__dict__[setting], setting))
+        self.db.commit()
 
 
 class GlobalSettings(_Settings):
+    class Style:
+        name = 'Empty'
+        palette = QPalette()
+
+        def apply(self):
+            QApplication.setStyle(QStyleFactory.create("Fusion"))
+            QApplication.setPalette(self.palette)
+
+    class Dark(Style):
+        name = 'Dark Theme'
+        palette = QPalette()
+
+        darkColor = QColor(45, 45, 45)
+        disabledColor = QColor(127, 127, 127)
+        palette.setColor(QPalette.ColorRole.Window, darkColor)
+        palette.setColor(QPalette.ColorRole.WindowText, Qt.white)
+        palette.setColor(QPalette.ColorRole.Base, QColor(28, 28, 28))
+
+        palette.setColor(QPalette.ColorRole.AlternateBase, darkColor)
+        palette.setColor(QPalette.ColorRole.ToolTipBase, Qt.white)
+        palette.setColor(QPalette.ColorRole.ToolTipText, Qt.white)
+        palette.setColor(QPalette.ColorRole.Text, Qt.white)
+
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Button, disabledColor)
+        palette.setColor(QPalette.ColorRole.Button, darkColor)
+        palette.setColor(QPalette.ColorRole.ButtonText, Qt.white)
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, disabledColor)
+        palette.setColor(QPalette.ColorRole.BrightText, Qt.red)
+        palette.setColor(QPalette.ColorRole.Link, QColor(42, 130, 218))
+
+        palette.setColor(QPalette.ColorRole.Highlight, QColor(53, 60, 70))
+        palette.setColor(QPalette.ColorRole.HighlightedText, Qt.black)
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.HighlightedText, disabledColor)
+
+    class Light(Style):
+        name = 'Light Theme'
+        pass
+
+    themes = {
+        'dark': Dark(),
+        'light': Light()
+    }
+
+    defaults = {
+        'theme': 'light',
+        'last_file': '',
+        'default_path': G.abs_path(),
+        'update_default_path': True,
+        'auto_load': False
+    }
+
     def __init__(self):
         super(GlobalSettings, self).__init__()
+        self.filename = G.rsc_path('config.db')
+        self.create_db_link()
+
+        self.theme = self.defaults['theme']
+        self.last_file = self.defaults['last_file']
+        self.default_path = self.defaults['default_path']
+        self.auto_load = self.defaults['auto_load']
+        self.update_default_path = self.defaults['update_default_path']
+
+    def setTheme(self, theme):
+        self.theme = theme
+        self.themes[self.theme].apply()
+
+    def setLastFile(self, filename: str):
+        self.last_file = filename
+        self.saveSetting('last_file')
+
+        self.setDefaultPath(filename)
+
+    def setDefaultPath(self, filename: str):
+        if self.update_default_path:
+            self.default_path = os.path.dirname(filename)
+            self.saveSetting('default_path')
+
+    def loadSettings(self):
+        settings = self.loadCoreSettings()
+
+        self.setTheme(settings['theme'])
+
+        self.default_path = settings['default_path']
+
+        self.auto_load = bool(settings['auto_load'])
+        self.last_file = settings['last_file']
+        if self.auto_load and not os.path.isfile(self.last_file):
+            self.last_file = ''
+
+        self.update_default_path = bool(settings['update_default_path'])
 
 
 class LocalSettings(_Settings):
@@ -416,7 +550,6 @@ class LocalSettings(_Settings):
                 self.updates.clear()
 
         def add(self, word: Word):
-            print('new word : ', word)
             try:
                 self[word].count += 1
                 self.updates.add(self[word])
@@ -588,13 +721,6 @@ class LocalSettings(_Settings):
 
     # global settings
 
-    def create_db_link(self):
-        if self.db:
-            self.db.close()
-
-        self.db = sqlite3.connect(self.filename)
-        self.cursor = self.db.cursor()
-
     def createSettings(self, filename: str = ''):
         self.filename = filename
         self.create_db_link()
@@ -611,10 +737,6 @@ class LocalSettings(_Settings):
             "count"	INTEGER,
             "before"	TEXT
         );
-        CREATE TABLE "settings" (
-            "field"	TEXT,
-            "value"	BLOB
-        );
         CREATE TABLE "topics" (
             "name"	TEXT,
             "page"	INTEGER,
@@ -624,13 +746,14 @@ class LocalSettings(_Settings):
 
         try:
             self.cursor.executescript(creation_query)
+
         except sqlite3.OperationalError:
             return False
 
-        for field, default_value in self.defaults.items():
-            self.cursor.execute('INSERT INTO settings ("field", "value") VALUES (?, ?)', (field, default_value))
+        else:
+            self.db.commit()
 
-        self.db.commit()
+        self.buildCoreSettings()
 
         self.BOOK = LocalSettings.Book(self.db, self.cursor)
 
@@ -638,13 +761,15 @@ class LocalSettings(_Settings):
         self.filename = filename
         self.create_db_link()
 
+        GLOBAL.setLastFile(filename)
+
         self.BOOK = LocalSettings.Book(self.db, self.cursor)
         self.DICT = LocalSettings.Dict(self.db, self.cursor)
 
         for name, page, domain in self.cursor.execute('SELECT * FROM topics').fetchall():
             self.TOPICS.addTopic(name, domain, int(page))
 
-        settings = {key: stg for key, stg in self.cursor.execute('SELECT * FROM settings').fetchall()}
+        settings = self.loadCoreSettings()
 
         self.position = settings['position']
         self._page = settings['page']
@@ -734,11 +859,6 @@ class LocalSettings(_Settings):
             settings['viewer_w'],
             settings['viewer_h']
         )
-
-    @G.log
-    def saveSetting(self, setting):
-        self.cursor.execute('UPDATE settings SET value=? WHERE field=?', (self.__dict__[setting], setting))
-        self.db.commit()
 
     @G.log
     def saveAllSettings(self):

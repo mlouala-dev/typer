@@ -22,7 +22,7 @@ from PyQt5.QtSql import QSqlDatabase
 __app__ = 'Typer'   # name
 __ver__ = 1.4       # version
 __ext__ = '786'     # extension
-__debug_level__ = logging.CRITICAL
+__debug_level__ = logging.ERROR
 
 # the font(s) used by the app
 __font__ = 'Microsoft Uighur'

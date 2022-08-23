@@ -153,9 +153,8 @@ class TyperWIN(QMainWindow):
         self.setCentralWidget(self.container)
         self.setBaseSize(600, 800)
 
-        _splash.progress(75, "Applying dark theme...")
-        if self.dark_mode:
-            self.setDarkMode()
+        _splash.progress(75, "Loading global settings...")
+        S.GLOBAL.loadSettings()
 
         self.modified.clear()
 
@@ -219,8 +218,11 @@ class TyperWIN(QMainWindow):
         super(TyperWIN, self).show()
         self.typer.setFocus()
 
-        # if app ran from a file opening, loads it
-        if len(sys.argv) == 2:
+        if S.GLOBAL.auto_load and len(S.GLOBAL.last_file):
+            self.openProject(S.GLOBAL.last_file)
+
+        elif len(sys.argv) == 2:
+            # if app ran from a file opening, loads it
             self.openProject(sys.argv[1])
 
     # FILE OPERATION
@@ -236,7 +238,7 @@ class TyperWIN(QMainWindow):
             self.statusbar.updateSavedState(1)
 
             # open new file dialog
-            dialog = self.defaultDialogContext('New Project')
+            dialog = self.defaultDialogContext('New Project', path=S.GLOBAL.default_path)
 
             if dialog.exec_() == QFileDialog.Accepted:
                 filename = dialog.selectedFiles()
@@ -261,7 +263,10 @@ class TyperWIN(QMainWindow):
         if self.checkChanges():
 
             # creating the dialog
-            dialog = self.defaultDialogContext('Open a project', filemode=QFileDialog.ExistingFile)
+            dialog = self.defaultDialogContext('Open a project',
+                                               path=S.GLOBAL.default_path,
+                                               filemode=QFileDialog.ExistingFile,
+                                               acceptmode=QFileDialog.AcceptMode.AcceptOpen)
 
             if dialog.exec_() == QFileDialog.Accepted:
                 filename = dialog.selectedFiles()
@@ -442,9 +447,7 @@ class TyperWIN(QMainWindow):
 
             self.newProjectDialog()
 
-        current_dir = os.path.dirname(S.LOCAL.filename)
-
-        dialog = QFileDialog(None, "Open a reference's PDF", current_dir)
+        dialog = QFileDialog(None, "Open a reference's PDF", S.GLOBAL.default_path)
         dialog.setFileMode(dialog.ExistingFile)
         dialog.setDefaultSuffix("pdf")
         dialog.setNameFilter("PDF Files (*.pdf)")
@@ -546,9 +549,7 @@ class TyperWIN(QMainWindow):
         self.viewer_frame.setVisible(S.LOCAL.isViewerVisible())
 
         self.setGeometry(*S.LOCAL.geometry)
-
-        if S.LOCAL.maximized:
-            self.window_title.setMaximized(True)
+        self.window_title.setMaximized(S.LOCAL.maximized)
 
         self.dockViewer(not S.LOCAL.viewer_external)
 
@@ -792,113 +793,6 @@ class TyperWIN(QMainWindow):
             # just update few settings to keep seamless
             self.saveVisibilitySettings()
 
-    def setDarkMode(self):
-        """
-        Active the darkmode by changing the palette
-        TODO: Enable toggling
-        """
-        QApplication.setStyle(QStyleFactory.create("Fusion"))
-        darkPalette = QPalette()
-        darkColor = QColor(45, 45, 45)
-        disabledColor = QColor(127, 127, 127)
-        darkPalette.setColor(QPalette.ColorRole.Window, darkColor)
-        darkPalette.setColor(QPalette.ColorRole.WindowText, Qt.white)
-        darkPalette.setColor(QPalette.ColorRole.Base, QColor(18, 18, 18))
-
-        darkPalette.setColor(QPalette.ColorRole.AlternateBase, darkColor)
-        darkPalette.setColor(QPalette.ColorRole.ToolTipBase, Qt.white)
-        darkPalette.setColor(QPalette.ColorRole.ToolTipText, Qt.white)
-        darkPalette.setColor(QPalette.ColorRole.Text, Qt.white)
-
-        darkPalette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Button, disabledColor)
-        darkPalette.setColor(QPalette.ColorRole.Button, darkColor)
-        darkPalette.setColor(QPalette.ColorRole.ButtonText, Qt.white)
-        darkPalette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, disabledColor)
-        darkPalette.setColor(QPalette.ColorRole.BrightText, Qt.red)
-        darkPalette.setColor(QPalette.ColorRole.Link, QColor(42, 130, 218))
-
-        darkPalette.setColor(QPalette.ColorRole.Highlight, QColor(42, 130, 218))
-        darkPalette.setColor(QPalette.ColorRole.HighlightedText, Qt.black)
-        darkPalette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.HighlightedText, disabledColor)
-
-        QApplication.setPalette(darkPalette)
-        self.setStyleSheet("""QToolTip { color: #ffffff; background-color: #2a82da; border: 1px solid white; """)
-
-        self.typer.setStyleSheet('''
-            background: #fff4d5;
-            color: #313539;
-        ''')
-        # custom style for scollbars
-        self.typer.setStyleSheet('''
-QTextEdit {
-    background: #1b1b1b;
-    color: #a9b7c6;
-    selection-background-color: #214283;
-}
-img { width:100%; }
-QScrollBar {
-  border: none;
-  background: rgb(38, 45, 68);
-  border-radius: 0px;
-}
-QScrollBar:vertical {
-    width: 14px;
-    margin: 15px 0 15px 0;
-}
-QScrollBar:horizontal {
-    height: 14px;
-    margin: 0 15px 0 15px;
-}
-
-/*  HANDLE BAR VERTICAL */
-QScrollBar::handle {
-  background-color: rgb(71, 80, 122);
-  border-radius: 7px;
-}
-QScrollBar::handle:vertical { min-height: 30px; }
-QScrollBar::handle:horizontal { min-width: 30px; }
-
-QScrollBar::handle:hover{ background-color: #214283; }
-QScrollBar::handle:pressed { background-color: #1d5bd5; }
-
-/* BTN TOP - SCROLLBAR */
-QScrollBar::sub-line {
-  border: none;
-  background-color: rgb(55, 59, 90);
-  subcontrol-origin: margin;
-  border-top-left-radius: 7px;
-}
-QScrollBar::sub-line:vertical {
-  height: 15px;
-  border-top-right-radius: 7px;
-  subcontrol-position: top;
-}
-QScrollBar::sub-line:horizontal {
-  width: 15px;
-  border-bottom-left-radius: 7px;
-  subcontrol-position: left;
-}
-QScrollBar::sub-line:hover { background-color: #214283; }
-QScrollBar::sub-line:pressed { background-color: #1d5bd5; }
-
-/* BTN BOTTOM - SCROLLBAR */
-QScrollBar::add-line:vertical {
-  border: none;
-  background-color: rgb(55, 59, 90);
-  height: 15px;
-  border-bottom-left-radius: 7px;
-  border-bottom-right-radius: 7px;
-  subcontrol-position: bottom;
-  subcontrol-origin: margin;
-}
-QScrollBar::add-line:vertical:hover { background-color: #214283; }
-QScrollBar::add-line:vertical:pressed { background-color: #1d5bd5; }
-
-/* RESET ARROW */
-QScrollBar::up-arrow:vertical, QScrollBar::down-arrow:vertical { background: none; }
-QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }
-''')
-
     def currentCursor(self) -> QTextCursor:
         """
         Get the current cursor from the document
@@ -932,12 +826,16 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none;
         self.setWindowTitle(f'{self.getFilesName()} - {self._title} v{G.__ver__}')
 
     @staticmethod
-    def defaultDialogContext(title='', path=G.__abs_path__, filemode=QFileDialog.AnyFile) -> QFileDialog:
+    def defaultDialogContext(title='',
+                             path=S.GLOBAL.default_path,
+                             filemode=QFileDialog.AnyFile,
+                             acceptmode=QFileDialog.AcceptMode.AcceptSave) -> QFileDialog:
         """
         Returns a dialog with the default we use, file ext, file mode, etc..
         :param title: the dialog's title
         :param path: the dialog's default start path
         :param filemode: dialog's filemode, Any or Existing
+        :param acceptmode: specify which buttons displayed
         :return: a QFileDialog widget
         """
         dialog = QFileDialog(None, title, path)
@@ -946,7 +844,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none;
         dialog.setFileMode(filemode)
         dialog.setDefaultSuffix(G.__ext__)
         dialog.setNameFilter(f"Typer Files (*.{G.__ext__});;All files (*.*)")
-        dialog.setAcceptMode(dialog.AcceptSave)
+        dialog.setAcceptMode(acceptmode)
 
         return dialog
 

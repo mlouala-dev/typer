@@ -90,7 +90,7 @@ class TitleBar(QFrame):
 
         self.window_title = QLabel("Window's title")
         self.window_title.setFont(G.get_font(1.3))
-        self.window_title.setStyleSheet("color:#2a82da;")
+        self.window_title.setObjectName('WindowTitle')
         self.window_title.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
         self.window_title.setFixedHeight(30)
 

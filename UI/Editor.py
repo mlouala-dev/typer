@@ -842,6 +842,7 @@ class Typer(QTextEdit):
                 return
 
             # add bullets
+            # TODO: CHANGE TO the OL / UL tags when the HTML parser is done in sha Allah
             elif e.key() == Qt.Key.Key_B:
                 tc = self.textCursor()
 
@@ -897,7 +898,7 @@ class Typer(QTextEdit):
             bullet = '<span style="color:#9622d3;">\u06de</span>'
 
             # we first determine if we need extra spaces or no
-            if T.TEXT.prev_char(self.textCursor()) not in string.whitespace:
+            if self.textCursor().positionInBlock() != 0 and T.TEXT.prev_char(self.textCursor()) not in string.whitespace:
                 tc.insertText(' ')
 
             next_char = T.TEXT.next_char(self.textCursor())
@@ -1042,10 +1043,7 @@ class Typer(QTextEdit):
             return super(Typer, self).canInsertFromMimeData(source)
 
     def insertFromMimeData(self, source: QMimeData) -> None:
-        if source.hasText():
-            self.insertPlainText(source.text())
-
-        elif source.hasImage():
+        if source.hasImage():
             # special behavior if we have an image
             # TODO: should be different, maybe only accept vector images ? maybe ask for a filename path ?
             image = QImage(QVariant(source.imageData()).value())
@@ -1061,9 +1059,8 @@ class Typer(QTextEdit):
             cursor = self.textCursor()
             cursor.insertHtml(f'<img style="width:100%" src="data:image/png;base64,{img_str.decode()}" />')
 
-        else:
-            # continue with the default behavior
-            super(Typer, self).insertFromMimeData(source)
+        # continue with the default behavior
+        super(Typer, self).insertFromMimeData(source)
 
     def contextMenuEvent(self, e: QContextMenuEvent):
         """
