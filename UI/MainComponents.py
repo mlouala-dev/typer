@@ -604,7 +604,8 @@ class StatusBar(QStatusBar):
 
     def __init__(self, parent: QWidget = None):
         super(StatusBar, self).__init__(parent)
-        self.setFixedHeight(30)
+        self.setFixedHeight(25)
+        self.setContentsMargins(10, 0, 0, 0)
 
         # UI stuffs
         self.page_label = QLabel(self)

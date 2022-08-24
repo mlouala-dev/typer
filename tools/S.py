@@ -84,20 +84,21 @@ class GlobalSettings(_Settings):
 
         darkColor = QColor(45, 45, 45)
         disabledColor = QColor(127, 127, 127)
+        whiteText = QColor(169, 183, 198)
         palette.setColor(QPalette.ColorRole.Window, darkColor)
-        palette.setColor(QPalette.ColorRole.WindowText, Qt.white)
+        palette.setColor(QPalette.ColorRole.WindowText, whiteText)
         palette.setColor(QPalette.ColorRole.Base, QColor(28, 28, 28))
 
         palette.setColor(QPalette.ColorRole.AlternateBase, darkColor)
-        palette.setColor(QPalette.ColorRole.ToolTipBase, Qt.white)
-        palette.setColor(QPalette.ColorRole.ToolTipText, Qt.white)
-        palette.setColor(QPalette.ColorRole.Text, Qt.white)
+        palette.setColor(QPalette.ColorRole.ToolTipBase, whiteText)
+        palette.setColor(QPalette.ColorRole.ToolTipText, whiteText)
+        palette.setColor(QPalette.ColorRole.Text, whiteText)
 
         palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Button, disabledColor)
         palette.setColor(QPalette.ColorRole.Button, darkColor)
-        palette.setColor(QPalette.ColorRole.ButtonText, Qt.white)
+        palette.setColor(QPalette.ColorRole.ButtonText, whiteText)
         palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, disabledColor)
-        palette.setColor(QPalette.ColorRole.BrightText, Qt.red)
+        palette.setColor(QPalette.ColorRole.BrightText, Qt.white)
         palette.setColor(QPalette.ColorRole.Link, QColor(42, 130, 218))
 
         palette.setColor(QPalette.ColorRole.Highlight, QColor(53, 60, 70))
