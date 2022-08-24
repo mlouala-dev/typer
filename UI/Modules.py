@@ -867,20 +867,29 @@ class Settings(QDialog):
         self.group_global_layout.setAlignment(Qt.AlignTop)
         self.group_global.setLayout(self.group_global_layout)
 
-        self.theme = self.addOption('Themes', self.group_global_layout, QComboBox())
+        self.theme, = self.addOption('Themes', self.group_global_layout, QComboBox())
         themes = [s for s in S.GLOBAL.themes.keys()]
         self.theme.addItems(themes)
         self.theme.currentIndexChanged.connect(partial(self.updateGlobalSettings, 'theme'))
 
-        self.audio_devices = self.addOption('Audio Input Devices', self.group_global_layout, QComboBox())
+        self.audio_record_path, self.audio_record_path_browse = self.addOption('Audio Record Path', self.group_global_layout, QLabel(), QPushButton('...'))
+        self.audio_record_path_browse.setFixedWidth(35)
+        self.audio_record_path_browse.clicked.connect(partial(self.updateGlobalSettings, 'audio_record_path'))
+
+        self.audio_devices, = self.addOption('Audio Input Devices', self.group_global_layout, QComboBox())
         self.audio_devices.addItems(G.audio_input_devices_names)
         self.audio_devices.currentIndexChanged.connect(partial(self.updateGlobalSettings, 'audio_input_device'))
+
+        self.audio_sample_rate, = self.addOption('Audio Sample Rate', self.group_global_layout, QComboBox())
+        self.sample_rates = [8000, 16000, 24000, 48000]
+        self.audio_sample_rate.addItems(map(str, self.sample_rates))
+        self.audio_sample_rate.currentIndexChanged.connect(partial(self.updateGlobalSettings, 'audio_sample_rate'))
 
         self.update_default_path_box = self.addGlobalOption('update_default_path', 'Update default path')
 
         self.auto_load_box = self.addGlobalOption('auto_load', 'Automatically load previous file')
 
-        self.verbose_level = self.addOption('Verbose Level', self.group_global_layout, QComboBox())
+        self.verbose_level, = self.addOption('Verbose Level', self.group_global_layout, QComboBox())
         self.verbose_level.addItems(['critical', 'error', 'warning', 'info', 'debug', 'silent'])
         self.verbose_level.setCurrentIndex(self.verbose_eq.index(G.__debug_level__))
         self.verbose_level.currentIndexChanged.connect(partial(self.updateGlobalSettings, 'verbose_level'))
@@ -902,17 +911,17 @@ class Settings(QDialog):
         self.setLayout(document_layout)
 
     @staticmethod
-    def addOption(nice_name: str, layout: QVBoxLayout, obj: QWidget):
-        layout.addLayout(LineLayout(None, nice_name, obj))
-        return obj
+    def addOption(nice_name: str, layout: QVBoxLayout, *objs):
+        layout.addLayout(LineLayout(None, nice_name, *objs))
+        return objs
 
     def addLocalOption(self, name: str, nice_name: str):
-        checkbox = self.addOption(nice_name, self.group_local_layout, QCheckBox())
+        checkbox, = self.addOption(nice_name, self.group_local_layout, QCheckBox())
         checkbox.clicked.connect(partial(self.updateLocalSettings, name))
         return checkbox
 
     def addGlobalOption(self, name: str, nice_name: str):
-        checkbox = self.addOption(nice_name, self.group_global_layout, QCheckBox())
+        checkbox, = self.addOption(nice_name, self.group_global_layout, QCheckBox())
         checkbox.clicked.connect(partial(self.updateGlobalSettings, name))
         return checkbox
 
@@ -969,12 +978,39 @@ class Settings(QDialog):
         elif domain == 'audio_input_device':
             S.GLOBAL.audio_input_device = self.audio_devices.itemText(state)
 
+        elif domain == 'audio_sample_rate':
+            sample_rate = int(self.audio_sample_rate.itemText(state))
+            if sample_rate > G.audio_input_devices[S.GLOBAL.audio_input_device]['sample']:
+                QMessageBox.critical(
+                    None,
+                    "Too big sample rate",
+                    f"""<b>Sample rate {sample_rate} for the device '{S.GLOBAL.audio_input_device}' too big</b>, 
+                    reversing to 16k...""",
+                    defaultButton=QMessageBox.Ok
+                )
+                sample_rate = 16000
+
+            S.GLOBAL.audio_sample_rate = sample_rate
+
+        elif domain == 'audio_record_path':
+            dialog = QFileDialog(None, 'Audio Record Path', S.GLOBAL.audio_record_path)
+
+            # we define some defaults settings used by all our file dialogs
+            dialog.setFileMode(QFileDialog.FileMode.DirectoryOnly)
+            dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
+
+            if dialog.exec_() == QFileDialog.Accepted:
+                S.GLOBAL.audio_record_path = dialog.selectedFiles()[0]
+                self.audio_record_path.setText(S.GLOBAL.audio_record_path)
+
         if domain != 'verbose_level':
             S.GLOBAL.saveSetting(domain)
 
     def show(self):
         self.theme.setCurrentIndex(list(S.GLOBAL.themes.keys()).index(S.GLOBAL.theme))
+        self.audio_record_path.setText(S.GLOBAL.audio_record_path)
         self.audio_devices.setCurrentIndex(G.audio_input_devices_names.index(S.GLOBAL.audio_input_device))
+        self.audio_sample_rate.setCurrentIndex(self.sample_rates.index(S.GLOBAL.audio_sample_rate))
         self.update_default_path_box.setChecked(S.GLOBAL.update_default_path)
         self.auto_load_box.setChecked(S.GLOBAL.auto_load)
 

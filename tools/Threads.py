@@ -12,7 +12,7 @@ from symspellpy import SymSpell
 
 from PyQt5.QtCore import QThread, pyqtSignal
 
-from tools import G
+from tools import G, S
 
 
 class Dictionnary(QThread):
@@ -39,55 +39,56 @@ class AudioWorker(QThread):
     filename = ''
     running = False
 
-    @staticmethod
-    def rms(data):
-        """
-        Return the level of db from data, found the function online
-        :param data: audio data
-        """
-        count = len(data) / 2
-        shorts = struct.unpack(f'{count}h', data)
-        sum_squares = 0.0
-
-        for sample in shorts:
-            n = sample * (1.0 / 32768)
-            sum_squares += n * n
-
-        return math.sqrt(sum_squares / count)
-
     def run(self):
         """
         Main process of the thread will be run in multithreading
         """
         chunk = 1024
         sample_format = pyaudio.paInt16
-        channels = 2
-        sample_rate = 16000
+        channels = G.audio_input_devices[S.GLOBAL.audio_input_device]['channels']
+        index = G.audio_input_devices[S.GLOBAL.audio_input_device]['id']
+        sample_rate = S.GLOBAL.audio_sample_rate
 
         # we store the file in the Music folder of the user
         # TODO: need to be specified in settings
-        filename = G.user_path(f"Music/.typer_records/{self.filename}.wav")
-        if not os.path.isdir(os.path.dirname(filename)):
-            os.mkdir(os.path.dirname(filename))
+
+        filename = os.path.join(S.GLOBAL.audio_record_path, f'{self.filename}.wav')
 
         # specifying the record's settings
         pa = pyaudio.PyAudio()
-        stream = pa.open(format=sample_format, channels=channels, rate=sample_rate, input=True,
-                         frames_per_buffer=chunk, input_device_index=2)
+        stream = pa.open(format=sample_format,
+                         channels=channels,
+                         rate=sample_rate,
+                         input=True,
+                         frames_per_buffer=chunk,
+                         input_device_index=index)
 
         # starts record until user ask to stop
         self.running = True
 
         i, frames = 0, []
+        zero = 0
+        pike = 1
+        last_pikes = list(range(10))
         while self.running:
             data = stream.read(chunk)
 
-            # arbitrary determining the volume for visual output
-            volume = int(math.log(abs(self.rms(data)) * 50) + 2) * 20
+            volume = max(0, sum(list(data)) - zero)
+            if not i:
+                zero = volume
+                volume = 0
 
-            # emitting the signals
-            self.audio_pike.emit(volume)
-            self.progress.emit(int(float(i) * 1024 // 16000))
+            last_pikes.insert(0, volume)
+            last_pikes = last_pikes[:9]
+            mn = min(last_pikes)
+            mx = max(last_pikes) - mn
+            volume -= mn
+
+            volume /= mx
+            volume *= 100
+
+            self.audio_pike.emit(int(volume))
+            self.progress.emit(int(float(i) * chunk // sample_rate))
 
             # storing data
             frames.append(data)

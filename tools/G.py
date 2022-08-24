@@ -194,15 +194,20 @@ def get_audio_inputs():
         devices.append(pa.get_device_info_by_index(a))
 
     # getting the bestApi available
-    max_api = max([d['hostApi'] for d in devices])
+    max_api = min([d['hostApi'] for d in devices])
 
     filtered_devices = filter(lambda x: x['hostApi'] == max_api and x['maxInputChannels'] != 0, devices)
 
-    return [d for d in filtered_devices]
+    return {d['name']:{
+        'id': d['index'],
+        'channels': d['maxInputChannels'],
+        'sample': d['defaultSampleRate']
+    } for d in filtered_devices}
 
 
 audio_input_devices = get_audio_inputs()
-audio_input_devices_names = [d['name'] for d in audio_input_devices]
+audio_input_devices_names = list(audio_input_devices.keys())
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(__debug_level__)

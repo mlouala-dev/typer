@@ -120,7 +120,9 @@ class GlobalSettings(_Settings):
         'default_path': G.abs_path(),
         'update_default_path': True,
         'auto_load': False,
-        'audio_input_device': G.audio_input_devices_names[0]
+        'audio_input_device': G.audio_input_devices_names[0],
+        'audio_record_path': G.user_path('Music/.typer_records'),
+        'audio_sample_rate': 16000
     }
 
     def __init__(self):
@@ -134,6 +136,8 @@ class GlobalSettings(_Settings):
         self.auto_load = self.defaults['auto_load']
         self.update_default_path = self.defaults['update_default_path']
         self.audio_input_device = self.defaults['audio_input_device']
+        self.audio_record_path = self.defaults['audio_input_device']
+        self.audio_sample_rate = self.defaults['audio_sample_rate']
 
     def setTheme(self, theme):
         self.theme = theme
@@ -164,6 +168,8 @@ class GlobalSettings(_Settings):
 
         self.update_default_path = bool(settings['update_default_path'])
         self.audio_input_device = settings['audio_input_device']
+        self.audio_record_path = settings['audio_record_path']
+        self.audio_sample_rate = settings['audio_sample_rate']
 
 
 class LocalSettings(_Settings):

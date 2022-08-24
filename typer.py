@@ -709,7 +709,11 @@ class TyperWIN(QMainWindow):
         """
 
         # if the current file is saved and
-        if not self.recording and len(self.db_file.tables()):
+        if not self.recording:
+            if len(S.LOCAL.filename):
+                filename = os.path.splitext(S.LOCAL.filename)[0]
+            else:
+                filename = 'untitled'
             self.updateStatus(0, 'Start recording')
 
             # we define the audio file's name
@@ -717,8 +721,7 @@ class TyperWIN(QMainWindow):
             now_format = now.strftime("%d-%m-%Y_%H-%M-%S")
 
             # we extract the current file name
-            file_name = os.path.split(self._file)[1].split(".")[0]
-            self.audio_recorder.filename = f"{file_name}_{now_format}_{now}"
+            self.audio_recorder.filename = f"{filename}_{now_format}"
 
             # starting audio record
             self.audio_recorder.start()
