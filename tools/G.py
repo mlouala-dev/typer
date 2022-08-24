@@ -7,6 +7,7 @@ and the logging system
 import os
 import logging
 import traceback
+import pyaudio
 from sys import argv
 from os import listdir
 from os.path import dirname, join, splitext
@@ -184,6 +185,24 @@ def new_connection(db: str = None) -> QSqlDatabase:
 
     return connection
 
+
+def get_audio_inputs():
+    pa = pyaudio.PyAudio()
+    devices = []
+
+    for a in range(pa.get_device_count()):
+        devices.append(pa.get_device_info_by_index(a))
+
+    # getting the bestApi available
+    max_api = max([d['hostApi'] for d in devices])
+
+    filtered_devices = filter(lambda x: x['hostApi'] == max_api and x['maxInputChannels'] != 0, devices)
+
+    return [d for d in filtered_devices]
+
+
+audio_input_devices = get_audio_inputs()
+audio_input_devices_names = [d['name'] for d in audio_input_devices]
 
 logger = logging.getLogger(__name__)
 logger.setLevel(__debug_level__)

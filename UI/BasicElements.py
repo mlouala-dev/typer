@@ -102,7 +102,7 @@ class LineLayout(QHBoxLayout):
         super(LineLayout, self).__init__(parent)
 
         self.widgets = []
-        self.setContentsMargins(3, 3, 3, 3)
+        self.setContentsMargins(3, 1, 3, 1)
 
         # looping through the given widgets' list
         for i, widget in enumerate(widgets):

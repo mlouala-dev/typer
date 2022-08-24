@@ -867,21 +867,23 @@ class Settings(QDialog):
         self.group_global_layout.setAlignment(Qt.AlignTop)
         self.group_global.setLayout(self.group_global_layout)
 
-        self.theme = QComboBox()
+        self.theme = self.addOption('Themes', self.group_global_layout, QComboBox())
         themes = [s for s in S.GLOBAL.themes.keys()]
         self.theme.addItems(themes)
         self.theme.currentIndexChanged.connect(partial(self.updateGlobalSettings, 'theme'))
-        self.group_global_layout.addWidget(self.theme)
+
+        self.audio_devices = self.addOption('Audio Input Devices', self.group_global_layout, QComboBox())
+        self.audio_devices.addItems(G.audio_input_devices_names)
+        self.audio_devices.currentIndexChanged.connect(partial(self.updateGlobalSettings, 'audio_input_device'))
 
         self.update_default_path_box = self.addGlobalOption('update_default_path', 'Update default path')
 
         self.auto_load_box = self.addGlobalOption('auto_load', 'Automatically load previous file')
 
-        self.verbose_level = QComboBox()
+        self.verbose_level = self.addOption('Verbose Level', self.group_global_layout, QComboBox())
         self.verbose_level.addItems(['critical', 'error', 'warning', 'info', 'debug', 'silent'])
         self.verbose_level.setCurrentIndex(self.verbose_eq.index(G.__debug_level__))
         self.verbose_level.currentIndexChanged.connect(partial(self.updateGlobalSettings, 'verbose_level'))
-        self.group_global_layout.addWidget(self.verbose_level)
 
         # LOCAL SETTINGS
         self.group_local = QGroupBox('Local Settings')
@@ -900,18 +902,17 @@ class Settings(QDialog):
         self.setLayout(document_layout)
 
     @staticmethod
-    def addOption(nice_name: str, layout: QVBoxLayout):
-        checkbox = QCheckBox()
-        layout.addLayout(LineLayout(None, nice_name, checkbox))
-        return checkbox
+    def addOption(nice_name: str, layout: QVBoxLayout, obj: QWidget):
+        layout.addLayout(LineLayout(None, nice_name, obj))
+        return obj
 
     def addLocalOption(self, name: str, nice_name: str):
-        checkbox = self.addOption(nice_name, self.group_local_layout)
+        checkbox = self.addOption(nice_name, self.group_local_layout, QCheckBox())
         checkbox.clicked.connect(partial(self.updateLocalSettings, name))
         return checkbox
 
     def addGlobalOption(self, name: str, nice_name: str):
-        checkbox = self.addOption(nice_name, self.group_global_layout)
+        checkbox = self.addOption(nice_name, self.group_global_layout, QCheckBox())
         checkbox.clicked.connect(partial(self.updateGlobalSettings, name))
         return checkbox
 
@@ -965,11 +966,15 @@ class Settings(QDialog):
         elif domain == 'auto_load':
             S.GLOBAL.auto_load = state
 
+        elif domain == 'audio_input_device':
+            S.GLOBAL.audio_input_device = self.audio_devices.itemText(state)
+
         if domain != 'verbose_level':
             S.GLOBAL.saveSetting(domain)
 
     def show(self):
         self.theme.setCurrentIndex(list(S.GLOBAL.themes.keys()).index(S.GLOBAL.theme))
+        self.audio_devices.setCurrentIndex(G.audio_input_devices_names.index(S.GLOBAL.audio_input_device))
         self.update_default_path_box.setChecked(S.GLOBAL.update_default_path)
         self.auto_load_box.setChecked(S.GLOBAL.auto_load)
 

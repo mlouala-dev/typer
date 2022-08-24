@@ -119,7 +119,8 @@ class GlobalSettings(_Settings):
         'last_file': '',
         'default_path': G.abs_path(),
         'update_default_path': True,
-        'auto_load': False
+        'auto_load': False,
+        'audio_input_device': G.audio_input_devices_names[0]
     }
 
     def __init__(self):
@@ -132,6 +133,7 @@ class GlobalSettings(_Settings):
         self.default_path = self.defaults['default_path']
         self.auto_load = self.defaults['auto_load']
         self.update_default_path = self.defaults['update_default_path']
+        self.audio_input_device = self.defaults['audio_input_device']
 
     def setTheme(self, theme):
         self.theme = theme
@@ -161,6 +163,7 @@ class GlobalSettings(_Settings):
             self.last_file = ''
 
         self.update_default_path = bool(settings['update_default_path'])
+        self.audio_input_device = settings['audio_input_device']
 
 
 class LocalSettings(_Settings):

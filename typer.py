@@ -169,10 +169,20 @@ class TyperWIN(QMainWindow):
             self.quran_quote.init_db(db)
             _splash.progress(95, "Init Quran's widget...")
 
-        _splash.progress(100, 'Quran loaded, backup database activation...')
+        _splash.progress(95, "Quran loaded, final checkups...")
+        if S.GLOBAL.audio_input_device not in G.audio_input_devices_names:
+            QMessageBox.critical(
+                None,
+                "Device not found",
+                f"""<b>Audio input device '{S.GLOBAL.audio_input_device}' not found</b>, settings reverted to default : 
+                '{G.audio_input_devices_names[0]}'""",
+                defaultButton=QMessageBox.Ok
+            )
 
+            S.GLOBAL.audio_input_device = G.audio_input_devices_names[0]
+            S.GLOBAL.saveSetting('audio_input_device')
 
-        # TODO: Automatic loading of last opened file ?
+        _splash.progress(100, 'Opening...')
 
         _splash.deleteLater()
 
