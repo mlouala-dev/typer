@@ -68,7 +68,6 @@ class AudioWorker(QThread):
 
         i, frames = 0, []
         zero = 0
-        pike = 1
         last_pikes = list(range(10))
         while self.running:
             data = stream.read(chunk)
@@ -84,8 +83,14 @@ class AudioWorker(QThread):
             mx = max(last_pikes) - mn
             volume -= mn
 
-            volume /= mx
-            volume *= 100
+            try:
+                volume /= mx
+
+            except ZeroDivisionError:
+                pass
+
+            finally:
+                volume *= 100
 
             self.audio_pike.emit(int(volume))
             self.progress.emit(int(float(i) * chunk // sample_rate))

@@ -1000,7 +1000,7 @@ class Settings(QDialog):
             dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
 
             if dialog.exec_() == QFileDialog.Accepted:
-                S.GLOBAL.audio_record_path = dialog.selectedFiles()[0]
+                S.GLOBAL.setAudioRecordPath(dialog.selectedFiles()[0])
                 self.audio_record_path.setText(S.GLOBAL.audio_record_path)
 
         if domain != 'verbose_level':

@@ -3,7 +3,7 @@ import re
 import string
 import os
 import sqlite3
-from time import time
+from time import time, localtime, strftime
 from functools import partial
 from symspellpy import SymSpell, Verbosity
 
@@ -1090,22 +1090,24 @@ class Typer(QTextEdit):
         tc = self.cursorForPosition(pos)
         tc.select(QTextCursor.WordUnderCursor)
         text = tc.selectedText()
+        html_text = T.HTML.extractTextFragment(tc.selection().toHtml())
 
         # getting the block
         c_block = self.cursorForPosition(pos)
         c_block.select(QTextCursor.BlockUnderCursor)
         block = c_block.block()
+        html_block = T.HTML.extractTextFragment(c_block.selection().toHtml())
+        print(html_block)
 
         # insert a separator to the beginning
         menu.insertSeparator(menu.actions()[0])
 
         # if its recognized as an audio (thanks to the Highlighter class)
-        if block.userData().state == G.State_Audio:
-
+        if T.Regex.src_audio_path.match(html_text):
             # extract the correct filename
-            # TODO: Change it, this should just display an icon then reading some hidden value containable in the HTML
-            audio_match = re.match(u'.*?\u266C(.*?)\u266C.*?', block.text())
-            audio_path = G.user_path(f"Music/.typer_records/{audio_match.groups()[0].strip()}.wav")
+            audio_file = T.Regex.src_audio_path.sub(r'\1', html_text)
+
+            audio_path = os.path.join(S.GLOBAL.audio_record_path, f'{audio_file}.wav')
 
             def removeAudio(path: str, cursor_pos: QPoint):
                 """
@@ -1148,57 +1150,61 @@ class Typer(QTextEdit):
             menu.insertAction(menu.actions()[0], delete_audio_menu)
 
             # adding the play audio menu
-            audio_menu = QAction('Open audio', menu)
+            real_time = S.GLOBAL.audio_record_epoch + int(audio_file)
+            time_str = strftime('%Y-%m-%d %H:%M:%S', localtime(real_time))
+            audio_menu = QAction(f'Open audio ({time_str})', menu)
             audio_menu.triggered.connect(lambda: os.startfile(audio_path))
             menu.insertAction(menu.actions()[0], audio_menu)
 
-        # adding a section "Edit" for suggestion, dictionary ops
-        menu.insertSeparator(menu.actions()[0])
-        conj_sep = QAction('Edit', menu)
-        conj_sep.setDisabled(True)
-        menu.insertAction(menu.actions()[0], conj_sep)
+        else:
+            # adding a section "Edit" for suggestion, dictionary ops
+            menu.insertSeparator(menu.actions()[0])
+            conj_sep = QAction('Edit', menu)
+            conj_sep.setDisabled(True)
+            menu.insertAction(menu.actions()[0], conj_sep)
 
-        # if the block's flagged as incorrect
-        if block.userData().state == G.State_Correction:
+            # if the block's flagged as incorrect
+            if block.userData().state == G.State_Correction:
 
-            # we add suggestions for the given word
-            solution_menu = QMenu(f'Suggestions for "{text}"', menu)
-            cnt = self.buildSpellMenu(text, tc, solution_menu)
+                # we add suggestions for the given word
+                solution_menu = QMenu(f'Suggestions for "{text}"', menu)
+                cnt = self.buildSpellMenu(text, tc, solution_menu)
 
-            # add the word to the dictionary if its not (flagged as incorrect means its not in the dictionary
-            addword_menu = QAction(f'Add "{text}" to dictionary', menu)
-            addword_menu.setData(text)
-            menu.insertAction(menu.actions()[0], addword_menu)
-            addword_menu.triggered.connect(partial(self.addWord, text))
+                # add the word to the dictionary if its not (flagged as incorrect means its not in the dictionary
+                addword_menu = QAction(f'Add "{text}" to dictionary', menu)
+                addword_menu.setData(text)
+                menu.insertAction(menu.actions()[0], addword_menu)
+                addword_menu.triggered.connect(partial(self.addWord, text))
 
-            # if suggestions for the word are at least one we display the menu
-            if cnt >= 1:
-                menu.insertMenu(menu.actions()[0], solution_menu)
+                # if suggestions for the word are at least one we display the menu
+                if cnt >= 1:
+                    menu.insertMenu(menu.actions()[0], solution_menu)
 
-        # adding synonyms suggestions
-        synonym_menu = QMenu(f'Synonyms for "{text}"', menu)
-        cnt = self.buildSynMenu(text, tc, synonym_menu)
+            else:
+                # adding synonyms suggestions
+                synonym_menu = QMenu(f'Synonyms for "{text}"', menu)
+                cnt = self.buildSynMenu(text, tc, synonym_menu)
 
-        # if we got some synonyms
-        if cnt >= 1:
-            menu.insertMenu(menu.actions()[0], synonym_menu)
+                # if we got some synonyms
+                if cnt >= 1:
+                    menu.insertMenu(menu.actions()[0], synonym_menu)
 
-        # if word's flagged as a verb
-        # TODO: add it as a signal to enable / disable a button in the Toolbar
-        # TODO: batch the forms in a frozenset
-        is_verb = self.cursor.execute(f'SELECT source FROM conjugaison WHERE forme="{text}"').fetchone()
+                # if word's flagged as a verb
+                # TODO: add it as a signal to enable / disable a button in the Toolbar
+                # TODO: batch the forms in a frozenset
+                is_verb = self.cursor.execute(f'SELECT source FROM conjugaison WHERE forme="{text}"').fetchone()
 
-        # if selection is a verb, display the menu...
-        if is_verb:
-            open_conjugate_menu = QAction('Conjugate...', menu)
-            open_conjugate_menu.triggered.connect(partial(self.openConjugate, tc, is_verb[0]))
-            menu.insertAction(menu.actions()[0], open_conjugate_menu)
+                # if selection is a verb, display the menu...
+                if is_verb:
+                    open_conjugate_menu = QAction('Conjugate...', menu)
+                    open_conjugate_menu.triggered.connect(partial(self.openConjugate, tc, is_verb[0]))
+                    menu.insertAction(menu.actions()[0], open_conjugate_menu)
 
-        # adding a header
-        menu.insertSeparator(menu.actions()[0])
-        conj_sep = QAction('Language', menu)
-        conj_sep.setDisabled(True)
-        menu.insertAction(menu.actions()[0], conj_sep)
+                # adding a header
+                menu.insertSeparator(menu.actions()[0])
+                conj_sep = QAction('Language', menu)
+                conj_sep.setDisabled(True)
+                menu.insertAction(menu.actions()[0], conj_sep)
 
         # displaying the final popup menu
         menu.exec_(global_pos)
@@ -1217,6 +1223,7 @@ class TyperHighlighter(QSyntaxHighlighter):
 
     audio_format = QTextCharFormat()
     audio_format.setForeground(QColor(255, 125, 35))
+    audio_format.setTextOutline(QPen(QColor(255, 125, 35), 1))
 
     ref_format = QTextCharFormat()
     ref_format.setForeground(QColor(255, 35, 45))
@@ -1230,7 +1237,7 @@ class TyperHighlighter(QSyntaxHighlighter):
         """
         Overridden QSyntaxHighlighter method to apply the highlight
         """
-        # abort if no parent or not yet loaded ressources
+        # abort if no parent or not yet loaded resources
         if not self.typer or (self.typer and not self.typer.symspell):
             return
 
@@ -1253,15 +1260,15 @@ class TyperHighlighter(QSyntaxHighlighter):
         data.state = state = G.State_Default
 
         for idx, word in tokenize(text):
-            # if word is a music symbol this means we have an audio file, flagging as
-            if word == '♬':
-                self.setFormat(idx, len(word), self.audio_format)
-                state = G.State_Audio
-
             # a word with # around is a reference
             # TODO: should match a regex pattern, same for the audio
+
+            if [*map(ord, word)] == [9834, 65532]:
+                self.setFormat(idx, len(word), self.audio_format)
+
             elif word.startswith("#") and word.endswith("#"):
                 self.setFormat(idx, len(word), self.ref_format)
+
                 state = G.State_Reference
 
             # otherwise we check if word' spelling is invalid
@@ -1280,6 +1287,7 @@ class TyperHighlighter(QSyntaxHighlighter):
 
                     # if we reach this point it means the word is incorrect and have some spell suggestions
                     self.setFormat(idx, len(word), self.err_format)
+
                     state = G.State_Correction
 
                 except (AssertionError, IndexError):

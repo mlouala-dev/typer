@@ -10,6 +10,10 @@ from html.parser import HTMLParser
 from PyQt5.QtGui import QTextCursor
 
 
+class Regex:
+    src_audio_path = re.compile(r'^.*?src="audio_record_(.*?)".*?$')
+
+
 class HtmlOperator(HTMLParser):
     """
     Core operations over HTML, based on html.parser

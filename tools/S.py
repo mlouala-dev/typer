@@ -138,6 +138,7 @@ class GlobalSettings(_Settings):
         self.audio_input_device = self.defaults['audio_input_device']
         self.audio_record_path = self.defaults['audio_input_device']
         self.audio_sample_rate = self.defaults['audio_sample_rate']
+        self.audio_record_epoch = 0
 
     def setTheme(self, theme):
         self.theme = theme
@@ -154,6 +155,12 @@ class GlobalSettings(_Settings):
             self.default_path = os.path.dirname(filename)
             self.saveSetting('default_path')
 
+    def setAudioRecordPath(self, path: str):
+        self.audio_record_path = path
+
+        if os.path.isdir(self.audio_record_path):
+            self.audio_record_epoch = int(os.stat(self.audio_record_path).st_ctime)
+
     def loadSettings(self):
         settings = self.loadCoreSettings()
 
@@ -167,8 +174,9 @@ class GlobalSettings(_Settings):
             self.last_file = ''
 
         self.update_default_path = bool(settings['update_default_path'])
+
+        self.setAudioRecordPath(settings['audio_record_path'])
         self.audio_input_device = settings['audio_input_device']
-        self.audio_record_path = settings['audio_record_path']
         self.audio_sample_rate = settings['audio_sample_rate']
 
 

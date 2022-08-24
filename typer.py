@@ -2,6 +2,7 @@
 import sys
 import os
 import html
+import time
 
 from datetime import datetime
 from functools import partial
@@ -711,28 +712,26 @@ class TyperWIN(QMainWindow):
         # if the current file is saved and
         if not self.recording:
             if len(S.LOCAL.filename):
-                filename = os.path.splitext(S.LOCAL.filename)[0]
+                filename = os.path.splitext(os.path.basename(S.LOCAL.filename))[0]
             else:
                 filename = 'untitled'
             self.updateStatus(0, 'Start recording')
 
             # we define the audio file's name
-            now = datetime.now()
-            now_format = now.strftime("%d-%m-%Y_%H-%M-%S")
-
+            epoch_time = int(time.time() - S.GLOBAL.audio_record_epoch)
+            epoch_data = f'<img src="audio_record_{epoch_time}" width="0" height="0" />'
             # we extract the current file name
-            self.audio_recorder.filename = f"{filename}_{now_format}"
+            self.audio_recorder.filename = str(epoch_time)
 
             # starting audio record
             self.audio_recorder.start()
 
             # and insert the marker in document
             # TODO: nice marker as icon and store data hidden (Paragraph User data ?)
-            cursor = self.typer.textCursor()
-            cursor.select(QTextCursor.WordUnderCursor)
-            cursor.insertBlock()
-
-            self.typer.insertHtml(f"<p>\u266C {self.audio_recorder.filename} \u266C</p>")
+            self.typer.textCursor().block().setUserState(epoch_time)
+            self.typer.insertPlainText(' ')
+            self.typer.insertHtml(f'\u266A{epoch_data}')
+            self.typer.insertPlainText(' ')
 
         # otherwise if it's already in record mode, we stop
         elif self.recording:
