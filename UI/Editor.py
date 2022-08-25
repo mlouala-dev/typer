@@ -134,6 +134,35 @@ class Typer(QTextEdit):
 
         self._word = value
 
+    def textOperation(self, text_cursor=None, operation=None):
+        """
+        performs operation such as next_char previous_char etc
+        """
+        try:
+            text_cursor.NextCharacter
+        except AttributeError:
+            text_cursor = self.textCursor()
+        finally:
+            text_cursor.movePosition(operation, QTextCursor.KeepAnchor)
+
+        return text_cursor.selectedText()
+
+    @property
+    def next_character(self, *args) -> str:
+        return self.textOperation(*args, operation=QTextCursor.NextCharacter)
+
+    @property
+    def previous_character(self, *args) -> str:
+        return self.textOperation(*args, operation=QTextCursor.PreviousCharacter)
+
+    @property
+    def next_word(self, *args) -> str:
+        return self.textOperation(*args, operation=QTextCursor.NextWord)
+
+    @property
+    def previous_word(self, *args) -> str:
+        return self.textOperation(*args, operation=QTextCursor.PreviousWord)
+
     def insertNote(self):
         """
         adding a note in the current cursor's place
@@ -601,11 +630,8 @@ class Typer(QTextEdit):
         """
         tc: QTextCursor
 
-        # getting the next character
-        tc = self.textCursor()
-        tc.movePosition(QTextCursor.NextCharacter, QTextCursor.KeepAnchor)
         # we check if next character exists to prevent useless autocompletion display
-        next_character = tc.selectedText()
+        next_character = self.next_character
 
         # getting the current word
         tc = self.textCursor()
@@ -717,7 +743,22 @@ class Typer(QTextEdit):
 
         # resetting timing if backspace pressed for more accurate ratio
         if e.key() == Qt.Key.Key_Backspace:
+            if ord(self.previous_character) == 65532:
+                super().keyPressEvent(e)
+
             self.word_time = time()
+
+        elif e.key() == Qt.Key.Key_Delete:
+            if ord(next_character) == 65532:
+                super().keyPressEvent(e)
+
+        elif e.key() == Qt.Key_Return:
+            c_block = self.textCursor()
+            c_block.select(QTextCursor.BlockUnderCursor)
+            if not T.HTML.hasParagraphTime(c_block.selection().toHtml()):
+                c_block.movePosition(QTextCursor.MoveOperation.StartOfBlock, QTextCursor.MoveMode.MoveAnchor)
+                c_block.insertHtml(f'''<p><img src="paragraph_time_{int(time())}"
+                 width="0" height="{int(self.fontMetrics().height())}" /></p>''')
 
         # this means we enter the translitterate mode, this is equivalent to type on Alt+Gr
         # TODO: find another less annoying shortcut, should be customizable by the user
@@ -956,14 +997,6 @@ class Typer(QTextEdit):
             # forward Tab only if we're sure there is no autocomplete to do
             super(Typer, self).keyPressEvent(e)
 
-        # we refresh the 'next character'
-        ntc = self.textCursor()
-        ntc.movePosition(QTextCursor.NextCharacter, QTextCursor.KeepAnchor)
-        # we check if next character exists to prevent useless autocompletion display
-        # encoding as unicode to make sure that next_char is empty, EOL was considered
-        # as a character
-        next_character = ntc.selectedText()
-
         if self.auto_complete_available:
             tc = self.textCursor()
             tc.select(tc.SelectionType.WordUnderCursor)
@@ -983,7 +1016,7 @@ class Typer(QTextEdit):
             # we also require that the next character is a new word character (' ' or ", etc...)
             # OR that the cursor is at the end of the line
             if candidate and len(candidate) > len(self.word) and \
-                    (next_character in T.Keys.NewWord.values() or tc.positionInBlock() == (tc.block().length() - 1)):
+                    (self.next_character in T.Keys.NewWord.values() or tc.positionInBlock() == (tc.block().length() - 1)):
                 rect: QRectF
                 rect = self.cursorRect(self.textCursor())
                 res = candidate[len(self.word):]
@@ -1082,6 +1115,9 @@ class Typer(QTextEdit):
 
         # allow the user to add a separator, this one will be used later when exporting as PDF, it marks
         # the text displayed on the column along the PDF page preview
+
+        menu.insertSeparator(menu.actions()[0])
+
         addseparator = QAction('Add translation separator', menu)
         addseparator.triggered.connect(lambda: self.insertHtml('<hr />'))
         menu.insertAction(menu.actions()[0], addseparator)
@@ -1097,7 +1133,12 @@ class Typer(QTextEdit):
         c_block.select(QTextCursor.BlockUnderCursor)
         block = c_block.block()
         html_block = T.HTML.extractTextFragment(c_block.selection().toHtml())
-        print(html_block)
+
+        if T.HTML.hasParagraphTime(html_block):
+            paragraph_time = strftime('%Y-%m-%d %H:%M:%S', localtime(T.HTML.paragraphTime(html_block)))
+            conj_sep = QAction(f"Date : {paragraph_time}", menu)
+            conj_sep.setDisabled(True)
+            menu.insertAction(menu.actions()[0], conj_sep)
 
         # insert a separator to the beginning
         menu.insertSeparator(menu.actions()[0])
@@ -1118,8 +1159,8 @@ class Typer(QTextEdit):
                 # require confirmation to delete
                 dialog = QMessageBox.question(
                     None,
-                    "Typer - remove audio file",
-                    "<b>Remove audio file</b> in record folder also ?\n<i>%s</i>" % path,
+                    f"{G.__app__} - Remove audio file",
+                    f"<b>Remove audio file</b> in record folder also ?\n<i>{path}</i>",
                     QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel
                 )
 
@@ -1131,15 +1172,15 @@ class Typer(QTextEdit):
                         G.exception(exp)
                         QMessageBox.critical(
                             None,
-                            "Typer - Failed to remove file",
-                            "Can't remove file, still opened ? \n <i>%s</i>" % path,
+                            f"{G.__app__} - Failed to remove file",
+                            f"Can't remove file, still opened ?\n<i>{path}</i>",
                             QMessageBox.StandardButton.Ok
                         )
 
                 # if the user says "No", we just remove the text from the document
                 if dialog != QMessageBox.Cancel:
                     c = self.cursorForPosition(cursor_pos)
-                    c.select(QTextCursor.BlockUnderCursor)
+                    c.select(QTextCursor.WordUnderCursor)
                     c.removeSelectedText()
 
             menu.insertSeparator(menu.actions()[0])
@@ -1156,13 +1197,11 @@ class Typer(QTextEdit):
             audio_menu.triggered.connect(lambda: os.startfile(audio_path))
             menu.insertAction(menu.actions()[0], audio_menu)
 
-        else:
-            # adding a section "Edit" for suggestion, dictionary ops
-            menu.insertSeparator(menu.actions()[0])
-            conj_sep = QAction('Edit', menu)
+            conj_sep = QAction('Audio Record', menu)
             conj_sep.setDisabled(True)
             menu.insertAction(menu.actions()[0], conj_sep)
 
+        else:
             # if the block's flagged as incorrect
             if block.userData().state == G.State_Correction:
 
@@ -1200,11 +1239,11 @@ class Typer(QTextEdit):
                     open_conjugate_menu.triggered.connect(partial(self.openConjugate, tc, is_verb[0]))
                     menu.insertAction(menu.actions()[0], open_conjugate_menu)
 
-                # adding a header
-                menu.insertSeparator(menu.actions()[0])
-                conj_sep = QAction('Language', menu)
-                conj_sep.setDisabled(True)
-                menu.insertAction(menu.actions()[0], conj_sep)
+            # adding a section "Edit" for suggestion, dictionary ops
+            menu.insertSeparator(menu.actions()[0])
+            conj_sep = QAction('Lang', menu)
+            conj_sep.setDisabled(True)
+            menu.insertAction(menu.actions()[0], conj_sep)
 
         # displaying the final popup menu
         menu.exec_(global_pos)
@@ -1275,7 +1314,7 @@ class TyperHighlighter(QSyntaxHighlighter):
             else:
                 try:
                     # first make sure the word's length is correct
-                    assert len(word) > 1
+                    assert len(word) > 1 and ord(word[0]) != 65532
 
                     # now getting the word correction
                     suggestions = self.typer.symspell.lookup(word, ignore_token=Typer.re_ignoretoken,

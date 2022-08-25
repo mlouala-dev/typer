@@ -719,7 +719,7 @@ class TyperWIN(QMainWindow):
 
             # we define the audio file's name
             epoch_time = int(time.time() - S.GLOBAL.audio_record_epoch)
-            epoch_data = f'<img src="audio_record_{epoch_time}" width="0" height="0" />'
+            epoch_data = f'<img src="audio_record_{epoch_time}" width="0" height="{int(self.typer.fontMetrics().height())}" />'
             # we extract the current file name
             self.audio_recorder.filename = str(epoch_time)
 

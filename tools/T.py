@@ -12,6 +12,7 @@ from PyQt5.QtGui import QTextCursor
 
 class Regex:
     src_audio_path = re.compile(r'^.*?src="audio_record_(.*?)".*?$')
+    paragraph_time = re.compile(r'src="paragraph_time_(.*?)"')
 
 
 class HtmlOperator(HTMLParser):
@@ -114,6 +115,13 @@ class HtmlOperator(HTMLParser):
 
     def build(self):
         return self.paragraphs[-4]
+
+    def hasParagraphTime(self, block: str) -> bool:
+        return 'src="paragraph_time_' in block
+
+    def paragraphTime(self, block: str) -> int:
+        times = Regex.paragraph_time.findall(block)
+        return int(times[0])
 
     @staticmethod
     def extractTextFragment(t: str, wide=False) -> str:
