@@ -138,7 +138,7 @@ class HtmlOperator(HTMLParser):
 
         # if there is no match, extracting from body to the end and remove - if exists - the Start / End tags
         except (IndexError, AssertionError):
-            html = t.split('<body>')[1].replace('<!--StartFragment-->', '').split('<!--EndFragment-->')[0]
+            html = t.split('<body>')[-1].replace('<!--StartFragment-->', '').split('<!--EndFragment-->')[0]
 
         return html
 

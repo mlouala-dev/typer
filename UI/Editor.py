@@ -308,9 +308,12 @@ class Typer(QTextEdit):
         tc = self.textCursor()
         tc.beginEditBlock()
         tc.select(tc.SelectionType.BlockUnderCursor)
+        text = tc.selectedText()
 
         # if block has no length
-        l = len(tc.selectedText())
+        l = len(text)
+        if l == 2 and text[0] == '\u2029' and ord(text[1]) == 65532:
+            l = 0
 
         # preparing the ayat paragraph for upcoming styling
         if len(v) and not l:
@@ -752,13 +755,13 @@ class Typer(QTextEdit):
         modifiers = QApplication.keyboardModifiers()
 
         # resetting timing if backspace pressed for more accurate ratio
-        if e.key() == Qt.Key.Key_Backspace:
+        if e.key() == Qt.Key.Key_Backspace and len(self.previous_character):
             if ord(self.previous_character) == 65532:
                 super().keyPressEvent(e)
 
             self.word_time = time()
 
-        elif e.key() == Qt.Key.Key_Delete:
+        elif e.key() == Qt.Key.Key_Delete and len(next_character):
             if ord(next_character) == 65532:
                 super().keyPressEvent(e)
 
