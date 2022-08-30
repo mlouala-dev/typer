@@ -20,7 +20,7 @@ class BreadCrumbs(QWidget):
     goto = pyqtSignal(int)
 
     class Level(QLabel):
-        colors = ['267dff', '73c3ff', 'fff']
+        colors = ['267dff', '73c3ff', 'ffffff']
         hoverChanged = pyqtSignal(bool)
         clicked = pyqtSignal(QMouseEvent, int, int)
 
@@ -68,9 +68,11 @@ class BreadCrumbs(QWidget):
             self.repaint()
 
         def paintEvent(self, event):
-            default_bg = QBrush(QColor(78, 78, 78))
-            on_color = QBrush(QColor(38, 38, 38))
-            on_line = QColor(48, 48, 48) if not self.hover else QColor(38, 125, 255)
+            palette: QPalette
+            palette = self.palette()
+            default_bg = QBrush(palette.base())
+            on_color = QBrush(palette.alternateBase())
+            on_line = palette.alternateBase() if not self.hover else palette.highlight()
             button_color = on_color if self.hover else default_bg
             qp = QPainter(self)
             qp.setRenderHint(QPainter.Antialiasing)

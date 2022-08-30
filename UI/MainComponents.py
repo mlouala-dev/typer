@@ -67,8 +67,8 @@ class TitleBar(QFrame):
     """
     # style in format : (bar's height, stylesheet)
 
-    default_style = (32, "QFrame#TitleBar { background:#363636;border-top:2px solid grey; }")
-    maximized_style = (30, "QFrame#TitleBar { background:#363636; border:0; }")
+    default_style = (32, "QFrame#TitleBar { border-top:2px solid grey; }")
+    maximized_style = (30, "QFrame#TitleBar { border:0; }")
     geometryChanged = pyqtSignal()
 
     def __init__(self, parent: QMainWindow = None):

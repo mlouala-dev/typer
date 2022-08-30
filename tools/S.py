@@ -85,6 +85,7 @@ class GlobalSettings(_Settings):
         darkColor = QColor(45, 45, 45)
         disabledColor = QColor(127, 127, 127)
         whiteText = QColor(169, 183, 198)
+        highlight =  QColor(42, 130, 218)
         palette.setColor(QPalette.ColorRole.Window, darkColor)
         palette.setColor(QPalette.ColorRole.WindowText, whiteText)
         palette.setColor(QPalette.ColorRole.Base, QColor(28, 28, 28))
@@ -99,14 +100,18 @@ class GlobalSettings(_Settings):
         palette.setColor(QPalette.ColorRole.ButtonText, whiteText)
         palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, disabledColor)
         palette.setColor(QPalette.ColorRole.BrightText, Qt.white)
-        palette.setColor(QPalette.ColorRole.Link, QColor(42, 130, 218))
+        palette.setColor(QPalette.ColorRole.Link, highlight)
 
-        palette.setColor(QPalette.ColorRole.Highlight, QColor(53, 60, 70))
-        palette.setColor(QPalette.ColorRole.HighlightedText, Qt.black)
+        palette.setColor(QPalette.ColorRole.Highlight, highlight)
+        palette.setColor(QPalette.ColorRole.HighlightedText, darkColor)
         palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.HighlightedText, disabledColor)
 
     class Light(Style):
         name = 'Light Theme'
+        palette = QPalette()
+        palette.setColor(QPalette.ColorRole.Button, QColor(215, 221, 232))
+        palette.setColor(QPalette.ColorRole.Highlight, QColor(42, 130, 218))
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(42, 130, 218))
         pass
 
     themes = {

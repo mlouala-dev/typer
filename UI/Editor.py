@@ -149,11 +149,17 @@ class Typer(QTextEdit):
 
     @property
     def next_character(self, *args) -> str:
-        return self.textOperation(*args, operation=QTextCursor.NextCharacter)
+        try:
+            return self.textOperation(*args, operation=QTextCursor.NextCharacter)[0]
+        except IndexError:
+            return ''
 
     @property
     def previous_character(self, *args) -> str:
-        return self.textOperation(*args, operation=QTextCursor.PreviousCharacter)
+        try:
+            return self.textOperation(*args, operation=QTextCursor.PreviousCharacter)[0]
+        except IndexError:
+            return ''
 
     @property
     def next_word(self, *args) -> str:
@@ -798,8 +804,9 @@ class Typer(QTextEdit):
 
                     tc.removeSelectedText()
 
-                    # translitterate what's between the head and tail characters
-                    tc.insertText(translitteration.translitterate(txt))
+                    if len(txt):
+                        # translitterate what's between the head and tail characters
+                        tc.insertText(translitteration.translitterate(txt))
 
         # handling some special shortcuts
         if (modifiers & Qt.KeyboardModifier.ControlModifier) and (modifiers & Qt.KeyboardModifier.ShiftModifier):

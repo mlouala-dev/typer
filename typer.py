@@ -68,6 +68,7 @@ class TyperWIN(QMainWindow):
         self.setFont(G.get_font(1.2))
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setWindowIcon(QIcon(G.rsc_path("ico.png")))
+        self.setFocusPolicy(Qt.StrongFocus)
 
         _splash.progress(5, "Loading dictionnary...")
         self.dictionnary = Threads.Dictionnary()
@@ -886,6 +887,16 @@ class TyperWIN(QMainWindow):
 
         self.viewer_frame.show()
 
+    def applicationStateChanged(self, state) -> None:
+        """
+        Catch the app state changed
+        :param state: app state either focusOut (state=2) or focusIn (state=4)
+        """
+        # if focusIn we force the external widgets to also be raised
+        if state == 4 and S.LOCAL.viewer_external and S.LOCAL.viewer:
+            self.viewer_frame.raise_()
+            self.typer.setFocus()
+
     # INHERIT
     def showMaximized(self):
         # saving geometry state before maxizing
@@ -977,6 +988,7 @@ class TyperWIN(QMainWindow):
                 os.unlink(S.LOCAL.PDF)
 
 
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
@@ -995,5 +1007,6 @@ if __name__ == "__main__":
         # we add the variants of the font if specified
 
     win = TyperWIN()
+    app.applicationStateChanged.connect(win.applicationStateChanged)
 
     app.exec_()
