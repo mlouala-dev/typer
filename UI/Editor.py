@@ -326,13 +326,12 @@ class Typer(QTextEdit):
                   )
 
         # otherwise (len(v) == 0) we just print the surat's name
-        elif s in QuranWorker.QuranQuote.surats:
-            res = QuranWorker.QuranQuote.surats[s].arabic
-
-        # means we got a strange result
         else:
-            tc.endEditBlock()
-            return
+            try:
+                res = QuranWorker.QuranQuote.surats[s].arabic
+            except IndexError:
+                tc.endEditBlock()
+                return
 
         # printing in a new paragraph
         if not l:
@@ -967,7 +966,7 @@ class Typer(QTextEdit):
             super(self._win.__class__, self._win).keyPressEvent(e)
 
         # once return is pressed
-        elif e.key() == Qt.Key.Key_Return:
+        elif e.key() == Qt.Key.Key_Return and tc.block().userData():
             # we cleanup the previous block
             tc.select(tc.SelectionType.BlockUnderCursor)
             indent = tc.blockFormat().indent()
