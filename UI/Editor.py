@@ -326,8 +326,13 @@ class Typer(QTextEdit):
                   )
 
         # otherwise (len(v) == 0) we just print the surat's name
-        else:
+        elif s in QuranWorker.QuranQuote.surats:
             res = QuranWorker.QuranQuote.surats[s].arabic
+
+        # means we got a strange result
+        else:
+            tc.endEditBlock()
+            return
 
         # printing in a new paragraph
         if not l:

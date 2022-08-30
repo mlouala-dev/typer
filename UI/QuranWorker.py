@@ -103,11 +103,13 @@ class QuranQuote(QDialog):
         if len(cmd):
             s, v, cmd = self.query(cmd)
             # giving some basics info for the surat
-            # FIXME: doesn't seems to work, RTL display ?
 
-            # returns a resume of the se
-            place = "مدينية" if self.surats[s].place == "Madina" else "مكية"
-            self.result_title.setText(f"{self.surats[s].arabic} - {place} ({get_arabic_numbers(str(len(self.surats[s].ayat)))} آيات)")
+            try:
+                # returns a resume of the sourat
+                place = "مدينية" if self.surats[s].place == "Madina" else "مكية"
+                self.result_title.setText(f"{self.surats[s].arabic} - {place} ({get_arabic_numbers(str(len(self.surats[s].ayat)))} آيات)")
+            except IndexError:
+                self.result_title.setText('')
 
             if len(v):
                 self.result_ayat.show()
