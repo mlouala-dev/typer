@@ -1105,7 +1105,7 @@ class Navigator(QDialog):
                 pass
 
         # we find all the surats names
-        header_matcher = re.compile(r'-state:97;.*?ff;\">(.*?)<', re.MULTILINE)
+        header_matcher = re.compile(r'-state:(97|981);.*?ff;\">(.*?)<', re.MULTILINE)
 
         # preparing the vars
         pages = set()
@@ -1123,7 +1123,7 @@ class Navigator(QDialog):
 
             # if ever we got one or more, adding the last in the page
             if match_surat:
-                pages_title[i] = match_surat[-1]
+                pages_title[i] = match_surat[-1][1]
 
             # getting all non-empty page
             # TODO: improve empty page detection with the function in PDF library
