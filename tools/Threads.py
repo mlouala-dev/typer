@@ -2,8 +2,6 @@
 """
 All the QThread elements we use for asynchronous works
 """
-import math
-import struct
 import pyaudio
 import wave
 import os
