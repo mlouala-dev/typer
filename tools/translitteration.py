@@ -357,7 +357,7 @@ def translitterate(text: str, no_harakat=False) -> str:
                     final += "ة"
 
             if PRE.previous.previous == Alif and PRE.previous == L and PRE == La and letter == 'h':
-                final = final[:-7] if accent != "" else final[:-6]
+                final = final[:-6] if accent != "" else final[:-5]
                 final += "الله"
 
             # special case for 'lillah'
@@ -380,4 +380,4 @@ def translitterate(text: str, no_harakat=False) -> str:
 
 
 if __name__ == "__main__":
-    print(translitterate('''allahu akbar'''))
+    print(translitterate('''laa ilaah illaa allah'''))
