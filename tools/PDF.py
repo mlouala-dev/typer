@@ -1,6 +1,7 @@
 # بسم الله الرحمان الرحيم
 """
 Library for all PDF work, previz and export
+TODO: migrate to https://pypi.org/project/fpdf2/
 """
 import os
 import fitz

@@ -1016,7 +1016,7 @@ class Typer(QTextEdit):
             tc.select(tc.SelectionType.WordUnderCursor)
             self.word = tc.selectedText()
 
-            # getting the previous character
+            # getting two words before
             ptc = self.textCursor()
             ptc.movePosition(QTextCursor.PreviousWord, QTextCursor.MoveMode.MoveAnchor, 2)
             ptc.select(ptc.SelectionType.WordUnderCursor)
@@ -1025,6 +1025,9 @@ class Typer(QTextEdit):
 
             word = S.LocalSettings.Dict.Word(self.word, previous=previous_word)
             candidate = S.LOCAL.DICT.find(word)
+
+            if not candidate:
+                candidate = S.LOCAL.DICT.find(word, True)
 
             # if there is a candidate, we draw the autocomplete_label
             # we also require that the next character is a new word character (' ' or ", etc...)

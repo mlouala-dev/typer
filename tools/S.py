@@ -560,6 +560,7 @@ class LocalSettings(_Settings):
             self.words = []
             self.hashes = []
             self.word_roots = {}
+            self.word_wide_roots = {}
 
             self.news = set()
             self.updates = set()
@@ -583,10 +584,14 @@ class LocalSettings(_Settings):
                     assert word.previous in self.word_roots[word.root]
                     self.word_roots[word.root][word.previous].append(word)
 
+                    self.word_wide_roots[word.root].append(word)
+
                 # root not find
                 except KeyError:
                     self.word_roots[word.root] = {}
                     self.word_roots[word.root][word.previous] = [word]
+
+                    self.word_wide_roots[word.root] = [word]
 
                 # word previous is not an array
                 except AssertionError:
@@ -599,6 +604,7 @@ class LocalSettings(_Settings):
 
             finally:
                 self.word_roots[word.root][word.previous].sort(reverse=True)
+                self.word_wide_roots[word.root].sort(reverse=True)
 
         def __getitem__(self, item: Word):
             i = self.hashes.index(hash(item))
@@ -607,10 +613,17 @@ class LocalSettings(_Settings):
         def __contains__(self, item: Word):
             return hash(item) in self.hashes
 
-        def find(self, word: Word):
+        def find(self, word: Word, wide=False):
+            """
+            Find in current dictionnary's words
+            :param word: the Word object we're trying to find candidates for
+            :param wide: if specified, will not consider the previous object
+            :return: the best candidate
+            """
             match = None
             try:
-                for key in self.word_roots[word.root][word.previous]:
+                bank = self.word_roots[word.root][word.previous] if not wide else self.word_wide_roots[word.root]
+                for key in bank:
                     if key.word.startswith(word.word):
                         match = key.word
                         break
