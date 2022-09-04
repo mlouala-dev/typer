@@ -148,7 +148,7 @@ class Keys:
         46: '.', 33: '!', 63: '?'
     }
     NewWord = {
-        40: '(', 41: ')', 44: ',', 58: ':', 59: ';', 45: '-', 32: ' ', 34: '"', **NewPhrase
+        40: '(', 41: ')', 44: ',', 58: ':', 59: ';', 32: ' ', 34: '"', **NewPhrase
     }
 
     Quotes = {
@@ -156,6 +156,8 @@ class Keys:
     }
 
     Exits = {60: "[", 62: "]", **NewWord}
+
+    Latin_Letters = ascii_letters + 'éèêëàâäçîïôöûùü'
 
 
 class TextOperator:
@@ -169,7 +171,7 @@ class TextOperator:
         """
         return if a word is valid in app's acception
         """
-        elect = len(word) >= length and word[0] in ascii_letters
+        elect = len(word) >= length and word[0] in Keys.Latin_Letters and word[-1] in Keys.Latin_Letters
         elect &= not len(set(word).intersection(self.seq_exit_keys))
         return elect
 
@@ -189,14 +191,6 @@ class TextOperator:
 
         # filtering the empty phrases
         return filter(lambda x: len(x), phrases)
-
-    def next_char(self, textCursor: QTextCursor) -> str:
-        textCursor.movePosition(QTextCursor.NextCharacter, QTextCursor.KeepAnchor)
-        return textCursor.selectedText()
-
-    def prev_char(self, textCursor: QTextCursor) -> str:
-        textCursor.movePosition(QTextCursor.PreviousCharacter, QTextCursor.KeepAnchor)
-        return textCursor.selectedText()
 
 
 HTML = HtmlOperator()

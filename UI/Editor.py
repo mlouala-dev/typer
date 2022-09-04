@@ -953,10 +953,10 @@ class Typer(QTextEdit):
             bullet = '<span style="color:#9622d3;">\u06de</span>'
 
             # we first determine if we need extra spaces or no
-            if self.textCursor().positionInBlock() != 0 and T.TEXT.prev_char(self.textCursor()) not in string.whitespace:
+            if self.textCursor().positionInBlock() != 0 and self.previous_character not in string.whitespace:
                 tc.insertText(' ')
 
-            next_char = T.TEXT.next_char(self.textCursor())
+            next_char = self.next_character
             if not len(next_char) or next_char not in string.whitespace:
                 bullet = f'{bullet} '
 
@@ -1026,6 +1026,8 @@ class Typer(QTextEdit):
             word = S.LocalSettings.Dict.Word(self.word, previous=previous_word)
             candidate = S.LOCAL.DICT.find(word)
 
+            # if no candidate was found when looking for the previous item, searching the best candidate for
+            # word starting with same root
             if not candidate:
                 candidate = S.LOCAL.DICT.find(word, True)
 

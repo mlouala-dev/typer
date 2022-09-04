@@ -583,19 +583,18 @@ class LocalSettings(_Settings):
                 try:
                     assert word.previous in self.word_roots[word.root]
                     self.word_roots[word.root][word.previous].append(word)
-
                     self.word_wide_roots[word.root].append(word)
 
                 # root not find
                 except KeyError:
                     self.word_roots[word.root] = {}
                     self.word_roots[word.root][word.previous] = [word]
-
                     self.word_wide_roots[word.root] = [word]
 
                 # word previous is not an array
                 except AssertionError:
                     self.word_roots[word.root][word.previous] = [word]
+                    self.word_wide_roots[word.root].append(word)
 
                 finally:
                     self.words.append(word)
@@ -613,6 +612,7 @@ class LocalSettings(_Settings):
         def __contains__(self, item: Word):
             return hash(item) in self.hashes
 
+        @G.log
         def find(self, word: Word, wide=False):
             """
             Find in current dictionnary's words
@@ -622,11 +622,15 @@ class LocalSettings(_Settings):
             """
             match = None
             try:
+                assert len(word.root) == 3
                 bank = self.word_roots[word.root][word.previous] if not wide else self.word_wide_roots[word.root]
+                print(bank)
                 for key in bank:
                     if key.word.startswith(word.word):
                         match = key.word
                         break
+            except AssertionError:
+                pass
             finally:
                 return match
 
