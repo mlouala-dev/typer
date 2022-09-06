@@ -1076,7 +1076,6 @@ class TyperWIN(QMainWindow):
                 os.unlink(S.LOCAL.PDF)
 
 
-
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 

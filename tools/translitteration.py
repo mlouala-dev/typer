@@ -5,7 +5,7 @@ TODO: multiple translitteration settings, even user defined ?
 TODO: trim space after "wa"
 """
 import re
-from tools.G import rsc
+from tools.G import appdata_path
 
 
 class Letter:
@@ -92,7 +92,7 @@ re_ignore_hamza = re.compile(r'[أإآ]')
 
 # we try to get out dictionary containing all words with a madd at the end and wrote with ى
 try:
-    with open(rsc('dict_alif_maqsuur.txt'), mode="r", encoding="utf-8") as my_file:
+    with open(appdata_path('dict_alif_maqsuur.txt'), mode="r", encoding="utf-8") as my_file:
         ar_words = my_file.readlines()
 
 except FileNotFoundError:
@@ -208,7 +208,7 @@ def append_to_dict(word: str):
         assert word.endswith("ى") and word[:-1] not in ar_dict
 
         # now we can update the dict
-        with open(rsc('dict_alif_maqsuur.txt'), 'a', encoding='utf-8') as f:
+        with open(appdata_path('dict_alif_maqsuur.txt'), 'a', encoding='utf-8') as f:
             f.write(f'{word}\n')
 
         ar_dict.append(word[:-1])

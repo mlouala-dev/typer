@@ -144,7 +144,7 @@ class GlobalSettings(_Settings):
 
     def __init__(self):
         super(GlobalSettings, self).__init__()
-        self.filename = G.rsc_path('config.db')
+        self.filename = G.appdata_path('config.db')
         self.create_db_link()
 
         self.theme = self.defaults['theme']
@@ -995,7 +995,7 @@ class LocalSettings(_Settings):
         TODO: autosave of the current page ?
         """
 
-        cwd = G.rsc_path('backup.db')
+        cwd = G.appdata_path('backup.db')
         # we first try to remove the old backup file
         try:
             os.remove(cwd)

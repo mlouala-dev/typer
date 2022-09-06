@@ -18,7 +18,7 @@ class Dictionnary(QThread):
     QThread to load the dictionnary in multithreading
     """
     finished = pyqtSignal()
-    dict_path = G.rsc_path("dict.txt")
+    dict_path = G.appdata_path("dict.txt")
     sympell = SymSpell(max_dictionary_edit_distance=2, prefix_length=5)
 
     def run(self):

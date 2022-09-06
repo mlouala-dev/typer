@@ -86,6 +86,24 @@ def user_path(file: str) -> str:
     return join(Path.home(), file)
 
 
+def appdata_path(file: str = '') -> str:
+    """
+    returns absolute path to the %appdata%/Local/Typer
+    """
+    return join(os.getenv('LOCALAPPDATA'), 'Typer', file)
+
+
+# we create the appdata folder if doesn't exist
+if not os.path.isdir(appdata_path()):
+    os.mkdir(appdata_path())
+
+    with open(appdata_path('dict.txt'), mode='a') as f:
+        f.write('')
+
+    with open(appdata_path('dict_alif_maqsuur.txt'), mode='a') as f:
+        f.write('')
+
+
 def rsc_path(file: str) -> str:
     """
     Return absolute path to the resource
@@ -297,7 +315,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(__debug_level__)
 
 # Create formatters and add it to handlers
-log_file = abs_path('app.log')
+log_file = appdata_path('app.log')
 with open(log_file, 'wb') as lf:
     lf.flush()
 
