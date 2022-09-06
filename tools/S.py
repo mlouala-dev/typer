@@ -586,7 +586,7 @@ class LocalSettings(_Settings):
 
         def add(self, word: Word):
             try:
-                self[word].count += word.count
+                self[word].count += 1
                 self.updates.add(self[word])
 
             # word not find
@@ -621,9 +621,12 @@ class LocalSettings(_Settings):
             :type ref: LocalSettings.Dict
             """
             for word in ref:
-                self[word].count += word.count
+                if word in self:
+                    self[word].count += word.count
+                    self.updates.add(self[word])
 
-            self.save()
+                else:
+                    self.add(word)
 
         def digest(self, text: str):
             for phrase in T.TEXT.split(text):
@@ -638,8 +641,6 @@ class LocalSettings(_Settings):
                     else:
                         word = self.Word(word_text, previous=phrase[i])
                         self.add(word)
-
-            self.save()
 
         @G.log
         def find(self, word: Word, wide=False):

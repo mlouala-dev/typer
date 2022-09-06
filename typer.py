@@ -114,7 +114,7 @@ class TyperWIN(QMainWindow):
         self.summary_view.hide()
 
         self.toolbar = MainToolbar(self)
-        self.text_toolbar = TextToolbar(self)
+        # self.text_toolbar = TextToolbar(self)
         self.breadcrumbs = BreadCrumbs(self)
         self.breadcrumbs.setHidden(True)
 
@@ -140,7 +140,7 @@ class TyperWIN(QMainWindow):
         # Main layout operations
         _layout.addWidget(self.window_title)
         _layout.addWidget(self.toolbar)
-        _layout.addWidget(self.text_toolbar)
+        # _layout.addWidget(self.text_toolbar)
         _layout.addWidget(self.breadcrumbs)
         _layout.addWidget(self.splitter)
         _layout.setRowStretch(0, 0)
@@ -775,20 +775,28 @@ class TyperWIN(QMainWindow):
         if dialog.exec_() == QFileDialog.Accepted:
             filename = dialog.selectedFiles()
             filename = filename[0]
+            self.updateStatus(0, 'Digesting')
 
             if os.path.splitext(filename)[-1] == f'.{G.__ext__}':
                 import sqlite3
-                print('merging', filename)
 
                 db = sqlite3.connect(filename)
                 cursor = db.cursor()
                 d = S.LOCAL.Dict(db, cursor)
+
                 S.LOCAL.DICT.merge(d)
 
             else:
-                print('digesting', filename)
                 with open(filename, mode="r", encoding="utf-8") as my_file:
-                    S.LOCAL.DICT.digest('\n'.join(my_file.readlines()))
+                    content = '\n'.join(my_file.readlines())
+                    self.updateStatus(33, 'Digesting words from existing project...')
+
+                    S.LOCAL.DICT.digest(content)
+
+            self.updateStatus(90, 'Saving')
+            S.LOCAL.DICT.save()
+
+            self.updateStatus(100, 'Digested')
 
     # UI
 
