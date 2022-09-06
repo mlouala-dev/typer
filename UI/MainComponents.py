@@ -191,35 +191,6 @@ class TitleBar(QFrame):
         self.window_title.setText(title)
 
 
-class Tool(QToolButton):
-    """
-    Basic Toolbutton with custom style
-    """
-    def __init__(self, icon: str, hint: str = '', shortcut='', action=None, defaultState=True, size=25):
-        super().__init__()
-
-        # some UI ajustments
-        self.setFixedSize(size, size)
-        self.setAutoRaise(True)
-
-        # if shortcut specified, we assign it and update the hint
-        if shortcut != '':
-            self.setShortcut(shortcut)
-            hint += f' ({shortcut})'
-
-        # settings from the tools dict
-        self.setIcon(G.icon(icon))
-        self.setToolTip(hint)
-        self.setEnabled(defaultState)
-
-        if action is not None:
-            self.clicked.connect(action)
-
-
-class Separator:
-    pass
-
-
 class Toolbar(QToolBar):
     def __init__(self, parent=None):
         self._win = parent
@@ -236,21 +207,26 @@ class Toolbar(QToolBar):
         # this is gonna to be filled when calling the insertButtons func in sha Allah
         self.buttons = {}
 
-    def insertButtons(self, buttons: dict):
+    def insertButton(self, tool: QAction):
         """
         Insert the given list of buttons depending of the type
         :param buttons: a list of buttons
         """
 
         # looping through all left buttons
-        for key, tool in buttons.items():
-            if tool is Separator:
-                self.addSeparator()
-                self.addSeparator()
+        b = QToolButton()
 
-            else:
-                self.addWidget(tool)
-                self.buttons[key] = tool
+        b.setFixedSize(self.height() - 2, self.height() - 2)
+        b.setAutoRaise(True)
+
+        b.setIcon(tool.icon())
+        b.setToolTip(tool.text())
+        b.setEnabled(tool.isEnabled())
+
+        b.clicked.connect(tool.trigger)
+
+        self.addWidget(b)
+        self.buttons[tool.objectName()] = b
 
 
 class MainToolbar(Toolbar):
@@ -260,132 +236,23 @@ class MainToolbar(Toolbar):
     def __init__(self, *args):
         super().__init__(*args)
 
-        left_buttons = {
-            'new': Tool(
-                icon="Page",
-                hint="New project...",
-                action=self._win.newProjectDialog,
-                shortcut='Ctrl+N'
-            ),
-            'open': Tool(
-                icon="Open-Folder",
-                hint="Open project...",
-                action=self._win.openProjectDialog,
-                shortcut='Ctrl+O'
-            ),
-            'save': Tool(
-                icon="Page-Save",
-                hint="Save project...",
-                action=self._win.saveProject,
-                shortcut='Ctrl+S',
-                defaultState=False
-            ),
-            'saveas': Tool(
-                icon="Save-As",
-                hint="Save as project...",
-                action=self._win.saveAsProject,
-                shortcut='Ctrl+Shift+S',
-                defaultState=False
-            ),
-            'sep0': Separator,
-            'ref': Tool(
-                icon="Book-Link",
-                hint="Load reference...",
-                action=self._win.loadReferenceDialog,
-                shortcut='Ctrl+R'
-            ),
-            'learn': Tool(
-                icon="Agp",
-                hint="Digest...",
-                action=self._win.digestText
-            ),
-            'sep1': Separator,
-            'search': Tool(
-                icon="Search-Plus",
-                hint="Search...",
-                action=self._win.find_dialog.show,
-                shortcut='Ctrl+F'
-            ),
-            'navigator': Tool(
-                icon="List",
-                hint="Open Navigator...",
-                action=self._win.navigatorDialog,
-                shortcut='Alt+E'
-            ),
-            'sep4': Separator,
-            'audio': Tool(
-                icon="Microphone",
-                hint="Start Listening...",
-                action=self._win.recordAudio,
-                shortcut='Alt+A'
-            ),
-            'note': Tool(
-                icon="Note-Add",
-                hint="Insert Note...",
-                action=self._win.typer.insertNote,
-                shortcut='Alt+Z'
-            ),
-            'pdf': Tool(
-                icon="File-Extension-Pdf",
-                hint="Export to PDF...",
-                action=self._win.exportPDFDialog,
-                shortcut='Alt+V'
-            ),
-            'html': Tool(
-                icon="File-Extension-Html",
-                hint="Export to HTML...",
-                action=self._win.exportHTMLDialog,
-                shortcut='Alt+V'
-            ),
-            'sep3': Separator,
-            'viewer': Tool(
-                icon="Book-Picture",
-                hint="Display viewer...",
-                action=partial(self._win.toggleWidgetDisplay, self._win.viewer_frame),
-                shortcut='Alt+R',
-                defaultState=False
-            ),
-            'bookmark': Tool(
-                icon="Application-Side-List",
-                hint="Summary panel...",
-                action=partial(self._win.toggleWidgetDisplay, self._win.summary_view),
-                shortcut='F2'
-            ),
-            'sep2': Separator,
-            'settings': Tool(
-                icon="Setting-Tools",
-                hint="Settings...",
-                action=self._win.settings_dialog.show
-            )
-        }
-        right_buttons = {
-            'quran_search': Tool(
-                icon="Book",
-                hint="Search in Quran...",
-                action=self._win.quran_search.show,
-                shortcut='Alt+F'
-            ),
-            'quran_insert': Tool(
-                icon="Book-Go",
-                hint="Insert from / Jump to Quran...",
-                action=self._win.QuranDialog,
-                shortcut='Alt+C'
-            ),
-            'book_jumper': Tool(
-                icon="Book-Spelling",
-                hint="Insert from / Jump to Source Book...",
-                action=self._win.jumper.show,
-                shortcut='Alt+S'
-            ),
-            'hadith_search': Tool(
-                icon="Book-Keeping",
-                hint="Search in hadith database...",
-                action=self._win.hadith_dialog.show,
-                shortcut='Alt+H'
-            )
-        }
-
-        self.insertButtons(left_buttons)
+        self.insertButton(G.SHORTCUT['new'])
+        self.insertButton(G.SHORTCUT['open'])
+        self.insertButton(G.SHORTCUT['save'])
+        self.insertButton(G.SHORTCUT['saveas'])
+        self.addSeparator()
+        self.insertButton(G.SHORTCUT['ref'])
+        self.insertButton(G.SHORTCUT['digest'])
+        self.addSeparator()
+        self.insertButton(G.SHORTCUT['find'])
+        self.insertButton(G.SHORTCUT['listen'])
+        self.insertButton(G.SHORTCUT['note'])
+        self.insertButton(G.SHORTCUT['pdf'])
+        self.insertButton(G.SHORTCUT['html'])
+        self.addSeparator()
+        self.insertButton(G.SHORTCUT['viewer'])
+        self.insertButton(G.SHORTCUT['bookmark'])
+        self.insertButton(G.SHORTCUT['settings'])
 
         # <3
         basmallah = QLabel('بسم الله الرحمان الرحيم')
@@ -395,7 +262,10 @@ class MainToolbar(Toolbar):
 
         self.addWidget(basmallah)
 
-        self.insertButtons(right_buttons)
+        self.insertButton(G.SHORTCUT['quran_search'])
+        self.insertButton(G.SHORTCUT['quran_insert'])
+        self.insertButton(G.SHORTCUT['book_jumper'])
+        self.insertButton(G.SHORTCUT['hadith_search'])
 
 
 class TextToolbar(Toolbar):
@@ -403,78 +273,19 @@ class TextToolbar(Toolbar):
         super().__init__(*args)
 
         self.setFixedHeight(30)
-
-        buttons = {
-            'bold': Tool(
-                icon="Text-Bold",
-                action=self._win.quran_search.show,
-                shortcut='Ctrl+Alt+B',
-                size=20
-            ),
-            'italic': Tool(
-                icon="Text-Italic",
-                action=self._win.QuranDialog,
-                shortcut='Ctrl+Alt+I',
-                size=20
-            ),
-            'underline': Tool(
-                icon="Text-Underline",
-                action=self._win.jumper.show,
-                shortcut='Ctrl+Alt+U',
-                size=20
-            ),
-            'sep': Separator,
-            'h1': Tool(
-                icon="Text-Heading-1",
-                action=self._win.hadith_dialog.show,
-                shortcut='Ctrl+Alt+1',
-                size=20
-            ),
-            'h2': Tool(
-                icon="Text-Heading-2",
-                action=self._win.hadith_dialog.show,
-                shortcut='Ctrl+Alt+2',
-                size=20
-            ),
-            'h3': Tool(
-                icon="Text-Heading-3",
-                action=self._win.hadith_dialog.show,
-                shortcut='Ctrl+Alt+3',
-                size=20
-            ),
-            'h4': Tool(
-                icon="Text-Heading-4",
-                action=self._win.hadith_dialog.show,
-                shortcut='Ctrl+Alt+4',
-                size=20
-            ),
-            'aleft': Tool(
-                icon="Text-Align-Left",
-                action=self._win.quran_search.show,
-                shortcut='Ctrl+Alt+L',
-                size=20
-            ),
-            'acenter': Tool(
-                icon="Text-Align-Center",
-                action=self._win.QuranDialog,
-                shortcut='Ctrl+Alt+C',
-                size=20
-            ),
-            'aright': Tool(
-                icon="Text-Align-Right",
-                action=self._win.jumper.show,
-                shortcut='Ctrl+Alt+R',
-                size=20
-            ),
-            'ajustify': Tool(
-                icon="Text-Align-Justify",
-                action=self._win.hadith_dialog.show,
-                shortcut='Ctrl+Alt+J',
-                size=20
-            )
-        }
-
-        self.insertButtons(buttons)
+        self.insertButton(G.SHORTCUT['bold'])
+        self.insertButton(G.SHORTCUT['italic'])
+        self.insertButton(G.SHORTCUT['underline'])
+        self.addSeparator()
+        self.insertButton(G.SHORTCUT['h1'])
+        self.insertButton(G.SHORTCUT['h2'])
+        self.insertButton(G.SHORTCUT['h3'])
+        self.insertButton(G.SHORTCUT['h4'])
+        self.addSeparator()
+        self.insertButton(G.SHORTCUT['aleft'])
+        self.insertButton(G.SHORTCUT['acenter'])
+        self.insertButton(G.SHORTCUT['aright'])
+        self.insertButton(G.SHORTCUT['ajustify'])
 
 
 class Summary(QTreeWidget):

@@ -85,14 +85,28 @@ class TyperWIN(QMainWindow):
         _splash.progress(10, "Loading Hadith Database...")
         self.container = QWidget(self)
         self.summary_view = Summary(self)
+        G.SHORTCUT['bookmark'].register(self, partial(self.toggleWidgetDisplay, self.summary_view))
         self.typer = Editor.Typer(self)
+        G.SHORTCUT['bold'].register(self)
+        G.SHORTCUT['italic'].register(self)
+        G.SHORTCUT['underline'].register(self)
+        G.SHORTCUT['h1'].register(self)
+        G.SHORTCUT['h2'].register(self)
+        G.SHORTCUT['h3'].register(self)
+        G.SHORTCUT['h4'].register(self)
+        G.SHORTCUT['aleft'].register(self)
+        G.SHORTCUT['acenter'].register(self)
+        G.SHORTCUT['aright'].register(self)
+        G.SHORTCUT['ajustify'].register(self)
 
         self.viewer = PDF.Viewer(self)
         self.topic_display = TopicsBar(self)
         self.viewer_frame = PDF.ViewerFrame(self.viewer, self.topic_display)
+        G.SHORTCUT['viewer'].register(self, partial(self.toggleWidgetDisplay, self.viewer_frame))
 
         _splash.progress(15, "Loading Hadith Database...")
         self.hadith_dialog = HadithSearch(self)
+        G.SHORTCUT['hadith_search'].register(self, self.hadith_dialog.show)
         self.hadith_dialog.loading_step.connect(lambda x, y: _splash.progress(int(15 + y * .2), f'Loading Hadith n°{x}'))
         with G.SQLConnection('hadith.db') as db:
             self.hadith_dialog.init_db(db)
@@ -102,19 +116,36 @@ class TyperWIN(QMainWindow):
 
         _splash.progress(50, "Loading QuranSearch...")
         self.quran_search = QuranWorker.QuranSearch(self)
+        G.SHORTCUT['quran_search'].register(self, self.quran_search.show)
         self.find_dialog = GlobalSearch(self)
+        G.SHORTCUT['find'].register(self, self.find_dialog.show)
         self.settings_dialog = Settings(self, self.typer)
+        G.SHORTCUT['settings'].register(self, self.settings_dialog.show)
 
         _splash.progress(53, "Loading Navigator...")
         self.navigator = Navigator(self)
         self.exporter = Exporter(self)
         self.jumper = Jumper(self)
+        G.SHORTCUT['book_jumper'].register(self, self.jumper.show)
 
         self.viewer_frame.hide()
         self.summary_view.hide()
 
+        # connecting the shortcuts
+        G.SHORTCUT['new'].register(self, self.newProjectDialog)
+        G.SHORTCUT['open'].register(self, self.openProjectDialog)
+        G.SHORTCUT['save'].register(self, self.saveProject)
+        G.SHORTCUT['saveas'].register(self, self.saveAsProject)
+        G.SHORTCUT['ref'].register(self, self.loadReferenceDialog)
+        G.SHORTCUT['digest'].register(self, self.digestText)
+        G.SHORTCUT['listen'].register(self, self.recordAudio)
+        G.SHORTCUT['note'].register(self, self.typer.insertNote)
+        G.SHORTCUT['pdf'].register(self, self.exportPDFDialog)
+        G.SHORTCUT['html'].register(self, self.exportHTMLDialog)
+        G.SHORTCUT['quran_insert'].register(self, self.QuranDialog)
+
         self.toolbar = MainToolbar(self)
-        # self.text_toolbar = TextToolbar(self)
+        self.text_toolbar = TextToolbar(self)
         self.breadcrumbs = BreadCrumbs(self)
         self.breadcrumbs.setHidden(True)
 
@@ -140,7 +171,7 @@ class TyperWIN(QMainWindow):
         # Main layout operations
         _layout.addWidget(self.window_title)
         _layout.addWidget(self.toolbar)
-        # _layout.addWidget(self.text_toolbar)
+        _layout.addWidget(self.text_toolbar)
         _layout.addWidget(self.breadcrumbs)
         _layout.addWidget(self.splitter)
         _layout.setRowStretch(0, 0)
@@ -185,6 +216,8 @@ class TyperWIN(QMainWindow):
 
             S.GLOBAL.audio_input_device = G.audio_input_devices_names[0]
             S.GLOBAL.saveSetting('audio_input_device')
+        self.toolbar.setVisible(S.GLOBAL.toolbar)
+        self.text_toolbar.setVisible(S.GLOBAL.text_toolbar)
 
         _splash.progress(100, 'Opening...')
 
@@ -967,10 +1000,7 @@ class TyperWIN(QMainWindow):
         and receive some from the document editor
         ! Some of these shortcut are handled by the MainComponents.Toolbar widget
         """
-        super(TyperWIN, self).keyPressEvent(e)
-
-        # forwarding the event to the toolbar to shortcut
-        super(MainToolbar, self.toolbar).keyPressEvent(e)
+        super().keyPressEvent(e)
 
         # we get the status of Ctrl Alt or Shift, etc
         modifiers = QApplication.keyboardModifiers()

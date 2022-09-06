@@ -14,9 +14,10 @@ from os.path import dirname, join, splitext
 from pathlib import Path
 from functools import wraps
 
-from PyQt5.QtGui import QPixmap, QFont, QIcon
+from PyQt5.QtGui import QPixmap, QFont, QIcon, QKeySequence
 from PyQt5.QtCore import Qt
 from PyQt5.QtSql import QSqlDatabase
+from PyQt5.QtWidgets import QAction, QShortcut
 
 
 # The application's core settings
@@ -62,6 +63,8 @@ State_Reference = 3
 InsertRole = 0
 QuoteRole = 1
 
+
+# PATH OPERATORS
 
 # the absolute path of the app
 __abs_path__ = dirname(argv[0])
@@ -186,6 +189,8 @@ def new_connection(db: str = None) -> QSqlDatabase:
     return connection
 
 
+# AUDIO DEVICE DETECTION
+
 def get_audio_inputs():
     pa = pyaudio.PyAudio()
     devices = []
@@ -208,6 +213,85 @@ def get_audio_inputs():
 audio_input_devices = get_audio_inputs()
 audio_input_devices_names = list(audio_input_devices.keys())
 
+
+# SHORTCUTS
+
+class Shortcut(QAction):
+    def __init__(self, shortcut, hint='', name='', icon_name='', default_state=True):
+        self._shortcut = shortcut
+
+        # if shortcut specified, we assign it and update the hint
+        if shortcut != '':
+            hint += f' ({shortcut})'
+
+        self.hint = hint
+        self.name = name
+        self.icon_name = icon_name
+
+        self.default_state = default_state
+
+    def register(self, parent=None, action=None):
+        super().__init__(parent)
+
+        shortcut_trigger = QShortcut(QKeySequence(self._shortcut), parent)
+
+        self.setShortcut(self._shortcut)
+        self.setShortcutContext(Qt.WindowShortcut)
+
+        self.setToolTip(self.hint)
+        self.setText(self.hint)
+        self.setObjectName(self.name)
+
+        self.setIcon(icon(self.icon_name))
+
+        self.setEnabled(self.default_state)
+
+        if action:
+            shortcut_trigger.activated.connect(action)
+            self.triggered.connect(action)
+
+
+class Shortcut_Bank(dict):
+    def add(self, *args, **kwargs):
+        self[kwargs['name']] = Shortcut(*args, **kwargs)
+
+
+SHORTCUT = Shortcut_Bank()
+SHORTCUT.add(shortcut='Ctrl+N', name='new', hint='New project...', icon_name='Page')
+SHORTCUT.add(shortcut='Ctrl+O', name='open', hint='Open project...', icon_name='Open-Folder')
+SHORTCUT.add(shortcut='Ctrl+S', name='save', hint='Save project...', icon_name='Page-Save', default_state=False)
+SHORTCUT.add(shortcut='Ctrl+Shift+S', name='saveas', hint='Save as project...', icon_name='Save-As', default_state=False)
+SHORTCUT.add(shortcut='Ctrl+R', name='ref', hint='Load reference...', icon_name='Book-Link')
+SHORTCUT.add(shortcut='Ctrl+Shift+D', name='digest', hint="Learn file's words...", icon_name='Agp')
+SHORTCUT.add(shortcut='Ctrl+F', name='find', hint='Search...', icon_name='Search-Plus')
+SHORTCUT.add(shortcut='Alt+E', name='navigator', hint='Open Navigator...', icon_name='List')
+SHORTCUT.add(shortcut='Alt+A', name='listen', hint='Start Listening...', icon_name='Microphone')
+SHORTCUT.add(shortcut='Alt+Z', name='note', hint='Insert Note...', icon_name='Note-Add')
+SHORTCUT.add(shortcut='Alt+V', name='pdf', hint="Export to PDF...", icon_name="File-Extension-Pdf")
+SHORTCUT.add(shortcut='Alt+V', name='html', hint="Export to HTML...", icon_name="File-Extension-Html")
+SHORTCUT.add(shortcut='Alt+R', name='viewer', hint="Display viewer...", icon_name="Book-Picture", default_state=False)
+SHORTCUT.add(shortcut='F2', name='bookmark', hint="Summary panel...", icon_name="Application-Side-List")
+SHORTCUT.add(shortcut='F3', name='settings', hint="Settings...", icon_name="Setting-Tools")
+
+SHORTCUT.add(shortcut='Alt+F', name='quran_search', hint='Search in Quran...', icon_name='Book')
+SHORTCUT.add(shortcut='Alt+C', name='quran_insert', hint='Insert from / Jump to Quran...', icon_name='Book-Go')
+SHORTCUT.add(shortcut='Alt+S', name='book_jumper', hint='Insert from / Jump to Source', icon_name='Book-Spelling')
+SHORTCUT.add(shortcut='Alt+H', name='hadith_search', hint='Search in hadith database...', icon_name='Book-Keeping')
+
+SHORTCUT.add(shortcut='Ctrl+Alt+B', name='bold', hint='bold', icon_name="Text-Bold")
+SHORTCUT.add(shortcut='Ctrl+Alt+I', name='italic', hint='italic', icon_name="Text-Italic")
+SHORTCUT.add(shortcut='Ctrl+Alt+U', name='underline', hint='underline', icon_name="Text-Underline")
+SHORTCUT.add(shortcut='Ctrl+Alt+1', name='h1', hint='h1', icon_name="Text-Heading-1")
+SHORTCUT.add(shortcut='Ctrl+Alt+2', name='h2', hint='h2', icon_name="Text-Heading-2")
+SHORTCUT.add(shortcut='Ctrl+Alt+3', name='h3', hint='h3', icon_name="Text-Heading-3")
+SHORTCUT.add(shortcut='Ctrl+Alt+4', name='h4', hint='h4', icon_name="Text-Heading-4")
+SHORTCUT.add(shortcut='Ctrl+Alt+L', name='aleft', hint='aleft', icon_name="Text-Align-Left")
+SHORTCUT.add(shortcut='Ctrl+Alt+C', name='acenter', hint='acenter', icon_name="Text-Align-Center")
+SHORTCUT.add(shortcut='Ctrl+Alt+R', name='aright', hint='aright', icon_name="Text-Align-Right")
+SHORTCUT.add(shortcut='Ctrl+Alt+J', name='ajustify', hint='ajustify', icon_name="Text-Align-Justify")
+
+
+# LOGGING ROUTINES
 
 logger = logging.getLogger(__name__)
 logger.setLevel(__debug_level__)

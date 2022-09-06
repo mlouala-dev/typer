@@ -44,6 +44,7 @@ class _Settings:
 
         try:
             self.cursor.executescript(creation_query)
+
         except sqlite3.OperationalError:
             return False
 
@@ -58,8 +59,17 @@ class _Settings:
             settings = {key: stg for key, stg in self.cursor.execute('SELECT * FROM settings').fetchall()}
 
         except sqlite3.OperationalError:
-            G.error("inconsistent config file, rebuild")
+            G.error('Inconsistent config file, rebuild')
             settings = self.buildCoreSettings()
+
+        for key, setting in self.defaults.items():
+            if key not in settings:
+                G.error(f'Core setting "{key}" not found, updating the file')
+
+                self.cursor.execute('INSERT INTO settings ("field", "value") VALUES (?, ?)', (key, setting))
+                self.db.commit()
+
+                settings[key] = setting
 
         return settings
 
@@ -121,6 +131,8 @@ class GlobalSettings(_Settings):
 
     defaults = {
         'theme': 'light',
+        'toolbar': True,
+        'text_toolbar': False,
         'last_file': '',
         'default_path': G.abs_path(),
         'update_default_path': True,
@@ -136,6 +148,8 @@ class GlobalSettings(_Settings):
         self.create_db_link()
 
         self.theme = self.defaults['theme']
+        self.toolbar = self.defaults['toolbar']
+        self.text_toolbar = self.defaults['text_toolbar']
         self.last_file = self.defaults['last_file']
         self.default_path = self.defaults['default_path']
         self.auto_load = self.defaults['auto_load']
@@ -179,6 +193,8 @@ class GlobalSettings(_Settings):
             self.last_file = ''
 
         self.update_default_path = bool(settings['update_default_path'])
+        self.toolbar = bool(settings['toolbar'])
+        self.text_toolbar = bool(settings['text_toolbar'])
 
         self.setAudioRecordPath(settings['audio_record_path'])
         self.audio_input_device = settings['audio_input_device']

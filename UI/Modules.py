@@ -858,7 +858,7 @@ class Settings(QDialog):
         self._win = parent
         self._typer = typer
         self._doc = self._typer.document()
-        self.setFixedSize(600, 400)
+        self.setFixedSize(600, 500)
 
         document_layout = QGridLayout()
         document_layout.setAlignment(Qt.AlignTop)
@@ -888,6 +888,8 @@ class Settings(QDialog):
         self.audio_sample_rate.currentIndexChanged.connect(partial(self.updateGlobalSettings, 'audio_sample_rate'))
 
         self.update_default_path_box = self.addGlobalOption('update_default_path', 'Update default path')
+        self.toolbar = self.addGlobalOption('toolbar', 'Main toolbar visible')
+        self.text_toolbar = self.addGlobalOption('text_toolbar', 'Text toolbar visible')
 
         self.auto_load_box = self.addGlobalOption('auto_load', 'Automatically load previous file')
 
@@ -977,6 +979,14 @@ class Settings(QDialog):
         elif domain == 'auto_load':
             S.GLOBAL.auto_load = state
 
+        elif domain == 'toolbar':
+            S.GLOBAL.toolbar = state
+            self._win.toolbar.setVisible(state)
+
+        elif domain == 'text_toolbar':
+            S.GLOBAL.text_toolbar = state
+            self._win.text_toolbar.setVisible(state)
+
         elif domain == 'audio_input_device':
             S.GLOBAL.audio_input_device = self.audio_devices.itemText(state)
 
@@ -1010,6 +1020,8 @@ class Settings(QDialog):
 
     def show(self):
         self.theme.setCurrentIndex(list(S.GLOBAL.themes.keys()).index(S.GLOBAL.theme))
+        self.toolbar.setChecked(S.GLOBAL.toolbar)
+        self.text_toolbar.setChecked(S.GLOBAL.text_toolbar)
         self.audio_record_path.setText(S.GLOBAL.audio_record_path)
         self.audio_devices.setCurrentIndex(G.audio_input_devices_names.index(S.GLOBAL.audio_input_device))
         self.audio_sample_rate.setCurrentIndex(self.sample_rates.index(S.GLOBAL.audio_sample_rate))
