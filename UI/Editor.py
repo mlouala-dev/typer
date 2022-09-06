@@ -973,25 +973,12 @@ class Typer(QTextEdit):
             # we cleanup the previous block
             tc.select(tc.SelectionType.BlockUnderCursor)
             indent = tc.blockFormat().indent()
-            text = tc.selectedText()
-            text = text.replace("\u2029", "")
 
             # first we make sure our block doesn't contains spelling errors
             if tc.block().userData().state != G.State_Correction:
                 # and imports all word to our frequency list
                 # we split the paragraph in phrase, so the previous word suggestion will be coherent
-                for phrase in T.TEXT.split(text):
-                    for i, word_text in enumerate(phrase[1:]):
-                        # in this configuration, phrase[i] will point the previous word
-                        try:
-                            assert len(word_text) >= 4 and len(phrase[i]) >= 2
-
-                        except (AssertionError, IndexError):
-                            continue
-
-                        else:
-                            word = S.LocalSettings.Dict.Word(word_text, previous=phrase[i])
-                            S.LOCAL.DICT.add(word)
+                S.LOCAL.DICT.digest(tc.selectedText().replace("\u2029", ""))
 
             # forward to superclass
             super(Typer, self).keyPressEvent(e)

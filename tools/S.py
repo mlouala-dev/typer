@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import QApplication, QStyleFactory
 from PyQt5.QtGui import QPalette, QColor
 from PyQt5.QtCore import Qt
 
-from tools import G
+from tools import G, T
 from tools.translitteration import translitterate, re_ignore_hamza, clean_harakat
 
 
@@ -573,9 +573,20 @@ class LocalSettings(_Settings):
                 self.news.clear()
                 self.updates.clear()
 
+        def __getitem__(self, item: Word) -> Word:
+            i = self.hashes.index(hash(item))
+            return self.words[i]
+
+        def __contains__(self, item: Word):
+            return hash(item) in self.hashes
+
+        def __iter__(self) -> [Word]:
+            for word in self.words:
+                yield word
+
         def add(self, word: Word):
             try:
-                self[word].count += 1
+                self[word].count += word.count
                 self.updates.add(self[word])
 
             # word not find
@@ -605,12 +616,30 @@ class LocalSettings(_Settings):
                 self.word_roots[word.root][word.previous].sort(reverse=True)
                 self.word_wide_roots[word.root].sort(reverse=True)
 
-        def __getitem__(self, item: Word):
-            i = self.hashes.index(hash(item))
-            return self.words[i]
+        def merge(self, ref):
+            """
+            :type ref: LocalSettings.Dict
+            """
+            for word in ref:
+                self[word].count += word.count
 
-        def __contains__(self, item: Word):
-            return hash(item) in self.hashes
+            self.save()
+
+        def digest(self, text: str):
+            for phrase in T.TEXT.split(text):
+                for i, word_text in enumerate(phrase[1:]):
+                    # in this configuration, phrase[i] will point the previous word
+                    try:
+                        assert len(word_text) >= 4 and len(phrase[i]) >= 2
+
+                    except (AssertionError, IndexError):
+                        continue
+
+                    else:
+                        word = self.Word(word_text, previous=phrase[i])
+                        self.add(word)
+
+            self.save()
 
         @G.log
         def find(self, word: Word, wide=False):
@@ -624,11 +653,12 @@ class LocalSettings(_Settings):
             try:
                 assert len(word.root) == 3
                 bank = self.word_roots[word.root][word.previous] if not wide else self.word_wide_roots[word.root]
-                print(bank)
+
                 for key in bank:
                     if key.word.startswith(word.word):
                         match = key.word
                         break
+
             except AssertionError:
                 pass
             finally:
@@ -1029,9 +1059,7 @@ LOCAL = LocalSettings()
 
 if __name__ == "__main__":
     d = LOCAL.Dict()
-    d.add(d.Word('testiminier', previous='avant'))
-    d.add(d.Word('testiminier', previous='avant'))
-    d.add(d.Word('testimonier', count=1, previous='avant'))
-    print(d.words)
-    u = d.Word('testim', previous='avant')
-    print(d.find(u))
+    d.digest('''
+    
+    ''')
+    print(len(d.words), d.words)

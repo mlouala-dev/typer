@@ -155,7 +155,7 @@ class Keys:
         40: '(', 39: "'", 34: '"'
     }
 
-    Exits = {60: "[", 62: "]", **NewWord}
+    Exits = {60: "[", 62: "]", **Quotes, **NewWord}
 
     Latin_Letters = ascii_letters + 'éèêëàâäçîïôöûùü'
 

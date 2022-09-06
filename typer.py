@@ -1,10 +1,8 @@
 # بسم الله الرحمان الرحيم
 import sys
 import os
-import html
 import time
 
-from datetime import datetime
 from functools import partial
 from shutil import copyfile
 
@@ -16,11 +14,12 @@ from PyQt5.QtSql import QSqlDatabase
 from UI import QuranWorker, Editor
 from UI.HadithWorker import HadithSearch
 from UI.Modules import Settings, Navigator, GlobalSearch, Exporter, Jumper, TopicsBar, BreadCrumbs
-from UI.MainComponents import StatusBar, Summary, TitleBar, Toolbar, SplashScreen
+from UI.MainComponents import StatusBar, Summary, TitleBar, MainToolbar, SplashScreen, TextToolbar
 
 from tools import G, PDF, Threads, S
 
 # Exception catch for Qt
+
 
 def except_hook(cls, exception, traceback):
     G.error_exception(exception, traceback)
@@ -114,7 +113,8 @@ class TyperWIN(QMainWindow):
         self.viewer_frame.hide()
         self.summary_view.hide()
 
-        self.toolbar = Toolbar(self)
+        self.toolbar = MainToolbar(self)
+        self.text_toolbar = TextToolbar(self)
         self.breadcrumbs = BreadCrumbs(self)
         self.breadcrumbs.setHidden(True)
 
@@ -140,12 +140,14 @@ class TyperWIN(QMainWindow):
         # Main layout operations
         _layout.addWidget(self.window_title)
         _layout.addWidget(self.toolbar)
+        _layout.addWidget(self.text_toolbar)
         _layout.addWidget(self.breadcrumbs)
         _layout.addWidget(self.splitter)
         _layout.setRowStretch(0, 0)
         _layout.setRowStretch(1, 0)
         _layout.setRowStretch(2, 0)
-        _layout.setRowStretch(3, 1)
+        _layout.setRowStretch(3, 0)
+        _layout.setRowStretch(4, 1)
         _layout.setColumnStretch(0, 1)
         _layout.setSpacing(0)
         _layout.setContentsMargins(0, 0, 0, 0)
@@ -758,9 +760,39 @@ class TyperWIN(QMainWindow):
         else:
             return 'Untitled'
 
+    def digestText(self):
+        """
+        raise a dialog to browse to a reference file to learn words
+        """
+        dialog = QFileDialog(None, 'Digest a text', S.GLOBAL.default_path)
+
+        # we define some defaults settings used by all our file dialogs
+        dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
+        dialog.setDefaultSuffix(G.__ext__)
+        dialog.setNameFilter(f"Digestable Files (*.{G.__ext__} *.txt);;Typer Files (*.{G.__ext__});;Text Files (*.txt)")
+        dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
+
+        if dialog.exec_() == QFileDialog.Accepted:
+            filename = dialog.selectedFiles()
+            filename = filename[0]
+
+            if os.path.splitext(filename)[-1] == f'.{G.__ext__}':
+                import sqlite3
+                print('merging', filename)
+
+                db = sqlite3.connect(filename)
+                cursor = db.cursor()
+                d = S.LOCAL.Dict(db, cursor)
+                S.LOCAL.DICT.merge(d)
+
+            else:
+                print('digesting', filename)
+                with open(filename, mode="r", encoding="utf-8") as my_file:
+                    S.LOCAL.DICT.digest('\n'.join(my_file.readlines()))
+
     # UI
 
-    def exportDialog(self):
+    def exportPDFDialog(self):
         """
         Preparing the PDF export
         """
@@ -775,6 +807,24 @@ class TyperWIN(QMainWindow):
 
         # then display export's dialog
         self.exporter.show()
+
+    def exportHTMLDialog(self):
+        tc = self.typer.textCursor()
+        bf = tc.blockFormat()
+        bf.setAlignment(Qt.AlignCenter)
+        tc.setBlockFormat(bf)
+        # for page in S.LOCAL.BOOK:
+        #     if page <= 50:
+        #         continue
+        #     if page >= 79:
+        #         break
+        #     content = S.LOCAL.BOOK[page]
+        #     content = re.sub('<img.*?>', '', content)
+        #     content = content.replace('text-indent:10px;', '')
+        #     content = re.sub(r'-qt-block-indent:(?P<val>\d+);', 'text-indent: \g<val>0px;', content)
+        #     with open(G.rsc('ali_imran.html'), 'a', encoding='utf-8') as f:
+        #         f.write(f'{content}\n')
+        # pass
 
     def navigatorDialog(self):
         """
@@ -912,7 +962,7 @@ class TyperWIN(QMainWindow):
         super(TyperWIN, self).keyPressEvent(e)
 
         # forwarding the event to the toolbar to shortcut
-        super(Toolbar, self.toolbar).keyPressEvent(e)
+        super(MainToolbar, self.toolbar).keyPressEvent(e)
 
         # we get the status of Ctrl Alt or Shift, etc
         modifiers = QApplication.keyboardModifiers()
