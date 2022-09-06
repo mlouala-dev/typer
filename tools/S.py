@@ -73,7 +73,6 @@ class _Settings:
 
         return settings
 
-    @G.log
     def saveSetting(self, setting):
         self.cursor.execute('UPDATE settings SET value=? WHERE field=?', (self.__dict__[setting], setting))
         self.db.commit()
@@ -182,6 +181,8 @@ class GlobalSettings(_Settings):
 
     def loadSettings(self):
         settings = self.loadCoreSettings()
+        # closing file if other instance needs it
+        self.db.close()
 
         self.setTheme(settings['theme'])
 
@@ -199,6 +200,18 @@ class GlobalSettings(_Settings):
         self.setAudioRecordPath(settings['audio_record_path'])
         self.audio_input_device = settings['audio_input_device']
         self.audio_sample_rate = settings['audio_sample_rate']
+
+    def saveSetting(self, setting):
+        """
+        Since the file is opened by multiple instance, we open and close it when needed
+        :param setting:
+        :return:
+        """
+        self.create_db_link()
+
+        super().saveSetting(setting)
+
+        self.db.close()
 
 
 class LocalSettings(_Settings):

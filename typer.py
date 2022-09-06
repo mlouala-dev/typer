@@ -124,6 +124,7 @@ class TyperWIN(QMainWindow):
 
         _splash.progress(53, "Loading Navigator...")
         self.navigator = Navigator(self)
+        G.SHORTCUT['navigator'].register(self, self.navigatorDialog)
         self.exporter = Exporter(self)
         self.jumper = Jumper(self)
         G.SHORTCUT['book_jumper'].register(self, self.jumper.show)

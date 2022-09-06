@@ -1117,7 +1117,7 @@ class Navigator(QDialog):
                 pass
 
         # we find all the surats names
-        header_matcher = re.compile(r'-state:(97|981);.*?ff;\">(.*?)<', re.MULTILINE)
+        header_matcher = re.compile(r'-state:(97|981|982);.*?ff;\">(.*?)<', re.MULTILINE)
 
         # preparing the vars
         pages = set()
