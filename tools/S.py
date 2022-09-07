@@ -10,10 +10,22 @@ import re
 
 from PyQt5.QtWidgets import QApplication, QStyleFactory
 from PyQt5.QtGui import QPalette, QColor
-from PyQt5.QtCore import Qt, pyqtSignal, QObject, QThread, QThreadPool, QRunnable
+from PyQt5.QtCore import Qt, pyqtSignal, QObject, QThreadPool, QRunnable
 
 from tools import G, T
 from tools.translitteration import translitterate, re_ignore_hamza, clean_harakat
+
+
+class _Pool(QThreadPool):
+    started = pyqtSignal()
+    done = pyqtSignal()
+    step = pyqtSignal(str)
+
+    def __init__(self):
+        super().__init__()
+
+
+POOL = _Pool()
 
 
 class _Settings(QObject):
@@ -604,6 +616,7 @@ class LocalSettings(_Settings):
                 self.word_wide_roots = {}
 
             def run(self):
+                print('running...')
                 for word in self.words_to_process:
                     try:
                         assert word.previous in self.word_roots[word.root]
@@ -625,6 +638,7 @@ class LocalSettings(_Settings):
                         self.words.append(word)
                         self.hashes.append(hash(word))
 
+                print('done')
                 self.callback_fn(
                     self.word_roots,
                     self.word_wide_roots,
@@ -641,7 +655,6 @@ class LocalSettings(_Settings):
             self._cursor = cursor
 
             self.words_to_process = []
-            self.pool = QThreadPool()
 
             self.words = []
             self.hashes = []
@@ -652,13 +665,10 @@ class LocalSettings(_Settings):
             self.updates = set()
 
             if self._cursor:
-                self.words_to_process = [w for w in map(self.Word, self._cursor.execute('SELECT * FROM dict').fetchall())]
-                previous, step = 0, len(self.words_to_process) // self.pool.maxThreadCount()
+                self.words_to_process = [self.Word(w, c, p) for w, c, p in self._cursor.execute('SELECT * FROM dict').fetchall()]
 
-                for i in range(step, len(self.words_to_process), step):
-                    worker = self.Worker(self.words_to_process[previous:i], self.update)
-                    self.pool.start(worker)
-                    previous = i
+                worker = self.Worker(self.words_to_process, self.update)
+                POOL.start(worker)
 
         def __getitem__(self, item: Word) -> Word:
             i = self.hashes.index(hash(item))
@@ -721,6 +731,8 @@ class LocalSettings(_Settings):
             self.words.extend(words)
             self.hashes.extend(hashes)
 
+            print(f'adding {len(self.words)} words : root : {len(self.word_roots)}, wide : {len(self.word_wide_roots)}')
+
         def digest(self, text: str):
             for phrase in T.TEXT.split(text):
                 for i, word_text in enumerate(phrase[1:]):
@@ -744,6 +756,7 @@ class LocalSettings(_Settings):
             :return: the best candidate
             """
             match = None
+
             try:
                 assert len(word.root) == 3
                 bank = self.word_roots[word.root][word.previous] if not wide else self.word_wide_roots[word.root]

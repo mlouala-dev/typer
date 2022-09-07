@@ -553,6 +553,9 @@ class StatusBar(QStatusBar):
         self.not_saved_icon = QLabel(self)
         self.not_saved_icon.setPixmap(G.pixmap("Bullet-Red", size=21))
         self.not_saved_icon.hide()
+        self.processing_icon = QLabel(self)
+        self.processing_icon.setPixmap(G.pixmap("Plant", size=21))
+        self.processing_icon.hide()
         self.saving_icon = QLabel(self)
         self.saving_icon.setPixmap(G.pixmap("Bullet-Orange", size=21))
         self.saving_icon.hide()
@@ -568,6 +571,7 @@ class StatusBar(QStatusBar):
         self.addPermanentWidget(self.label, 1)
         self.addPermanentWidget(self.progress, 1)
         self.addPermanentWidget(self.not_saved_icon, 0)
+        self.addPermanentWidget(self.processing_icon, 0)
         self.addPermanentWidget(self.saving_icon, 0)
         self.addPermanentWidget(self.saved_icon, 0)
 
@@ -594,9 +598,9 @@ class StatusBar(QStatusBar):
         2: saved
         :param state: the save status
         """
-        save_status = [self.not_saved_icon, self.saving_icon, self.saved_icon]
+        save_status = [self.processing_icon, self.not_saved_icon, self.saving_icon, self.saved_icon]
         for i, status in enumerate(save_status):
-            status.setVisible(state == i)
+            status.setVisible(state == (i - 1))
 
     def updateRecording(self, sec: int):
         """

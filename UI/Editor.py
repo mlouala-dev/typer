@@ -110,10 +110,10 @@ class Typer(QTextEdit):
         self.setFont(self.default_font)
         self.setCurrentFont(self.default_font)
         self.document().setDefaultFont(self.default_font)
-        self.document().setIndentWidth(25)
-        self.toggleFormat()
+        self.document().setIndentWidth(10)
         self.document().setDefaultTextOption(QTextOption(Qt.AlignmentFlag.AlignLeft))
         self.document().blockCountChanged.connect(self.contentChanged.emit)
+        self.textCursor().setBlockFormat(self.default_blockFormat)
 
         # applying a simple syntax highlighter
         self.syntaxhighlighter = TyperHighlighter(self, self.document())
@@ -986,13 +986,8 @@ class Typer(QTextEdit):
             # light save settings
             S.LOCAL.saveVisualSettings()
 
-            # apply the default style to the new paragraph
-            tc = self.textCursor()
-            tc.select(tc.SelectionType.BlockUnderCursor)
-            Styles.Default.applyStyle(tc)
-            block = tc.blockFormat()
-            block.setIndent(indent)
-            tc.setBlockFormat(block)
+            # # apply the default style to the new paragraph
+            self.textCursor().setBlockFormat(self.default_blockFormat)
 
         elif not (e.key() == Qt.Key.Key_Tab and self.auto_complete_available):
             # forward Tab only if we're sure there is no autocomplete to do
@@ -1253,6 +1248,10 @@ class Typer(QTextEdit):
 
         # displaying the final popup menu
         menu.exec_(global_pos)
+
+    def clear(self):
+        super().clear()
+        self.textCursor().setBlockFormat(self.default_blockFormat)
 
 
 class TyperHighlighter(QSyntaxHighlighter):

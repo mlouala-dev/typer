@@ -107,9 +107,6 @@ class TyperWIN(QMainWindow):
         _splash.progress(15, "Loading Hadith Database...")
         self.hadith_dialog = HadithSearch(self)
         G.SHORTCUT['hadith_search'].register(self, self.hadith_dialog.show)
-        self.hadith_dialog.loading_step.connect(lambda x, y: _splash.progress(int(15 + y * .2), f'Loading Hadith n°{x}'))
-        with G.SQLConnection('hadith.db') as db:
-            self.hadith_dialog.init_db(db)
 
         _splash.progress(45, "Loading QuranQuote...")
         self.quran_quote = QuranWorker.QuranQuote(self)

@@ -1,6 +1,7 @@
 # بسم الله الرحمان الرحيم
 import math
 import win32api
+import sqlite3
 import re
 
 from PyQt5.QtSql import QSqlDatabase
@@ -9,7 +10,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 
 from UI.BasicElements import ListWidget, SearchField, LineLayout, AyatModelItem, MultiLineModelItem
-from tools import G
+from tools import G, S
 from tools.translitteration import arabic_hurufs, clean_harakat
 
 
@@ -96,10 +97,37 @@ class HadithSearch(QDialog):
     loading_step = pyqtSignal(int, int)
     result_click = pyqtSignal(str)
 
+    class Worker(QRunnable):
+        def __init__(self, callback_fn, start=0, end=0):
+            super().__init__()
+
+            self.bounds = (start, end)
+
+            self.callback_fn = callback_fn
+            self.hadiths = []
+
+        def run(self):
+            db = sqlite3.connect(G.rsc_path('hadith.db'))
+            cursor = db.cursor()
+
+            req = cursor.execute(f''' SELECT ar.id, hadith, grade, rawi, hadith_fr, grade_fr, rawi_fr
+            FROM ar INNER JOIN fr ON ar.id = fr.id WHERE ar.id BETWEEN ? AND ?''', self.bounds).fetchall()
+            db.close()
+
+            for i, hadith, grade, rawi, hadith_fr, grade_fr, rawi_fr in req:
+                if hadith is not None:
+                    h = Hadith(hid=i, hadith=hadith, grade=grade, rawi=rawi)
+                    h.addTranslation(hadith_fr, rawi_fr, grade_fr)
+
+                    self.hadiths.append(h)
+
+            self.callback_fn(self.hadiths)
+
     def __init__(self, parent=None):
         self.hadiths = []
 
-        super(HadithSearch, self).__init__(parent)
+        super().__init__(parent)
+
         self.setWindowTitle('Search in hadith database')
         self.setWindowIcon(G.icon('Book-Keeping'))
 
@@ -140,8 +168,21 @@ class HadithSearch(QDialog):
         self.progress = QProgressBar()
         self.progress.setFixedHeight(5)
         self.progress.setTextVisible(False)
+
         main_layout.addLayout(self.sub_layout, 1)
         main_layout.addWidget(self.progress, 0)
+
+        db = sqlite3.connect(G.rsc_path('hadith.db'))
+        cursor = db.cursor()
+        cnt = cursor.execute('SELECT COUNT(id) FROM ar').fetchone()[0]
+        db.close()
+
+        prev, step = 0, cnt // S.POOL.maxThreadCount()
+
+        for i in range(step, cnt, step):
+            worker = self.Worker(self.update, start=prev, end=i)
+            S.POOL.start(worker)
+            prev = i
 
     def itemClicked(self, item: QTreeWidgetItem, column: int):
         hadith: Hadith
@@ -152,35 +193,8 @@ class HadithSearch(QDialog):
         self.result_click.emit(content)
         self.close()
 
-    def init_db(self, db: QSqlDatabase = None):
-        """
-        Loading the hadith database from hadith.db
-        :param db: the QSQlDatabase object
-        """
-        # getting the current number of hadiths
-        length = db.exec_('SELECT COUNT(*) FROM ahadith')
-        length.next()
-
-        s = int(length.value(0) / 100)  # the step
-        c = 0   # current hadith count
-
-        q = db.exec_('SELECT * FROM ahadith ORDER BY id DESC')
-        while q.next():
-            hadith = Hadith(
-                hid=q.value('id'),
-                hadith=q.value('hadith'),
-                grade=q.value('grade'),
-                rawi=q.value('rawi')
-            )
-            sq = db.exec_(f'SELECT hadith, rawi, grade FROM ahadith_trad WHERE id={hadith.id}')
-            sq.next()
-            hadith.addTranslation(sq.value('hadith'), sq.value('rawi'), sq.value('grade'))
-
-            self.hadiths.append(hadith)
-            if not c % s:
-                self.loading_step.emit(c, int(c / s))
-
-            c += 1
+    def update(self, hadiths):
+        self.hadiths.extend(hadiths)
 
     def preview(self, e: QKeyEvent):
         if isinstance(e, QKeyEvent):
