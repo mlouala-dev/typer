@@ -10,18 +10,20 @@ import re
 
 from PyQt5.QtWidgets import QApplication, QStyleFactory
 from PyQt5.QtGui import QPalette, QColor
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal, QObject, QThread, QThreadPool, QRunnable
 
 from tools import G, T
 from tools.translitteration import translitterate, re_ignore_hamza, clean_harakat
 
 
-class _Settings:
+class _Settings(QObject):
     db: sqlite3.Connection
     cursor: sqlite3.Cursor
     defaults = {}
 
     def __init__(self):
+        super().__init__()
+
         self.db = None
         self.cursor = None
         self.filename = ''
@@ -141,8 +143,10 @@ class GlobalSettings(_Settings):
         'audio_sample_rate': 16000
     }
 
+    step = pyqtSignal(int, str)
+
     def __init__(self):
-        super(GlobalSettings, self).__init__()
+        super().__init__()
         self.filename = G.appdata_path('config.db')
         self.create_db_link()
 
@@ -161,6 +165,8 @@ class GlobalSettings(_Settings):
     def setTheme(self, theme):
         self.theme = theme
         self.themes[self.theme].apply()
+
+        self.step.emit(100, f'Theme "{self.theme}" loaded')
 
     def setLastFile(self, filename: str):
         self.last_file = filename
@@ -235,6 +241,9 @@ class LocalSettings(_Settings):
         'viewer_w': 100,
         'viewer_h': 300,
     }
+
+    step = pyqtSignal(int, str)
+    pageChanged = pyqtSignal(int)
 
     class Book:
         def __init__(self, db: sqlite3.Connection = None, cursor: sqlite3.Cursor = None):
@@ -552,7 +561,7 @@ class LocalSettings(_Settings):
         def getObjectResult(self, cmd=''):
             return self._query(cmd)
 
-    class Dict:
+    class Dict(QObject):
         class Word:
             def __init__(self, word: str, count: int = 1, previous=''):
                 self.word = word
@@ -582,9 +591,57 @@ class LocalSettings(_Settings):
                     'before': self.previous
                 }
 
+        class Worker(QRunnable):
+            def __init__(self, words, callback_fn):
+                super().__init__()
+
+                self.callback_fn = callback_fn
+                self.words_to_process = words
+
+                self.words = []
+                self.hashes = []
+                self.word_roots = {}
+                self.word_wide_roots = {}
+
+            def run(self):
+                for word in self.words_to_process:
+                    try:
+                        assert word.previous in self.word_roots[word.root]
+                        self.word_roots[word.root][word.previous].append(word)
+                        self.word_wide_roots[word.root].append(word)
+
+                    # root not find
+                    except KeyError:
+                        self.word_roots[word.root] = {}
+                        self.word_roots[word.root][word.previous] = [word]
+                        self.word_wide_roots[word.root] = [word]
+
+                    # word previous is not an array
+                    except AssertionError:
+                        self.word_roots[word.root][word.previous] = [word]
+                        self.word_wide_roots[word.root].append(word)
+
+                    finally:
+                        self.words.append(word)
+                        self.hashes.append(hash(word))
+
+                self.callback_fn(
+                    self.word_roots,
+                    self.word_wide_roots,
+                    self.words,
+                    self.hashes
+                )
+
+        step = pyqtSignal(int, str)
+
         def __init__(self, db: sqlite3.Connection = None, cursor: sqlite3.Cursor = None):
+            super().__init__()
+
             self._db = db
             self._cursor = cursor
+
+            self.words_to_process = []
+            self.pool = QThreadPool()
 
             self.words = []
             self.hashes = []
@@ -595,12 +652,13 @@ class LocalSettings(_Settings):
             self.updates = set()
 
             if self._cursor:
-                for text, count, before in self._cursor.execute('SELECT * FROM dict').fetchall():
-                    word = LocalSettings.Dict.Word(text, count, previous=before)
-                    self.add(word)
+                self.words_to_process = [w for w in map(self.Word, self._cursor.execute('SELECT * FROM dict').fetchall())]
+                previous, step = 0, len(self.words_to_process) // self.pool.maxThreadCount()
 
-                self.news.clear()
-                self.updates.clear()
+                for i in range(step, len(self.words_to_process), step):
+                    worker = self.Worker(self.words_to_process[previous:i], self.update)
+                    self.pool.start(worker)
+                    previous = i
 
         def __getitem__(self, item: Word) -> Word:
             i = self.hashes.index(hash(item))
@@ -656,6 +714,12 @@ class LocalSettings(_Settings):
 
                 else:
                     self.add(word)
+
+        def update(self, word_roots, word_wide_roots, words, hashes):
+            self.word_roots.update(word_roots)
+            self.word_wide_roots.update(word_wide_roots)
+            self.words.extend(words)
+            self.hashes.extend(hashes)
 
         def digest(self, text: str):
             for phrase in T.TEXT.split(text):
@@ -773,6 +837,7 @@ class LocalSettings(_Settings):
     def __init__(self):
         self.BOOK = LocalSettings.Book()
         self.DICT = LocalSettings.Dict()
+
         self.TOPICS = LocalSettings.Topics()
         self.BOOKMAP = LocalSettings.BookMap()
         self.PDF = None
@@ -858,17 +923,24 @@ class LocalSettings(_Settings):
         self.BOOK = LocalSettings.Book(self.db, self.cursor)
 
     def loadSettings(self, filename: str = ''):
+        self.step.emit(0, f'Loading "{self.filename}"')
+
         self.filename = filename
         self.create_db_link()
 
         GLOBAL.setLastFile(filename)
 
+        self.step.emit(10, f'Loading book')
         self.BOOK = LocalSettings.Book(self.db, self.cursor)
+
+        self.step.emit(25, f'Loading words dictionnary')
         self.DICT = LocalSettings.Dict(self.db, self.cursor)
 
+        self.step.emit(50, f'Loading topics')
         for name, page, domain in self.cursor.execute('SELECT * FROM topics').fetchall():
             self.TOPICS.addTopic(name, domain, int(page))
 
+        self.step.emit(65, f'Loading core settings')
         settings = self.loadCoreSettings()
 
         self.position = settings['position']
@@ -877,11 +949,13 @@ class LocalSettings(_Settings):
         self.connected = bool(settings['connected'])
 
         if len(settings['pdf_data']):
+            self.step.emit(80, f'Unpacking PDF...')
             self.PDF = self.createPDF(settings['pdf_data'])
 
             try:
                 previous_hid = 1
 
+                self.step.emit(90, f'Reading pdf book\'s map')
                 # if we have some PDF data we look after a book's map
                 for page, kitab, bab, hid, subid in self.cursor.execute('SELECT * FROM bm_pages').fetchall():
                     page = LocalSettings.BookMap.Page(
@@ -960,11 +1034,14 @@ class LocalSettings(_Settings):
             settings['viewer_h']
         )
 
+        self.step.emit(100, f'"{self.filename}" loaded')
+
     @G.log
     def saveAllSettings(self):
         if not self.db:
             return
 
+        self.step.emit(5, f'Saving file')
         self.cursor.executemany('UPDATE settings SET value=? WHERE field=?',
                                 [
                                     (self.position, 'position'),
@@ -974,10 +1051,16 @@ class LocalSettings(_Settings):
 
         self.db.commit()
 
+        self.step.emit(30, 'Saving book')
         self.BOOK.saveAllPage()
+
+        self.step.emit(60, 'Saving words dictionnay')
         self.DICT.save()
 
+        self.step.emit(90, 'Saving visual settings')
         self.saveVisualSettings()
+
+        self.step.emit(100, 'Project saved')
 
     @G.log
     def saveVisualSettings(self):

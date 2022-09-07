@@ -579,8 +579,7 @@ class StatusBar(QStatusBar):
         :param msg: Additional Label
         """
 
-        # surrounding the text label with spaces to make sure
-        self.label.setText(f'  {msg}  ')
+        self.label.setText(f'{msg}')
         self.progress.setValue(int(val))
 
         # Forcing ui's redraw

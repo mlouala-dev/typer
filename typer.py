@@ -191,6 +191,8 @@ class TyperWIN(QMainWindow):
 
         _splash.progress(75, "Loading global settings...")
         S.GLOBAL.loadSettings()
+        S.GLOBAL.step.connect(self.statusbar.updateStatus)
+        S.LOCAL.step.connect(self.statusbar.updateStatus)
 
         self.modified.clear()
 
@@ -368,7 +370,7 @@ class TyperWIN(QMainWindow):
 
         # flagging as not modified
         self.modified.clear()
-        self.statusbar.updateStatus(100, f"Book loaded from '<i>{self.getFilesName()}</i>'")
+        self.statusbar.updateStatus(100, f"Book loaded from <i>'{self.getFilesName()}'</i>'")
 
     def saveAsProject(self):
         """
@@ -418,7 +420,7 @@ class TyperWIN(QMainWindow):
 
         # final save process
         self.saveSettings()
-        self.statusbar.updateStatus(100, f"Book saved to '<i>{self.getFilesName()}</i>'")
+        self.statusbar.updateStatus(100, f"Book saved to <i>'{self.getFilesName()}'</i>'")
 
     # REFERENCE
 
@@ -665,12 +667,12 @@ class TyperWIN(QMainWindow):
 
         except AssertionError:
             S.LOCAL.unsetModifiedFlag()
-            state = False
 
         else:
             S.LOCAL.setModifiedFlag()
 
         finally:
+            state = S.LOCAL.isModified()
             # displaying the bullet to indicates file's state
             self.statusbar.updateSavedState(0 if state else 2)
 

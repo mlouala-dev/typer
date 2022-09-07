@@ -159,6 +159,10 @@ def icon(name: str) -> QIcon:
     return QIcon(rsc_path(f'icons/{name}.png'))
 
 
+def get_steps(length: int):
+    return max(1, length / 100)
+
+
 class SQLConnection(object):
     """
     A simple class to handle the with statement working like :

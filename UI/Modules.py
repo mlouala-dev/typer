@@ -838,7 +838,7 @@ class GlobalSearch(QDialog):
         Getting the last book from parent when showing up
         :return:
         """
-        self._book = self.parent()._book
+        self._book = copy.copy(S.LOCAL.BOOK)
 
         super(GlobalSearch, self).show()
 
