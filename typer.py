@@ -17,6 +17,7 @@ from UI.Modules import Settings, Navigator, GlobalSearch, Exporter, Jumper, Topi
 from UI.MainComponents import StatusBar, Summary, TitleBar, MainToolbar, SplashScreen, TextToolbar
 
 from tools import G, PDF, Threads, S
+from rsc import ressources
 
 # Exception catch for Qt
 
@@ -66,7 +67,7 @@ class TyperWIN(QMainWindow):
 
         self.setFont(G.get_font(1.2))
         self.setWindowFlags(Qt.FramelessWindowHint)
-        self.setWindowIcon(QIcon(G.rsc_path("ico.png")))
+        self.setWindowIcon(QIcon(":/ico"))
         self.setFocusPolicy(Qt.StrongFocus)
 
         _splash.progress(5, "Loading dictionnary...")
@@ -190,6 +191,9 @@ class TyperWIN(QMainWindow):
         S.GLOBAL.loadSettings()
         S.GLOBAL.step.connect(self.statusbar.updateStatus)
         S.LOCAL.step.connect(self.statusbar.updateStatus)
+        S.LOCAL.pageChanged.connect(self.changePage)
+        S.LOCAL.pageChanged.connect(self.viewer.load_page)
+        S.LOCAL.pageChanged.connect(lambda x: self.viewer_frame.setWindowTitle(f'Page {x}'))
 
         self.modified.clear()
 
@@ -225,15 +229,12 @@ class TyperWIN(QMainWindow):
 
         # SIGNALS
         self.typer.contentEdited.connect(self.setModified)
-        self.breadcrumbs.goto.connect(self.changePage)
-        self.breadcrumbs.goto.connect(self.viewer.load_page)
         self.summary_view.clicked.connect(self.updateTextCursor)
 
         self.audio_recorder.audio_pike.connect(self.statusbar.record_volume.setValue)
         self.audio_recorder.progress.connect(lambda x: self.statusbar.updateRecording(x))
 
         self.viewer.documentLoaded.connect(partial(self.statusbar.updateStatus, 100, "Reference Loaded"))
-        self.viewer.pageChanged.connect(self.changePage)
         self.exporter.PDF_exporter.progress.connect(self.statusbar.updateStatus)
 
         def insertReference(s, v):
@@ -246,8 +247,6 @@ class TyperWIN(QMainWindow):
         self.quran_search.result_reference.connect(insertReference)
         self.quran_search.result_goto.connect(self.goToReference)
 
-        self.jumper.result_goto.connect(self.changePage)
-        self.jumper.result_goto.connect(self.viewer.load_page)
         self.jumper.result_insert.connect(self.typer.insertBookSource)
         self.hadith_dialog.result_click.connect(self.typer.insertHtml)
 
@@ -447,8 +446,7 @@ class TyperWIN(QMainWindow):
 
         # updating the PDF view
         if ok:
-            self.changePage(page)
-            self.viewer.load_page()
+            S.LOCAL.page = page
 
     @G.log
     def goToReference(self, s, v, cmd=''):
@@ -473,7 +471,7 @@ class TyperWIN(QMainWindow):
 
             # if the PDF is "connected" then update the current document
             if S.LOCAL.connected:
-                self.changePage(page)
+                S.LOCAL.page = page
 
     def loadReferenceDialog(self):
         """
@@ -578,8 +576,6 @@ class TyperWIN(QMainWindow):
 
         self.statusbar.updatePage(self.page_nb)
         self.breadcrumbs.updatePage(self.page_nb)
-
-        S.LOCAL.page = self.page_nb
 
         return True
 
@@ -872,7 +868,6 @@ class TyperWIN(QMainWindow):
         A simple function which prepare the Navigator
         """
         self.navigator = Navigator(self)
-        self.navigator.goto.connect(self.goTo)
         self.navigator.buildMap()
         self.navigator.show()
 
@@ -1024,7 +1019,6 @@ class TyperWIN(QMainWindow):
                 target = max(0, self.viewer.current_page - 1)
 
             S.LOCAL.page = target
-            self.viewer.load_page()
 
         elif e.key() == Qt.Key.Key_PageDown and S.LOCAL.BOOK:
             # if Shift modifier pressed, it will search for the closest filled page in book
@@ -1035,7 +1029,6 @@ class TyperWIN(QMainWindow):
                 target = min(self.viewer.current_page + 1, self.viewer.doc.page_count - 1)
 
             S.LOCAL.page = target
-            self.viewer.load_page()
 
     def closeEvent(self, e: QCloseEvent) -> None:
         """

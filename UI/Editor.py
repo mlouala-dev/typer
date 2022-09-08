@@ -340,8 +340,7 @@ class Typer(QTextEdit):
         if not l:
             if len(v):
                 # just adding a separator if ayat is inserted
-                path = QUrl(r"./rsc/ayat_separator_LD.png")
-                self.insertHtml(f"<p><img src='{path.toString()}'></p><p>{res}</p>")
+                self.insertHtml(f"<p><img src=':/ayat_separator_LD'></p><p>{res}</p>")
 
                 # before and after applied the "ayat" style
                 self.toggleFormat(Styles.Ayat)
@@ -369,7 +368,7 @@ class Typer(QTextEdit):
 
             # otherwise we insert a block of text and decorators for a new surat
             else:
-                self.insertHtml("<center><p><img src='%s'></p></center>" % r"./rsc/surat_sep_0_LD.png")
+                self.insertHtml("<center><p><img src=':/surat_sep_0_LD'></p></center>")
                 tc.insertBlock()
 
                 self.insertHtml(f"<center><p>{res}</p></center>")
@@ -377,14 +376,14 @@ class Typer(QTextEdit):
                 self.toggleFormat(Styles.SuratAR)
                 tc.insertBlock()
 
-                self.insertHtml("<center><p><img src='%s'></p></center>" % r"./rsc/surat_sep_1_LD.png")
+                self.insertHtml("<center><p><img src=':/surat_sep_1_LD'></p></center>")
                 tc.insertBlock()
 
                 self.insertHtml(f"<center><p>{QuranWorker.QuranQuote.surats[s].name} ({int(QuranWorker.QuranQuote.surats[s].order)})</p></center>")
                 self.toggleFormat(Styles.SuratFR)
                 tc.insertBlock()
 
-                self.insertHtml("<center><p><img src='%s'></p></center>" % r"./rsc/surat_sep_2_LD.png")
+                self.insertHtml("<center><p><img src=':/surat_sep_2_LD'></p></center>")
                 self.toggleFormat(Styles.SuratOrnament)
                 tc.insertBlock()
 

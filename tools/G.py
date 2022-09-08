@@ -22,7 +22,7 @@ from PyQt5.QtWidgets import QAction, QShortcut
 
 # The application's core settings
 __app__ = 'Typer'   # name
-__ver__ = 1.4       # version
+__ver__ = 1.5       # version
 __ext__ = '786'     # extension
 __debug_level__ = logging.ERROR
 
@@ -142,7 +142,7 @@ def pixmap(name: str, size: int = 32) -> QPixmap:
     :param size: additionnal wanted size of ressource, default is 32px (max)
     """
     # getting the current ressource's path
-    res = QPixmap(rsc_path(f'icons/{name}.png'))
+    res = QPixmap(f':/{name}')
 
     # and rescale
     res = res.scaledToHeight(size, Qt.SmoothTransformation)
@@ -156,7 +156,7 @@ def icon(name: str) -> QIcon:
     :param name: icon's basename
     """
     # getting the current ressource's path
-    return QIcon(rsc_path(f'icons/{name}.png'))
+    return QIcon(f':/icons/{name}')
 
 
 def get_steps(length: int):

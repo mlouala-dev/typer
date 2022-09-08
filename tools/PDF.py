@@ -90,8 +90,12 @@ class Viewer(QWidget):
             self.current_page = min(self.current_page + 1, self.doc.page_count - 1)
 
         S.LOCAL.page = self.current_page
+
         # displaying the new page
         self.load_page()
+
+        # emitting status
+        self.pageChanged.emit(self.current_page)
 
     def mouseDoubleClickEvent(self, e: QMouseEvent):
         """
@@ -131,9 +135,6 @@ class Viewer(QWidget):
 
         # redraw pixmap
         self.redrawPixmap(page_num)
-
-        # emitting status
-        self.pageChanged.emit(self.current_page)
 
     def redrawPixmap(self, page: int):
         """
@@ -201,7 +202,6 @@ class ViewerFrame(QWidget):
     def __init__(self, viewer: Viewer, topics_display: QWidget):
         super(ViewerFrame, self).__init__()
         self.viewer = viewer
-        self.viewer.pageChanged.connect(lambda x: self.setWindowTitle(f'Page {x}'))
         self.viewer.documentLoaded.connect(self.forceResize)
         self.setWindowIcon(G.icon('Book-Picture'))
 
@@ -963,7 +963,7 @@ class PDF_Exporter(QThread):
         if self.settings['hq']:
             # if we're exporting for 300dpi, we load the HD version of images
             # TODO: generates png on the fly, use svg instead
-            doc_content = doc_content.replace('_LD.png', '_HD.png')
+            doc_content = doc_content.replace('_LD"', '_HD"')
             doc_content = doc_content.replace('<img style="width:100%"', '<img style="width:750%"')
             doc_content = re.sub(r':(\d+)px', self.px2mm, doc_content)
 

@@ -9,6 +9,7 @@ from PyQt5.QtCore import *
 
 from tools.styles import Styles
 from tools import G
+from rsc import ressources
 
 
 class SplashScreen(QWidget):
@@ -19,7 +20,7 @@ class SplashScreen(QWidget):
         super(SplashScreen, self).__init__(parent)
         self.setWindowFlags(Qt.SplashScreen | Qt.FramelessWindowHint)
         bg = QLabel(self)
-        bg.setPixmap(G.rsc("splash_screen.jpg"))
+        bg.setPixmap(QPixmap(":/splash_screen"))
         bg.setGeometry(0, 0, 700, 384)
 
         # a label displaying the current version / variant of the app
@@ -85,7 +86,7 @@ class TitleBar(QFrame):
         layout.setContentsMargins(2, 2, 2, 2)
 
         ico = QLabel("")
-        ico.setPixmap(G.pixmap('ico.png', size=28))
+        ico.setPixmap(G.pixmap('ico', size=25))
         ico.setFixedSize(28, 28)
 
         self.window_title = QLabel("Window's title")
@@ -274,7 +275,7 @@ class TextToolbar(Toolbar):
     def __init__(self, *args):
         super().__init__(*args)
 
-        self.setFixedHeight(30)
+        self.setFixedHeight(20)
         self.insertButton(G.SHORTCUT['bold'])
         self.insertButton(G.SHORTCUT['italic'])
         self.insertButton(G.SHORTCUT['underline'])
@@ -528,7 +529,7 @@ class StatusBar(QStatusBar):
 
         self.record_status = QLabel("Recording (00:00) ...", parent=self)
         self.record_status_icon = QLabel(self)
-        self.record_status_icon.setPixmap(G.pixmap("Control-Play-Blue", size=21))
+        self.record_status_icon.setPixmap(G.pixmap("icons/Control-Play-Blue", size=21))
 
         self.record_volume = StatusBar.VolumeBar(self)
         self.record_volume.setOrientation(Qt.Vertical)
@@ -551,16 +552,16 @@ class StatusBar(QStatusBar):
         self.progress.setMaximumWidth(300)
 
         self.not_saved_icon = QLabel(self)
-        self.not_saved_icon.setPixmap(G.pixmap("Bullet-Red", size=21))
+        self.not_saved_icon.setPixmap(G.pixmap("icons/Bullet-Red", size=21))
         self.not_saved_icon.hide()
         self.processing_icon = QLabel(self)
-        self.processing_icon.setPixmap(G.pixmap("Plant", size=21))
+        self.processing_icon.setPixmap(G.pixmap("icons/Plant", size=21))
         self.processing_icon.hide()
         self.saving_icon = QLabel(self)
-        self.saving_icon.setPixmap(G.pixmap("Bullet-Orange", size=21))
+        self.saving_icon.setPixmap(G.pixmap("icons/Bullet-Orange", size=21))
         self.saving_icon.hide()
         self.saved_icon = QLabel(self)
-        self.saved_icon.setPixmap(G.pixmap("Bullet-Green", size=21))
+        self.saved_icon.setPixmap(G.pixmap("icons/Bullet-Green", size=21))
 
         self.addPermanentWidget(self.page_label, 1)
         self.addPermanentWidget(self.connection_status_icon, 0)

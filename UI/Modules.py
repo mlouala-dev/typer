@@ -11,7 +11,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 
-from UI.BasicElements import LineLayout, ListWidget, AyatModelItem, NumberModelItem, SearchField
+from UI.BasicElements import LineLayout, ListWidget, HighlightModelItem, NumberModelItem, SearchField
 from tools import G, S, T
 from tools.PDF import PDF_Exporter
 
@@ -144,12 +144,15 @@ class BreadCrumbs(QWidget):
         global_pos = self.mapToGlobal(e.pos())
         menu = QMenu()
 
+        def goto(page):
+            S.LOCAL.page = page
+
         if level == 1:
             for kitab in S.LOCAL.BOOKMAP.kutub.values():
                 action = QAction(f'{kitab.id}.\u200e{kitab.name} ({int(kitab.page)})', menu)
                 if kitab.id == num:
                     action.setIcon(G.icon('Accept'))
-                action.triggered.connect(partial(self.goto.emit, int(kitab.page) - 1))
+                action.triggered.connect(partial(goto, int(kitab.page) + 1))
                 menu.addAction(action)
 
         elif level == 2:
@@ -158,7 +161,7 @@ class BreadCrumbs(QWidget):
                 action = QAction(f'{bab.id}.\u200e{bab.name} ({int(bab.page)})', menu)
                 if bab.id == num:
                     action.setIcon(G.icon('Accept'))
-                action.triggered.connect(partial(self.goto.emit, int(bab.page) - 1))
+                action.triggered.connect(partial(goto, int(bab.page) + 1))
                 menu.addAction(action)
 
         menu.exec_(global_pos)
@@ -486,7 +489,7 @@ class GlobalSearch(QDialog):
         widgets_layout.addLayout(LineLayout(self, self.regex_check, self.word_check, self.case_check,
                                             self.harakat_check, self.page_search_check, self.code_search_check))
 
-        ayat_model_ar = AyatModelItem(font=G.get_font(1.4))
+        ayat_model_ar = HighlightModelItem(font=G.get_font(1.4))
         num_model = NumberModelItem()
         self.result_list = ListWidget(self, models=(ayat_model_ar, num_model))
         self.result_list.setColumnCount(2)
@@ -739,6 +742,11 @@ class GlobalSearch(QDialog):
         """
         pages = set()
 
+        # we define a new highlighted model
+        model = HighlightModelItem(font=G.get_font(1.4), highlight=self.find_field.text())
+        model.setParent(self)
+        self.result_list.setItemDelegateForColumn(0, model)
+
         # cleaning the list of results
         self.result_list.clear()
 
@@ -761,6 +769,7 @@ class GlobalSearch(QDialog):
             # adding the item widget to the list
             item = QTreeWidgetItem([res, str(page)])
             item.setData(2, 0, obj)
+            item.setSizeHint(0, QSize(self.result_list.columnWidth(0), 30))
             self.result_list.addTopLevelItem(item)
 
             # updating pages for result
@@ -806,15 +815,12 @@ class GlobalSearch(QDialog):
 
             # updating parent's elements
             # TODO: replace all this stuff by a signal
-            page = self.parent().page_nb
 
             # updating the current document page
-            if page in self._book:
-                self.parent().typer.setHtml(self._book[page])
+            if S.LOCAL.page in self._book:
+                self.parent().typer.setHtml(self._book[S.LOCAL.page])
 
-            self.parent()._book.update(self._book)
-            self.parent().modified.update(set(self._book.keys()))
-            self.parent().changePage(page)
+            S.LOCAL.BOOK.update(self._book)
 
     def itemClicked(self, item: QTreeWidgetItem):
         """
@@ -823,8 +829,9 @@ class GlobalSearch(QDialog):
         # gettin QTreeWidget data
         pos = item.data(2, 0)
 
-        # if page changing worked
-        if self.parent().changePage(int(item.text(1))):
+        S.LOCAL.page = int(item.text(1))
+
+        if pos:
             # we move inside the document
             tc = self.parent().typer.textCursor()
             tc.setPosition(pos, QTextCursor.MoveMode.MoveAnchor)
@@ -838,9 +845,10 @@ class GlobalSearch(QDialog):
         Getting the last book from parent when showing up
         :return:
         """
-        self._book = copy.copy(S.LOCAL.BOOK)
+        self._book = copy.copy(S.LOCAL.BOOK.getBook())
 
         super(GlobalSearch, self).show()
+        self.find_field.setFocus()
 
 
 class Settings(QDialog):
@@ -1042,8 +1050,6 @@ class Navigator(QDialog):
      if we typed pages 5 to 10 and 45 to 60 it'll display a list of theses two blocks
      with buttons allowing to directly go at the beginning or end of the block
     """
-    goto = pyqtSignal(int)
-
     def __init__(self, parent):
         super(Navigator, self).__init__(parent)
 
@@ -1069,15 +1075,18 @@ class Navigator(QDialog):
         """
         line = QHBoxLayout()
 
+        def goto_page(page):
+            S.LOCAL.page = page
+
         # if page range is wider than 1
         if start != end:
             label = QLabel(f'[{start} ... {end}]')
 
             # here we add to buttons, for beginning and end
             goto_start = QPushButton(f'Start ({start_title})')
-            goto_start.pressed.connect(partial(self.goto.emit, start))
+            goto_start.pressed.connect(partial(goto_page, start))
             goto_end = QPushButton(f'End ({end_title})')
-            goto_end.pressed.connect(partial(self.goto.emit, end))
+            goto_end.pressed.connect(partial(goto_page, end))
 
             # ui stuff
             line.addWidget(label, 1)
@@ -1089,7 +1098,7 @@ class Navigator(QDialog):
             # then we just add one button to go to the corresponding page
             label = QLabel(f'{start}')
             goto = QPushButton(f'Go to ({start_title})')
-            goto.pressed.connect(partial(self.goto.emit, start))
+            goto.pressed.connect(partial(goto_page, start))
 
             # ui stuff
             line.addWidget(label, 1)
@@ -1500,7 +1509,6 @@ class Jumper(QDialog):
     the {kitab} and {bab} can be typed as integer or translitterated arabic or arabic with or without harakat
     """
 
-    result_goto = pyqtSignal(int)
     result_insert = pyqtSignal(object)
 
     def __init__(self, parent):
@@ -1543,7 +1551,7 @@ class Jumper(QDialog):
 
             # we make it goes to the address surat:verse
             if modifiers == Qt.KeyboardModifier.ControlModifier:
-                self.result_goto.emit(S.LOCAL.BOOKMAP.getPageResult(cmd).page - 1)
+                S.LOCAL.page = S.LOCAL.BOOKMAP.getPageResult(cmd).page - 1
 
             else:
                 self.result_insert.emit(S.LOCAL.BOOKMAP.getObjectResult(cmd))

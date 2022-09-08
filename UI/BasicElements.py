@@ -3,7 +3,7 @@
 Some very basic elements used by the UI
 """
 from PyQt5.QtCore import *
-from PyQt5.QtGui import QColor, QTextOption, QFont, QPainter, QKeyEvent, QTextFormat
+from PyQt5.QtGui import QColor, QTextOption, QFont, QPainter, QKeyEvent, QFontMetrics
 from PyQt5.QtWidgets import *
 
 
@@ -36,7 +36,7 @@ class AyatModelItem(QStyledItemDelegate):
     to.setWrapMode(to.WrapMode.WordWrap)
 
     def __init__(self, parent=None, font=QFont()):
-        super(AyatModelItem, self).__init__(parent)
+        super().__init__(parent)
         self.font = font
 
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex):
@@ -68,6 +68,54 @@ class MultiLineModelItem(AyatModelItem):
     to = QTextOption()
     to.setTextDirection(Qt.LayoutDirection.LeftToRight)
     to.setWrapMode(to.WrapMode.WordWrap)
+
+
+class HighlightModelItem(QStyledItemDelegate):
+    color = Qt.white
+    highlight_color = QColor(115, 195, 255)
+
+    def __init__(self, parent=None, font=QFont(), highlight=''):
+        super().__init__(parent)
+        self.font = font
+        self.highlight = highlight
+
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex):
+        # getting the row alternate background color
+        bg = get_item_color(index.row(), option.state)
+
+        # drawing with QPainter
+        painter.fillRect(option.rect, bg)
+        painter.setFont(self.font)
+
+        painter.setPen(self.color)
+        newrect = QRectF(option.rect)
+        newrect.setY(newrect.y() + self.font.pointSize() - 10)
+        newrect.setX(10)
+        newrect.setWidth(newrect.width() - 20)
+
+        text = index.data()
+        try:
+            start, end = index.data().split(self.highlight)
+            highlight = self.highlight
+
+            painter.setPen(self.color)
+            painter.drawText(newrect, start)
+
+            painter.setPen(self.highlight_color)
+            fm = QFontMetrics(painter.font())
+            newrect.setX(newrect.x() + fm.width(f'{start}'))
+            painter.drawText(newrect, highlight)
+
+            painter.setPen(self.color)
+            newrect.setX(newrect.x() + fm.width(f'{highlight}'))
+            painter.drawText(newrect, end)
+
+        except ValueError:
+            painter.setPen(self.color)
+            painter.drawText(newrect, text)
+
+        # apply QPainter
+        painter.save()
 
 
 class NumberModelItem(QStyledItemDelegate):

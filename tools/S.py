@@ -268,6 +268,9 @@ class LocalSettings(_Settings):
                 for page, content in self._cursor.execute('SELECT * FROM book').fetchall():
                     self._book[page] = html.unescape(content)
 
+        def getBook(self):
+            return self._book
+
         def savePage(self, page: int):
             try:
                 self._cursor.execute('INSERT INTO book ("page", "text") VALUES (?, ?)', (page, html.escape(self[page])))
@@ -298,6 +301,11 @@ class LocalSettings(_Settings):
 
         def modified(self):
             return self._mod
+
+        def update(self, new_book: dict):
+            for key, value in new_book.items():
+                self[key] = value
+                self.setModified(key)
 
         def __getitem__(self, item):
             return self._book[item]
@@ -616,7 +624,6 @@ class LocalSettings(_Settings):
                 self.word_wide_roots = {}
 
             def run(self):
-                print('running...')
                 for word in self.words_to_process:
                     try:
                         assert word.previous in self.word_roots[word.root]
@@ -638,7 +645,6 @@ class LocalSettings(_Settings):
                         self.words.append(word)
                         self.hashes.append(hash(word))
 
-                print('done')
                 self.callback_fn(
                     self.word_roots,
                     self.word_wide_roots,
@@ -730,8 +736,6 @@ class LocalSettings(_Settings):
             self.word_wide_roots.update(word_wide_roots)
             self.words.extend(words)
             self.hashes.extend(hashes)
-
-            print(f'adding {len(self.words)} words : root : {len(self.word_roots)}, wide : {len(self.word_wide_roots)}')
 
         def digest(self, text: str):
             for phrase in T.TEXT.split(text):
@@ -892,6 +896,7 @@ class LocalSettings(_Settings):
         :param value: page settings to update
         """
         self._page = value
+        self.pageChanged.emit(value)
 
         if self.cursor:
             self.cursor.execute('UPDATE settings SET value=? WHERE field=?', (value, 'page'))
