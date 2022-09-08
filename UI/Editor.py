@@ -35,6 +35,7 @@ class Typer(QTextEdit):
     re_numbering = re.compile(r'((1)(ers?|ères?))|((\d+)([èe]mes?))')
     re_textblock = re.compile(r'(.*?>)( +)?[-\u2022]?(<span.*?>\d\)</span>)?( +)?([\w\d]+)(.*?)<', flags=re.IGNORECASE)
     re_ignoretoken = r'\d|^[A-Z]|ﷺ|ﷻ'
+    prophet_match = ('Muhammad', 'Prophète', 'Messager')
 
     contentChanged = pyqtSignal()
     contentEdited = pyqtSignal()
@@ -1018,12 +1019,14 @@ class Typer(QTextEdit):
             if not candidate:
                 candidate = S.LOCAL.DICT.find(word, True)
 
+            if candidate == self.word and self.word in self.prophet_match:
+                candidate = f'{self.word} ﷺ'
+
             # if there is a candidate, we draw the autocomplete_label
             # we also require that the next character is a new word character (' ' or ", etc...)
             # OR that the cursor is at the end of the line
             if candidate and len(candidate) > len(self.word) and \
                     (self.next_character in T.Keys.NewWord.values() or tc.positionInBlock() == (tc.block().length() - 1)):
-                rect: QRectF
                 rect = self.cursorRect(self.textCursor())
                 res = candidate[len(self.word):]
 
@@ -1056,9 +1059,9 @@ class Typer(QTextEdit):
             tc = self.textCursor()
             tc.select(tc.SelectionType.WordUnderCursor)
 
-            # adding a space since the previous word should be complete
-            # if the next character is in the new word characters, we skip the space after
-            if next_character not in T.Keys.NewWord.values():
+            if next_character not in T.Keys.NewWord.values() and tc.selectedText() not in self.prophet_match:
+                # adding a space since the previous word should be complete
+                # if the next character is in the new word characters, we skip the space after
                 self.insertPlainText(" ")
 
             self.new_word = True
