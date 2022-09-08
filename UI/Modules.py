@@ -882,15 +882,35 @@ class Settings(QDialog):
         self.theme.addItems(themes)
         self.theme.currentIndexChanged.connect(partial(self.updateGlobalSettings, 'theme'))
 
-        self.audio_record_path, self.audio_record_path_browse = self.addOption('Audio Record Path', self.group_global_layout, QLabel(), QPushButton('...'))
+        self.minimum_word_length, = self.addOption(
+            "Minimum Auto-suggestion Word's length",
+            self.group_global_layout,
+            QSpinBox()
+        )
+        self.minimum_word_length.valueChanged.connect(partial(self.updateGlobalSettings, 'minimum_word_length'))
+
+        self.audio_record_path, self.audio_record_path_browse = self.addOption(
+            'Audio Record Path',
+            self.group_global_layout,
+            QLabel(),
+            QPushButton('...')
+        )
         self.audio_record_path_browse.setFixedWidth(35)
         self.audio_record_path_browse.clicked.connect(partial(self.updateGlobalSettings, 'audio_record_path'))
 
-        self.audio_devices, = self.addOption('Audio Input Devices', self.group_global_layout, QComboBox())
+        self.audio_devices, = self.addOption(
+            'Audio Input Devices',
+            self.group_global_layout,
+            QComboBox()
+        )
         self.audio_devices.addItems(G.audio_input_devices_names)
         self.audio_devices.currentIndexChanged.connect(partial(self.updateGlobalSettings, 'audio_input_device'))
 
-        self.audio_sample_rate, = self.addOption('Audio Sample Rate', self.group_global_layout, QComboBox())
+        self.audio_sample_rate, = self.addOption(
+            'Audio Sample Rate',
+            self.group_global_layout,
+            QComboBox()
+        )
         self.sample_rates = [8000, 16000, 24000, 48000]
         self.audio_sample_rate.addItems(map(str, self.sample_rates))
         self.audio_sample_rate.currentIndexChanged.connect(partial(self.updateGlobalSettings, 'audio_sample_rate'))
@@ -901,7 +921,11 @@ class Settings(QDialog):
 
         self.auto_load_box = self.addGlobalOption('auto_load', 'Automatically load previous file')
 
-        self.verbose_level, = self.addOption('Verbose Level', self.group_global_layout, QComboBox())
+        self.verbose_level, = self.addOption(
+            'Verbose Level',
+            self.group_global_layout,
+            QComboBox()
+        )
         self.verbose_level.addItems(['critical', 'error', 'warning', 'info', 'debug', 'silent'])
         self.verbose_level.setCurrentIndex(self.verbose_eq.index(G.__debug_level__))
         self.verbose_level.currentIndexChanged.connect(partial(self.updateGlobalSettings, 'verbose_level'))
@@ -987,6 +1011,11 @@ class Settings(QDialog):
         elif domain == 'auto_load':
             S.GLOBAL.auto_load = state
 
+        elif domain == 'minimum_word_length':
+            S.LOCAL.DICT.save()
+            S.GLOBAL.minimum_word_length = state
+            S.LOCAL.DICT = S.LOCAL.Dict(S.LOCAL.db, S.LOCAL.cursor)
+
         elif domain == 'toolbar':
             S.GLOBAL.toolbar = state
             self._win.toolbar.setVisible(state)
@@ -1035,6 +1064,7 @@ class Settings(QDialog):
         self.audio_sample_rate.setCurrentIndex(self.sample_rates.index(S.GLOBAL.audio_sample_rate))
         self.update_default_path_box.setChecked(S.GLOBAL.update_default_path)
         self.auto_load_box.setChecked(S.GLOBAL.auto_load)
+        self.minimum_word_length.setValue(S.GLOBAL.minimum_word_length)
 
         self.connected_box.setChecked(S.LOCAL.connected)
         self.connected_box.setEnabled(S.LOCAL.hasPDF())

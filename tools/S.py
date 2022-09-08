@@ -152,7 +152,8 @@ class GlobalSettings(_Settings):
         'auto_load': False,
         'audio_input_device': G.audio_input_devices_names[0],
         'audio_record_path': G.user_path('Music/.typer_records'),
-        'audio_sample_rate': 16000
+        'audio_sample_rate': 16000,
+        'minimum_word_length': 2
     }
 
     step = pyqtSignal(int, str)
@@ -170,9 +171,10 @@ class GlobalSettings(_Settings):
         self.auto_load = self.defaults['auto_load']
         self.update_default_path = self.defaults['update_default_path']
         self.audio_input_device = self.defaults['audio_input_device']
-        self.audio_record_path = self.defaults['audio_input_device']
+        self.audio_record_path = self.defaults['audio_record_path']
         self.audio_sample_rate = self.defaults['audio_sample_rate']
         self.audio_record_epoch = 0
+        self.minimum_word_length = self.defaults['minimum_word_length']
 
     def setTheme(self, theme):
         self.theme = theme
@@ -218,6 +220,8 @@ class GlobalSettings(_Settings):
         self.setAudioRecordPath(settings['audio_record_path'])
         self.audio_input_device = settings['audio_input_device']
         self.audio_sample_rate = settings['audio_sample_rate']
+
+        self.minimum_word_length = int(settings['minimum_word_length'])
 
     def saveSetting(self, setting):
         """
@@ -585,7 +589,7 @@ class LocalSettings(_Settings):
         class Word:
             def __init__(self, word: str, count: int = 1, previous=''):
                 self.word = word
-                self.root = word[:3]
+                self.root = word[:GLOBAL.minimum_word_length]
                 self.count = count
                 self.previous = previous
 
@@ -742,7 +746,7 @@ class LocalSettings(_Settings):
                 for i, word_text in enumerate(phrase[1:]):
                     # in this configuration, phrase[i] will point the previous word
                     try:
-                        assert len(word_text) >= 4 and len(phrase[i]) >= 2
+                        assert len(word_text) >= (GLOBAL.minimum_word_length + 1) and len(phrase[i]) >= 2
 
                     except (AssertionError, IndexError):
                         continue
@@ -751,7 +755,6 @@ class LocalSettings(_Settings):
                         word = self.Word(word_text, previous=phrase[i])
                         self.add(word)
 
-        @G.log
         def find(self, word: Word, wide=False):
             """
             Find in current dictionnary's words
@@ -762,7 +765,7 @@ class LocalSettings(_Settings):
             match = None
 
             try:
-                assert len(word.root) == 3
+                assert len(word.root) == GLOBAL.minimum_word_length
                 bank = self.word_roots[word.root][word.previous] if not wide else self.word_wide_roots[word.root]
 
                 for key in bank:
