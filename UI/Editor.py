@@ -1,4 +1,5 @@
 # بسم الله الرحمان الرحيم
+import copy
 import re
 import string
 import os
@@ -986,7 +987,12 @@ class Typer(QTextEdit):
             S.LOCAL.saveVisualSettings()
 
             # # apply the default style to the new paragraph
-            self.textCursor().setBlockFormat(self.default_blockFormat)
+
+            # apply the default style to the new paragraph
+            tc = self.textCursor()
+            block = self.default_blockFormat
+            block.setIndent(indent)
+            tc.setBlockFormat(block)
 
         elif not (e.key() == Qt.Key.Key_Tab and self.auto_complete_available):
             # forward Tab only if we're sure there is no autocomplete to do
