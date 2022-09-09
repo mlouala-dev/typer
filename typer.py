@@ -624,7 +624,6 @@ class TyperWIN(QMainWindow):
         """
         Save current settings and occurence list
         """
-        S.LOCAL.page = self.page_nb
         S.LOCAL.saveAllSettings()
 
         self.saveVisibilitySettings()

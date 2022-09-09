@@ -585,7 +585,7 @@ class LocalSettings(_Settings):
         def getObjectResult(self, cmd=''):
             return self._query(cmd)
 
-    class Dict(QObject):
+    class Dict:
         class Word:
             def __init__(self, word: str, count: int = 1, previous=''):
                 self.word = word
@@ -656,11 +656,7 @@ class LocalSettings(_Settings):
                     self.hashes
                 )
 
-        step = pyqtSignal(int, str)
-
         def __init__(self, db: sqlite3.Connection = None, cursor: sqlite3.Cursor = None):
-            super().__init__()
-
             self._db = db
             self._cursor = cursor
 
