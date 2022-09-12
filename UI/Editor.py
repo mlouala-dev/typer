@@ -408,7 +408,6 @@ class Typer(QTextEdit):
 
         tc.endEditBlock()
 
-    @G.log
     def insertBookSource(self, obj: S.LocalSettings.BookMap.Kitab | S.LocalSettings.BookMap.Bab | S.LocalSettings.BookMap.Hadith):
         tc = self.textCursor()
         tc.select(tc.SelectionType.BlockUnderCursor)
@@ -443,6 +442,22 @@ class Typer(QTextEdit):
                 self.insertHtml(f'{obj.toHtml()}{reset_style}')
 
         tc.endEditBlock()
+
+    def insertBookReference(self, obj: S.LocalSettings.BookMap.Kitab | S.LocalSettings.BookMap.Bab | S.LocalSettings.BookMap.Hadith):
+        """
+        Insert a reference tag in text for page xref
+        """
+
+        if isinstance(obj, S.LocalSettings.BookMap.Kitab):
+            r = obj.id
+
+        elif isinstance(obj, S.LocalSettings.BookMap.Bab):
+            r = f'{obj.kid}_{obj.id}'
+
+        elif isinstance(obj, S.LocalSettings.BookMap.Hadith):
+            r = f'{obj.kid}_{obj.bid}_{obj.id}'
+
+        self.textCursor().insertText(f'#_REF_{r}_#')
 
     def quoteText(self, quote):
         """

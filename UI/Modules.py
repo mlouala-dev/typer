@@ -1540,6 +1540,7 @@ class Jumper(QDialog):
     """
 
     result_insert = pyqtSignal(object)
+    result_ref = pyqtSignal(object)
 
     def __init__(self, parent):
         # UI
@@ -1582,7 +1583,8 @@ class Jumper(QDialog):
             # we make it goes to the address surat:verse
             if modifiers == Qt.KeyboardModifier.ControlModifier:
                 S.LOCAL.page = S.LOCAL.BOOKMAP.getPageResult(cmd).page - 1
-
+            elif modifiers == Qt.KeyboardModifier.AltModifier:
+                self.result_ref.emit(S.LOCAL.BOOKMAP.getObjectResult(cmd))
             else:
                 self.result_insert.emit(S.LOCAL.BOOKMAP.getObjectResult(cmd))
 

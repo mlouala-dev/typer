@@ -248,6 +248,7 @@ class TyperWIN(QMainWindow):
         self.quran_search.result_goto.connect(self.goToReference)
 
         self.jumper.result_insert.connect(self.typer.insertBookSource)
+        self.jumper.result_ref.connect(self.typer.insertBookReference)
         self.hadith_dialog.result_click.connect(self.typer.insertHtml)
 
         self.typer.contentChanged.connect(partial(self.summary_view.build, self.typer.document()))
