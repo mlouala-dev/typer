@@ -43,6 +43,12 @@ class Typer(QTextEdit):
     def __init__(self, parent=None):
         super(Typer, self).__init__(parent)
         self._win = parent
+        self.anchor = None
+        children = self.children()
+
+        for child in children:
+            if child.metaObject().className() == 'QWidgetTextControl':
+                child.setProperty('openExternalLinks', True)
 
         # preparing the Conjugate dialog
         self.dictionary = sqlite3.connect(G.rsc_path("lang.db"))
@@ -636,6 +642,10 @@ class Typer(QTextEdit):
 
         modifiers = QApplication.keyboardModifiers()
 
+        self.anchor = self.anchorAt(e.pos())
+        if self.anchor:
+            QApplication.setOverrideCursor(Qt.PointingHandCursor)
+
         # if alt modifier is on we directly display the word corrections
         if modifiers == Qt.KeyboardModifier.AltModifier:
             c = self.cursorForPosition(e.pos())
@@ -651,7 +661,18 @@ class Typer(QTextEdit):
 
         # otherwise we pop the classic popupmenu
         else:
-            super(Typer, self).mousePressEvent(e)
+            super().mousePressEvent(e)
+
+    def mouseReleaseEvent(self, e: QMouseEvent):
+        """
+        implentation for hyperlinks
+        """
+        if self.anchor:
+            QDesktopServices.openUrl(QUrl(self.anchor))
+            QApplication.setOverrideCursor(Qt.ArrowCursor)
+            self.anchor = None
+        else:
+            super().mouseReleaseEvent(e)
 
     def keyPressEvent(self, e: QKeyEvent) -> None:
         """
@@ -1097,7 +1118,7 @@ class Typer(QTextEdit):
 
         # otherwise return the normal behavior
         else:
-            return super(Typer, self).canInsertFromMimeData(source)
+            return super().canInsertFromMimeData(source)
 
     def insertFromMimeData(self, source: QMimeData) -> None:
         if source.hasImage():
@@ -1117,7 +1138,7 @@ class Typer(QTextEdit):
             cursor.insertHtml(f'<img style="width:100%" src="data:image/png;base64,{img_str.decode()}" />')
 
         # continue with the default behavior
-        super(Typer, self).insertFromMimeData(source)
+        super().insertFromMimeData(source)
 
     def contextMenuEvent(self, e: QContextMenuEvent):
         """
@@ -1335,7 +1356,6 @@ class TyperHighlighter(QSyntaxHighlighter):
 
             elif word.startswith("#") and word.endswith("#"):
                 self.setFormat(idx, len(word), self.ref_format)
-
                 state = G.State_Reference
 
             # otherwise we check if word' spelling is invalid
