@@ -180,7 +180,7 @@ class HadithSearch(QDialog):
         prev, step = 0, cnt // S.POOL.maxThreadCount()
 
         for i in range(step, cnt, step):
-            worker = self.Worker(self.update, start=prev, end=i)
+            worker = self.Worker(self.updateHadith, start=prev, end=i)
             S.POOL.start(worker)
             prev = i
 
@@ -193,7 +193,7 @@ class HadithSearch(QDialog):
         self.result_click.emit(content)
         self.close()
 
-    def update(self, hadiths):
+    def updateHadith(self, hadiths):
         self.hadiths.extend(hadiths)
 
     def preview(self, e: QKeyEvent):
