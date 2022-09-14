@@ -354,6 +354,8 @@ class TopicsDialog(QDialog):
         self.filterTopics()
         self.show()
 
+        self.find_field.setFocus()
+
     def filterTopics(self, text_filter=''):
         """
         Filter the view depending on the given filter
