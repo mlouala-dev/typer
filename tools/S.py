@@ -787,6 +787,16 @@ class LocalSettings(_Settings):
                 self._db.commit()
 
     class Topics:
+        Domains = {
+            'prophet': 'Prophètes',
+            'person': 'Personnalités',
+            'place': 'Lieux',
+            'theme': 'Thèmes',
+            'fiqh': 'Questions jurisprudencielles',
+            'nahw': 'Grammaire',
+            'lugha': 'Linguistique'
+        }
+
         class Topic:
             def __init__(self, name: str = '', domain: str = ''):
                 self.name = name
@@ -804,30 +814,19 @@ class LocalSettings(_Settings):
             def __str__(self):
                 return self.name
 
-            def __repr__(self):
-                return f'{self.name}@{self.domain}'
-
             def __hash__(self):
-                return hash(f'{self.domain}@{self.name}')
+                return hash(repr(self))
 
         def __init__(self):
             self.pages = {}
-            self.domains = {
-                'prophet': set(),
-                'person': set(),
-                'place': set(),
-                'theme': set(),
-                'fiqh': set(),
-                'nahw': set(),
-                'lugha': set()
-            }
+            self.domains = {dom: set() for dom in self.Domains}
             self.topics = {}
 
         def addTopic(self, name: str = '', domain: str = '', page: int = 0):
             try:
                 topic = self.topics[name]
             except KeyError:
-                topic = self.Topic(name, domain)
+                self.topics[name] = topic = self.Topic(name, domain)
 
             self.domains[domain].add(topic)
 
@@ -843,16 +842,28 @@ class LocalSettings(_Settings):
             topic = self.getTopic(name)
 
             for domain in self.domains.values():
-                domain.remove(topic)
+                if topic in domain:
+                    domain.remove(topic)
 
             self.topics.pop(name)
+
+        def updateTopicDomain(self, name: str = '', domain_name: str = ''):
+            topic = self.getTopic(name)
+
+            for domain in self.domains.values():
+                if topic in domain:
+                    domain.remove(topic)
+
+            self.domains[domain_name].add(topic)
+            topic.domain = domain_name
 
         def getTopic(self, name: str = ''):
             return self.topics[name]
 
         def removeTopicFromPage(self, name: str = '', page: int = 0):
-            topic = self.topics[name]
-            self.pages[page].remove(topic)
+            for item in reversed(list(self.pages[page])):
+                if item.name == name:
+                    self.pages[page].remove(item)
 
     BOOK: Book
 
@@ -1143,12 +1154,18 @@ class LocalSettings(_Settings):
         """
         # loop to remove all topics from list
         self.cursor.executemany(f"DELETE FROM topics WHERE name=? AND page=?",
-                                [(topic, self.page) for topic in topic_delete])
+                                [(topic.name, self.page) for topic in topic_delete])
 
         # loop to add all topics from list
         for topic in topic_add:
             self.cursor.execute('''INSERT INTO topics (name, domain, page) VALUES (?, ?, ?)''',
                                 (topic.name, topic.domain, self.page))
+
+        self.db.commit()
+
+    def changeTopicDomain(self, topic: str = '', domain: str = ''):
+        self.TOPICS.updateTopicDomain(topic, domain)
+        self.cursor.execute('''UPDATE topics SET domain=? WHERE name=?''', (domain, topic))
 
         self.db.commit()
 

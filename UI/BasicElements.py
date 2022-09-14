@@ -3,7 +3,7 @@
 Some very basic elements used by the UI
 """
 from PyQt5.QtCore import *
-from PyQt5.QtGui import QColor, QTextOption, QFont, QPainter, QKeyEvent, QFontMetrics
+from PyQt5.QtGui import QColor, QTextOption, QFont, QPainter, QKeyEvent, QFontMetrics, QMouseEvent
 from PyQt5.QtWidgets import *
 
 
@@ -16,18 +16,22 @@ def get_item_color(row: int, state) -> QColor:
     """
     # alternate row coloring
     # TODO: store these settings in G
-    bg = QColor(45, 45, 45) if row % 2 else QColor(18, 18, 18)
+    bg = QColor(45, 45, 45) if row % 2 else QColor(32, 32, 32)
 
     # if mouse over
-    if state & QStyle.StateFlag.State_MouseOver:
+    if state & QStyle.State_MouseOver:
         bg = QColor(42, 130, 218)
+
+    # if item selected
+    elif state & QStyle.State_Selected:
+        bg = QColor(42, 81, 128)
 
     return bg
 
 
 class AyatModelItem(QStyledItemDelegate):
     """
-    Custome itemDelegate for proper arabic text display and multiline
+    Custom itemDelegate for proper arabic text display and multiline
     """
     color = QColor(115, 195, 255)
 

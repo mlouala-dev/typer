@@ -1,5 +1,6 @@
 # بسم الله الرحمان الرحيم
 import copy
+import math
 import os
 import re
 import html
@@ -11,7 +12,8 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 
-from UI.BasicElements import LineLayout, ListWidget, HighlightModelItem, NumberModelItem, SearchField
+from UI.BasicElements import LineLayout, ListWidget, HighlightModelItem, NumberModelItem, SearchField, \
+    MultiLineModelItem
 from tools import G, S, T
 from tools.PDF import PDF_Exporter
 
@@ -277,23 +279,29 @@ class TopicsDialog(QDialog):
         self.original_topics = set()
 
         # UI
+        self.setFont(G.get_font(1.2))
+        self.fm = QFontMetrics(G.get_font(1.4))
+
         self.pointer_rect = QRect(0, 30, 1, 1)
 
         main_layout = QVBoxLayout()
         self.setLayout(main_layout)
 
         self.setContentsMargins(5, 5, 5, 5)
-        self.setFixedWidth(400)
+        self.setFixedWidth(600)
         self.setFixedHeight(400)
         self.find_field = TopicsDialog.TopicFind(self)
         self.find_field.textChanged.connect(self.filterTopics)
         main_layout.addLayout(LineLayout(self, 'Find / Add : ', self.find_field))
 
-        self.topic_list = QListView(self)
-        self.topic_list.doubleClicked.connect(self.updateTopics)
-        self.model = QStandardItemModel(self.topic_list)
+        self.model = MultiLineModelItem(font=G.get_font(1.4))
+        self.topic_list = ListWidget(self, models=[self.model])
+        self.topic_list.setColumnCount(2)
+        self.topic_list.setHeaderLabels(['Topic', 'Domain'])
+        self.topic_list.itemDoubleClicked.connect(self.addTopic)
+        self.topic_list.setColumnWidth(0, self.width() // 3 * 2 - 20)
+        self.topic_list.setColumnWidth(1, self.width() // 3)
 
-        self.topic_list.setModel(self.model)
         main_layout.addWidget(self.topic_list)
         main_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -353,51 +361,54 @@ class TopicsDialog(QDialog):
         """
 
         # extending the res array with all the topics by page
-        res = set()
+        self.topic_list.clear()
 
-        for page_topics in S.LOCAL.TOPICS.pages.values():
-            res.update(page_topics)
+        if text_filter == '':
+            try:
+                for topic in sorted(S.LOCAL.TOPICS.pages[S.LOCAL.page]):
+                    self.addTopicItem(topic.name, topic.domain)
 
-        # visual settings for result's display
-        font = G.get_font(1.4)
-        extra_font = G.get_font(1.4, weight=400, italic=True)
+            except KeyError:
+                S.LOCAL.TOPICS.pages[S.LOCAL.page] = set()
 
-        self.model.clear()
-        i = 1
+        else:
+            for topic_name in filter(lambda x: text_filter in x, S.LOCAL.TOPICS.topics.keys()):
+                topic = S.LOCAL.TOPICS.topics[topic_name]
+                self.addTopicItem(topic.name, topic.domain)
 
-        # through this list of topics
-        for t in sorted(frozenset(res)):
-            t: S.LOCAL.TOPICS.Topic
+        h = self.topic_list.topLevelItemCount()
+        self.setFixedHeight(150 + h * self.fm.height())
 
-            if S.LOCAL.page in S.LOCAL.TOPICS.pages:
-                # this should display all topics, but we only need the ones for the current page
-                if text_filter == '' and t not in S.LOCAL.TOPICS.pages[S.LOCAL.page]:
-                    continue
+    def addTopicItem(self, topic, domain):
+        item = QTreeWidgetItem([topic])
 
-                # this will display irrelevant topics
-                if text_filter != '' and t in S.LOCAL.TOPICS.pages[S.LOCAL.page]:
-                    continue
+        domain_applier = QComboBox(self.topic_list)
+        domain_applier.setFixedWidth(self.topic_list.columnWidth(1))
+        domain_applier.addItems(S.LOCAL.TOPICS.Domains.values())
+        domain_applier.setCurrentIndex(list(S.LOCAL.TOPICS.Domains.keys()).index(domain))
+        domain_applier.currentIndexChanged.connect(partial(self.changeDomain, topic))
 
-            # standard display if no filter active
-            if text_filter == '':
-                item = QStandardItem(t.name)
-                item.setFont(font)
+        # adding the item
+        self.topic_list.addTopLevelItem(item)
+        self.topic_list.setItemWidget(item, 1, domain_applier)
 
-            # custom display if filter's active
-            else:
-                item = QStandardItem(t.name)
-                item.setFont(extra_font)
-                item.setForeground(QColor(125, 125, 125))
+        h = round((self.fm.width(topic) + 20) / self.topic_list.columnWidth(0))
 
-            # if text_filter matches current topic
-            if text_filter in t.name:
-                # adding the item
-                self.model.appendRow(item)
+        item.setSizeHint(0, QSize(self.topic_list.columnWidth(0), h * self.fm.height()))
 
-                if i == 1:
-                    self.topic_list.setCurrentIndex(self.model.index(0, 0))
+        return item
 
-                i += 1
+    def addTopic(self, item: QTreeWidgetItem, col: int):
+        if col == 0:
+            topic = S.LOCAL.TOPICS.getTopic(item.text(0))
+            S.LOCAL.TOPICS.pages[S.LOCAL.page].add(topic)
+
+            self.find_field.setText('')
+            self.filterTopics()
+
+    def changeDomain(self, topic: str, index: int):
+        new_domain = list(S.LOCAL.TOPICS.Domains.keys())[index]
+        S.LOCAL.changeTopicDomain(topic, new_domain)
 
     def updateTopics(self):
         """
@@ -406,14 +417,16 @@ class TopicsDialog(QDialog):
         """
         # determining the name of the topic we'll add
         try:
-            item_text = self.model.itemFromIndex(self.topic_list.selectedIndexes()[0]).text()
+            item_text = self.topic_list.selectedItems()[0].text(0)
+            domain = S.LOCAL.TOPICS.getTopic(item_text).domain
 
         # if there is no selection, setting the topic name based on the search field
         except IndexError:
             item_text = self.find_field.text()
+            domain = list(S.LOCAL.TOPICS.Domains.keys())[0]
 
         # upgrading the lists
-        S.LOCAL.TOPICS.addTopic(item_text, 'theme', S.LOCAL.page)
+        S.LOCAL.TOPICS.addTopic(item_text, domain, S.LOCAL.page)
 
         self.find_field.clear()
         self.filterTopics()
@@ -425,24 +438,22 @@ class TopicsDialog(QDialog):
         if e.key() == Qt.Key.Key_Delete:
             try:
                 # getting the currently selected
-                text = self.model.itemFromIndex(self.topic_list.selectedIndexes()[0]).text()
+                text = self.topic_list.selectedItems()[0].text(0)
+                print(text)
+                print(text.__class__)
 
                 # updating the variables
                 S.LOCAL.TOPICS.removeTopicFromPage(text, S.LOCAL.page)
+
+            except IndexError:
+                pass
+
+            finally:
                 self.find_field.clear()
 
                 # now refresh the topics' list
                 self.filterTopics()
                 e.ignore()
-
-            except IndexError:
-                pass
-
-        elif e.key() == Qt.Key.Key_Tab:
-            try:
-                print(self.model.itemFromIndex(self.topic_list.rootIndex()).text())
-            except IndexError:
-                print('no item')
 
         super(TopicsDialog, self).keyPressEvent(e)
 
