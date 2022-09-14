@@ -561,11 +561,14 @@ class Typer(QTextEdit):
             s = set()
             # 'synonyme' field search all synonyms for the word
             # 'mot' field search all words this word is a synonym for
-            for field in ('synonyme', 'mot'):
-                res = self.cursor.execute(f'SELECT {field} FROM synonyme WHERE mot="{w}"').fetchall()
-
-                # extending the set with results
-                s.update(set([a[0] for a in res]))
+            res = self.cursor.execute(f'SELECT entry, synonym FROM synonymes WHERE entry="{w}" OR synonym="{w}"').fetchall()
+            for a, b in res:
+                if a == w:
+                    s.add(b)
+                if b == w:
+                    s.add(a)
+            # extending the set with results
+            s.update(set([a[0] for a in res]))
 
             return s
 

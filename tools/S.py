@@ -798,8 +798,14 @@ class LocalSettings(_Settings):
             def __gt__(self, other):
                 return self.name > other
 
+            def __eq__(self, other):
+                return self.name == other.name and self.domain == other.domain
+
             def __str__(self):
                 return self.name
+
+            def __repr__(self):
+                return f'{self.name}@{self.domain}'
 
             def __hash__(self):
                 return hash(f'{self.domain}@{self.name}')
@@ -1136,11 +1142,9 @@ class LocalSettings(_Settings):
         :param topic_delete: list of topics to be deleted
         """
         # loop to remove all topics from list
-        print(topic_delete)
         self.cursor.executemany(f"DELETE FROM topics WHERE name=? AND page=?",
                                 [(topic, self.page) for topic in topic_delete])
 
-        print(topic_add)
         # loop to add all topics from list
         for topic in topic_add:
             self.cursor.execute('''INSERT INTO topics (name, domain, page) VALUES (?, ?, ?)''',

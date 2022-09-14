@@ -364,6 +364,7 @@ class TopicsDialog(QDialog):
 
         self.model.clear()
         i = 1
+
         # through this list of topics
         for t in sorted(frozenset(res)):
             t: S.LOCAL.TOPICS.Topic
