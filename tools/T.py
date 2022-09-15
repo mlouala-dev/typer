@@ -15,7 +15,7 @@ from tools import G, S
 class Regex:
     src_audio_path = re.compile(r'^.*?src="audio_record_(.*?)".*?$')
     paragraph_time = re.compile(r'src="paragraph_time_(.*?)"')
-    highlight_split = re.compile(r'[ \-\.\,:;!?\"\'\(\)\[\]]')
+    highlight_split = re.compile(r'[ \-\.\,:;!?\"\'\(\)\[\]\n]')
     re_ignoretoken = r'\d|^[A-Z]|ﷺ|ﷻ'
 
 
@@ -67,20 +67,21 @@ class SpellChecker(QObject):
         self.loaded = True
 
     def lookup(self, *args, **kwargs):
-        kwargs.update({'ignore_token': Regex.re_ignoretoken})
-        return self.dictionary.lookup(*args, **kwargs)
+        return self.dictionary.lookup(*args, ignore_token=Regex.re_ignoretoken, **kwargs)
 
     def word_check(self, word: str):
         suggestions = self.lookup(word, max_edit_distance=2, verbosity=Verbosity.TOP,
                                   include_unknown=False, transfer_casing=False)
 
         # abort if word's already in the dictionary
-        return suggestions[0].term != word
+        return len(suggestions) and suggestions[0].term == word
 
     def block_check(self, text: str):
         for word in Regex.highlight_split.split(text):
-            if not self.word_check(word):
+            if len(word) and not self.word_check(word):
                 return False
+        else:
+            return True
 
 
 SPELL = SpellChecker()

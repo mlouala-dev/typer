@@ -719,38 +719,40 @@ class LocalSettings(_Settings):
                 self.word_wide_roots[word.root].sort(reverse=True)
 
         def soft_add(self, word: Word):
+            self[word].count += word.count
+            self.updates.add(self[word])
+
             try:
-                self[word].count += 1
-                self.updates.add(self[word])
+                assert word.previous in self.word_roots[word.root]
+                self.word_roots[word.root][word.previous].append(word)
 
-            # word not find
-            except ValueError:
-                try:
-                    assert word.previous in self.word_roots[word.root]
-                    self.word_roots[word.root][word.previous].append(word)
+            # root not find
+            except KeyError:
+                self.word_roots[word.root] = {}
+                self.word_roots[word.root][word.previous] = [word]
 
-                # root not find
-                except KeyError:
-                    self.word_roots[word.root] = {}
-                    self.word_roots[word.root][word.previous] = [word]
-
-                # word previous is not an array
-                except AssertionError:
-                    self.word_roots[word.root][word.previous] = [word]
+            # word previous is not an array
+            except AssertionError:
+                self.word_roots[word.root][word.previous] = [word]
 
             finally:
                 self.word_roots[word.root][word.previous].sort(reverse=True)
                 self.word_wide_roots[word.root].sort(reverse=True)
 
         def update(self, word_wide_roots, words, hashes):
-            for word in words:
-                self.soft_add(word)
-
             self.word_wide_roots.update(word_wide_roots)
             self.words.extend(words)
+            self.news.update(words)
             self.hashes.extend(hashes)
 
+        def update_words(self):
+            for word in self.news:
+                self.soft_add(word)
+
+            self.save()
+
         def digest(self, text: str):
+            digest_list = []
             for phrase in T.TEXT.split(text):
                 for i, word_text in enumerate(phrase[1:]):
                     # in this configuration, phrase[i] will point the previous word
@@ -761,8 +763,10 @@ class LocalSettings(_Settings):
                         continue
 
                     else:
-                        word = self.Word(word_text, previous=phrase[i])
-                        self.add(word)
+                        digest_list.append(self.Word(word_text, previous=phrase[i]))
+
+            worker = self.Worker(digest_list, self.update)
+            POOL.start(worker)
 
         def find(self, word: Word, wide=False):
             """

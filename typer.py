@@ -805,11 +805,22 @@ class TyperWIN(QMainWindow):
                     S.LOCAL.DICT.soft_add(word)
 
             else:
-                with open(filename, mode="r", encoding="utf-8") as my_file:
-                    content = '\n'.join(my_file.readlines())
-                    self.updateStatus(33, 'Digesting words from existing project...')
+                with open(filename, mode="r", encoding="utf-8") as f:
+                    content = []
+                    for line in f.readlines():
+                        if T.SPELL.block_check(line):
+                            content.append(line)
 
-                    S.LOCAL.DICT.digest(content)
+                    x, s = 0, len(content) // S.POOL.maxThreadCount()
+
+                    for y in range(s, len(content), s):
+                        S.LOCAL.DICT.digest('\n'.join(content[x:y]))
+                        self.updateStatus(int(90 * (x / s)),
+                                          'Digesting words from existing project...')
+                        x = y
+
+                    S.POOL.waitForDone()
+                    S.LOCAL.DICT.update_words()
 
             self.updateStatus(90, 'Saving')
             S.LOCAL.DICT.save()
