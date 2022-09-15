@@ -650,7 +650,6 @@ class LocalSettings(_Settings):
                         self.hashes.append(hash(word))
 
                 self.callback_fn(
-                    self.word_roots,
                     self.word_wide_roots,
                     self.words,
                     self.hashes
@@ -719,20 +718,34 @@ class LocalSettings(_Settings):
                 self.word_roots[word.root][word.previous].sort(reverse=True)
                 self.word_wide_roots[word.root].sort(reverse=True)
 
-        def merge(self, ref):
-            """
-            :type ref: LocalSettings.Dict
-            """
-            for word in ref:
-                if word in self:
-                    self[word].count += word.count
-                    self.updates.add(self[word])
+        def soft_add(self, word: Word):
+            try:
+                self[word].count += 1
+                self.updates.add(self[word])
 
-                else:
-                    self.add(word)
+            # word not find
+            except ValueError:
+                try:
+                    assert word.previous in self.word_roots[word.root]
+                    self.word_roots[word.root][word.previous].append(word)
 
-        def update(self, word_roots, word_wide_roots, words, hashes):
-            self.word_roots.update(word_roots)
+                # root not find
+                except KeyError:
+                    self.word_roots[word.root] = {}
+                    self.word_roots[word.root][word.previous] = [word]
+
+                # word previous is not an array
+                except AssertionError:
+                    self.word_roots[word.root][word.previous] = [word]
+
+            finally:
+                self.word_roots[word.root][word.previous].sort(reverse=True)
+                self.word_wide_roots[word.root].sort(reverse=True)
+
+        def update(self, word_wide_roots, words, hashes):
+            for word in words:
+                self.soft_add(word)
+
             self.word_wide_roots.update(word_wide_roots)
             self.words.extend(words)
             self.hashes.extend(hashes)

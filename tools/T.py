@@ -4,15 +4,86 @@ Some handful text operations especially on HTML code
 NOT IMPLEMENTED YET
 """
 import re
+from symspellpy import SymSpell, Verbosity
 from string import ascii_letters, digits, whitespace
 from html.parser import HTMLParser
 
-from PyQt5.QtGui import QTextCursor
+from PyQt5.QtCore import QRunnable, pyqtSignal, QObject
+from tools import G, S
 
 
 class Regex:
     src_audio_path = re.compile(r'^.*?src="audio_record_(.*?)".*?$')
     paragraph_time = re.compile(r'src="paragraph_time_(.*?)"')
+    highlight_split = re.compile(r'[ \-\.\,:;!?\"\'\(\)\[\]]')
+    re_ignoretoken = r'\d|^[A-Z]|ﷺ|ﷻ'
+
+
+def buildCharMap(*characters):
+    return {ord(key): key for key in characters}
+
+
+class Keys:
+    phrase_characters = '.!?'
+    word_characters = '(),:; "_[]' + phrase_characters
+    quote_characters = '(\'"'
+
+    NewPhrase = buildCharMap(*phrase_characters)
+    NewWord = buildCharMap(*word_characters)
+    Quotes = buildCharMap(*quote_characters)
+
+    Exits = {60: "[", 62: "]", **Quotes, **NewWord}
+
+    Latin_Letters = ascii_letters + 'éèêëàâäçîïôöûùü'
+
+
+class SpellChecker(QObject):
+    dictionnary: SymSpell
+    finished = pyqtSignal()
+
+    class Worker(QRunnable):
+        def __init__(self, callback_fn):
+            super().__init__()
+            self.callback_fn = callback_fn
+
+        def run(self) -> None:
+            dict_path = G.appdata_path("dict.txt")
+            sympell = SymSpell(max_dictionary_edit_distance=2, prefix_length=5)
+            sympell.load_dictionary(dict_path, term_index=0, count_index=1, encoding="utf8", separator="\t")
+
+            self.callback_fn(sympell)
+
+    def __init__(self):
+        super().__init__()
+        self.dictionary = None
+        self.loaded = False
+
+    def build(self):
+        S.POOL.start(self.Worker(self.load))
+
+    def load(self, dictionary: SymSpell):
+        self.dictionary = dictionary
+        self.finished.emit()
+        self.loaded = True
+
+    def lookup(self, *args, **kwargs):
+        kwargs.update({'ignore_token': Regex.re_ignoretoken})
+        return self.dictionary.lookup(*args, **kwargs)
+
+    def word_check(self, word: str):
+        suggestions = self.lookup(word, max_edit_distance=2, verbosity=Verbosity.TOP,
+                                  include_unknown=False, transfer_casing=False)
+
+        # abort if word's already in the dictionary
+        return suggestions[0].term != word
+
+    def block_check(self, text: str):
+        for word in Regex.highlight_split.split(text):
+            if not self.word_check(word):
+                return False
+
+
+SPELL = SpellChecker()
 
 
 class HtmlOperator(HTMLParser):
@@ -143,23 +214,6 @@ class HtmlOperator(HTMLParser):
         return html
 
 
-class Keys:
-    NewPhrase = {
-        46: '.', 33: '!', 63: '?'
-    }
-    NewWord = {
-        40: '(', 41: ')', 44: ',', 58: ':', 59: ';', 32: ' ', 34: '"', **NewPhrase
-    }
-
-    Quotes = {
-        40: '(', 39: "'", 34: '"'
-    }
-
-    Exits = {60: "[", 62: "]", **Quotes, **NewWord}
-
-    Latin_Letters = ascii_letters + 'éèêëàâäçîïôöûùü'
-
-
 class TextOperator:
     """
     Core operations over TEXT
@@ -198,21 +252,6 @@ TEXT = TextOperator()
 
 
 if __name__ == "__main__":
-#     parser = HTML()
-#     parser.feed('''<p style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><br /></p>
-# <p align="center" dir='rtl' style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; line-height:87%;"><img src="./rsc/ayat_separator_LD.png" /></p>
-# <p align="center" dir='rtl' style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; -qt-user-state:99; line-height:87%;"><span style=" font-family:'Microsoft Uighur'; font-size:17pt; font-weight:600; color:#267dff;">﴿ وَمِنْهُم مَّن يَقُولُ ائْذَن لِّي وَلَا تَفْتِنِّي ۚ أَلَا فِي الْفِتْنَةِ سَقَطُوا ۗ وَإِنَّ جَهَنَّمَ لَمُحِيطَةٌ بِالْكَافِرِينَ </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">﴾</span></p>
-# <p align="center" dir='rtl' style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; -qt-user-state:99; line-height:87%;"><span style=" font-family:'Microsoft Uighur'; font-size:17pt;">(التوبة ٩‎:٤٩)</span></p>
-# <p align="center" dir='rtl' style="-qt-paragraph-type:empty; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; line-height:87%; font-family:'Microsoft Uighur'; font-size:17pt;"><br /></p>
-# <p style=" margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%;"><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; color:#267dff;">Parmi eux il y a qui disaient : </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; font-style:italic; color:#267dff;">&quot;Autorise moi </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">[à ne pas participer aux expéditions]</span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; font-style:italic; color:#267dff;"> et ne me jette pas dans la tentation&quot;</span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; color:#267dff;">.</span></p>
-# <p align="justify" style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%; font-family:'Microsoft Uighur'; font-size:17pt; font-weight:600;"><br /></p>
-# <p align="justify" style=" margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%;"><span style=" font-family:'Microsoft Uighur'; font-size:17pt; font-weight:600;">Cause de révélation : </span></p>
-# <p align="justify" style=" margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:1; text-indent:10px; -qt-user-state:0; line-height:100%;"><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">الجَدّ بن قَيس a dit : </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-style:italic;">&quot;Autorise moi </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">[à ne pas participer] </span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-style:italic;">et ne me jette pas dans la tentation&quot;</span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">. L'objet de sa tentation selon certains serait les بَنَات des بَنُو اصفَر ; les filles des byzantins, il a invoqué comme excuse d'être trop attaché aux femmes.</span></p>
-# <p align="justify" style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%; font-family:'Microsoft Uighur'; font-size:14.4pt;"><br /></p>
-# <p align="justify" style=" margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%;"><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; color:#267dff;">En faisant cela, il est déjà tombé dans la tentation, et l'enfer cernera les infidèles.</span></p>
-# <p align="justify" style="-qt-paragraph-type:empty; margin-top:0px; margin-bottom:10px; margin-left:10px; margin-right:10px; -qt-block-indent:0; text-indent:10px; line-height:100%; font-family:'Microsoft Uighur'; font-size:14.4pt; font-weight:600; color:#267dff;"><br /><!--EndFragment--></p></body></html>''')
-#     print(parser.build())
-
     text = '''Ce Coran est une révélation (ou Il l'a fait descendre) du Seigneur des Mondes, est descendu avec l'Esprit Fidèle (Jibril ￼) Il l'a fait descendre sur ton coeur afin que tu sois du nombre des avertisseurs [auprès de ta communauté] en une langue arabe claire. Le Coran (ou la mention du Prophète ﷺ  ou la mention de la religion de l'islam) figure dans les livres (زُبُر) des premiers anciens (la Torah, le انجِيل et les autres livres célestes) N'est pas un signe pour les détracteurs que le fait que les érudits des بَنُ اسرَائِيل le (il y a différents avis sur ce ضَمِير : les propos du Coran, le Prophète) connaissent et si nous l'avions fait descendre sur quelques non arabe et qu'il leur aurait récité il n'y croiraient pas car ça a été révélé en notre langue. Et iil n'y croiront pas aoir d'avoir le châtiment douloureux.
 
 Ainsi nous l'avons fait entrer dans les coeurs des criminels

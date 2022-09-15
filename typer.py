@@ -16,7 +16,7 @@ from UI.HadithWorker import HadithSearch
 from UI.Modules import Settings, Navigator, GlobalSearch, Exporter, Jumper, TopicsBar, BreadCrumbs
 from UI.MainComponents import StatusBar, Summary, TitleBar, MainToolbar, SplashScreen, TextToolbar
 
-from tools import G, PDF, Threads, S
+from tools import G, PDF, Threads, S, T
 from rsc import ressources
 
 # Exception catch for Qt
@@ -70,13 +70,7 @@ class TyperWIN(QMainWindow):
         self.setWindowIcon(QIcon(":/ico"))
         self.setFocusPolicy(Qt.StrongFocus)
 
-        _splash.progress(5, "Loading dictionnary...")
-        self.dictionnary = Threads.Dictionnary()
-        self.dictionnary.finished.connect(self.spellBuilt)
-
         _splash.progress(7, "Loading settings...")
-        self.dictionnary.start()
-
         self._file = None
 
         self.page_nb = 0
@@ -228,6 +222,9 @@ class TyperWIN(QMainWindow):
         _splash.deleteLater()
 
         # SIGNALS
+        T.SPELL.finished.connect(self.typer.syntaxhighlighter.rehighlight)
+        T.SPELL.build()
+
         self.typer.contentEdited.connect(self.setModified)
         self.summary_view.clicked.connect(self.updateTextCursor)
 
@@ -726,15 +723,6 @@ class TyperWIN(QMainWindow):
         else:
             return True
 
-    def spellBuilt(self):
-        """
-        Load or reload the realtime spellchecker's database
-        """
-        self.typer.symspell = self.dictionnary.sympell
-
-        # then we call the rehighlight of the current page
-        self.typer.syntaxhighlighter.rehighlight()
-
     def recordAudio(self):
         """
         Start or stop an audio record and insert a marker in the document
@@ -811,9 +799,10 @@ class TyperWIN(QMainWindow):
 
                 db = sqlite3.connect(filename)
                 cursor = db.cursor()
-                d = S.LOCAL.Dict(db, cursor)
+                source_dict = S.LOCAL.Dict(db, cursor)
 
-                S.LOCAL.DICT.merge(d)
+                for word in source_dict:
+                    S.LOCAL.DICT.soft_add(word)
 
             else:
                 with open(filename, mode="r", encoding="utf-8") as my_file:
