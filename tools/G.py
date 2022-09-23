@@ -22,7 +22,7 @@ from PyQt5.QtWidgets import QAction, QShortcut
 
 # The application's core settings
 __app__ = 'Typer'   # name
-__ver__ = 1.6       # version
+__ver__ = 1.5       # version
 __ext__ = '786'     # extension
 __debug_level__ = logging.ERROR
 

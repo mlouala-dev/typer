@@ -12,9 +12,9 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 
 from UI import QuranWorker
-from UI.Modules import Conjugate
+from UI.Dialogs import Conjugate, DateTimePickerDialog
 from tools.styles import Styles, Styles_Shortcut, TyperStyle
-from tools import G, T, S, translitteration, Audio
+from tools import G, T, S, translitteration
 
 
 class Typer(QTextEdit):
@@ -49,16 +49,16 @@ class Typer(QTextEdit):
         # preparing the Conjugate dialog
         self.dictionary = sqlite3.connect(G.rsc_path("lang.db"))
         self.cursor = self.dictionary.cursor()
-        self.conjugateDialog = Conjugate(self._win, self.dictionary)
+        self.D_conjugate = Conjugate(self._win, self.dictionary)
 
         # will expand since the others have fixed widths
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         # autocomplete label
-        self.auto_complete_label = QLabel(self)
-        self.auto_complete_label.hide()
-        self.auto_complete_label.setFont(G.get_font(1.2))
-        self.auto_complete_label.setStyleSheet("""
+        self.WL_autoComplete = QLabel(self)
+        self.WL_autoComplete.hide()
+        self.WL_autoComplete.setFont(G.get_font(1.2))
+        self.WL_autoComplete.setStyleSheet("""
         QLabel {
             color: #2a82da;
             background-color: rgba(65, 59, 69, 230);
@@ -78,7 +78,7 @@ class Typer(QTextEdit):
         """)
         graph = QGraphicsOpacityEffect(self)
         graph.setOpacity(0.9)
-        self.auto_complete_label.setGraphicsEffect(graph)
+        self.WL_autoComplete.setGraphicsEffect(graph)
 
         # we should never need a horizontal scrollbar since the text is wrapped
         self.horizontalScrollBar().setDisabled(True)
@@ -114,9 +114,9 @@ class Typer(QTextEdit):
         self.textCursor().setBlockFormat(self.default_blockFormat)
 
         # applying a simple syntax highlighter
-        self.syntaxhighlighter = TyperHighlighter(self, self.document())
+        self.W_syntaxHighlighter = TyperHighlighter(self, self.document())
 
-        self.audio_map = TyperAudioMap(self)
+        self.W_audioMap = TyperAudioMap(self)
         self.enableAudioMap()
 
     @property
@@ -521,10 +521,10 @@ class Typer(QTextEdit):
         if not S.LOCAL.audio_map:
             return
 
-        self.audio_map.show()
+        self.W_audioMap.show()
         self.document().blockCountChanged.connect(self.graphAudioMap)
         self.document().blockCountChanged.connect(self.solveAudioMap)
-        self.verticalScrollBar().sliderMoved.connect(self.audio_map.update)
+        self.verticalScrollBar().sliderMoved.connect(self.W_audioMap.update)
         self.verticalScrollBar().sliderReleased.connect(self.graphAudioMap)
         self.verticalScrollBar().sliderReleased.connect(self.solveAudioMap)
         self.graphAudioMap()
@@ -534,12 +534,12 @@ class Typer(QTextEdit):
         if not S.LOCAL.audio_map:
             return
 
-        self.audio_map.hide()
+        self.W_audioMap.hide()
 
         try:
             self.document().blockCountChanged.disconnect(self.graphAudioMap)
             self.document().blockCountChanged.disconnect(self.solveAudioMap)
-            self.verticalScrollBar().sliderMoved.disconnect(self.audio_map.update)
+            self.verticalScrollBar().sliderMoved.disconnect(self.W_audioMap.update)
             self.verticalScrollBar().sliderReleased.disconnect(self.graphAudioMap)
             self.verticalScrollBar().sliderReleased.disconnect(self.solveAudioMap)
 
@@ -547,14 +547,17 @@ class Typer(QTextEdit):
             pass
 
     def graphAudioMap(self):
+        if not S.LOCAL.audio_map:
+            return
+
         html = self.toHtml()
-        if html != self.audio_map.page and len(self.toPlainText().strip()):
-            self.audio_map.page = html
-            S.POOL.start(T.QOperator.graphBlockMap(self.document(), self.audio_map.setMap), uniq='graph')
+        if html != self.W_audioMap.page and len(self.toPlainText().strip()):
+            self.W_audioMap.page = html
+            S.POOL.start(T.QOperator.graphBlockMap(self.document(), self.W_audioMap.setMap), uniq='graph')
 
     def solveAudioMap(self):
-        if len(self.audio_map.map):
-            S.POOL.start(T.QOperator.solveAudioMapping(self.toHtml(), self.audio_map.addSolver), uniq='solve')
+        if S.LOCAL.audio_map and len(self.W_audioMap.map):
+            S.POOL.start(T.QOperator.solveAudioMapping(self.toHtml(), self.W_audioMap.addSolver), uniq='solve')
 
     # MENUS
 
@@ -566,8 +569,8 @@ class Typer(QTextEdit):
         :param state: got by the signal
         """
         # display the dialog
-        self.conjugateDialog.load(cursor, word)
-        self.conjugateDialog.show()
+        self.D_conjugate.load(cursor, word)
+        self.D_conjugate.show()
 
     def buildSynMenu(self, word: str, cursor: QTextCursor, menu: QMenu):
         """
@@ -1091,28 +1094,28 @@ class Typer(QTextEdit):
                 res = candidate[len(self.word):]
 
                 # placing the label where the textCursor is
-                self.auto_complete_label.setFont(tc.charFormat().font())
-                fm = QFontMetrics(self.auto_complete_label.font())
+                self.WL_autoComplete.setFont(tc.charFormat().font())
+                fm = QFontMetrics(self.WL_autoComplete.font())
                 w = fm.boundingRect(res).width() + 10
 
                 rect.setWidth(w)
                 rect.translate(2, 0)
-                self.auto_complete_label.setGeometry(rect)
-                self.auto_complete_label.setText(res)
-                self.auto_complete_label.show()
+                self.WL_autoComplete.setGeometry(rect)
+                self.WL_autoComplete.setText(res)
+                self.WL_autoComplete.show()
 
             # if no candidate, hiding
             else:
-                self.auto_complete_label.hide()
+                self.WL_autoComplete.hide()
 
         # finally, if Tab was pressed and there is an auto complete suggestion active
-        if e.key() == Qt.Key.Key_Tab and self.auto_complete_available and self.auto_complete_label.isVisible():
+        if e.key() == Qt.Key.Key_Tab and self.auto_complete_available and self.WL_autoComplete.isVisible():
             # inserting the suggestion
-            self.insertPlainText(self.auto_complete_label.text())
+            self.insertPlainText(self.WL_autoComplete.text())
 
             # resetting the auto_complete label
-            self.auto_complete_label.setText('')
-            self.auto_complete_label.hide()
+            self.WL_autoComplete.setText('')
+            self.WL_autoComplete.hide()
             self.word = ""
 
             # update cursor
@@ -1176,20 +1179,20 @@ class Typer(QTextEdit):
 
         # create a standard context menu on the pos
         try:
-            menu = self.createStandardContextMenu(pos)
+            M_main = self.createStandardContextMenu(pos)
 
         except TypeError as e:
             G.exception(e)
-            menu = self.createStandardContextMenu()
+            M_main = self.createStandardContextMenu()
 
         # allow the user to add a separator, this one will be used later when exporting as PDF, it marks
         # the text displayed on the column along the PDF page preview
 
-        menu.insertSeparator(menu.actions()[0])
+        M_main.insertSeparator(M_main.actions()[0])
 
-        addseparator = QAction('Add translation separator', menu)
-        addseparator.triggered.connect(lambda: self.insertHtml('<hr />'))
-        menu.insertAction(menu.actions()[0], addseparator)
+        A_addSeparator = QAction('Add translation separator', M_main)
+        A_addSeparator.triggered.connect(lambda: self.insertHtml('<hr />'))
+        M_main.insertAction(M_main.actions()[0], A_addSeparator)
 
         def add_page_content():
             res = re.findall(
@@ -1242,9 +1245,9 @@ class Typer(QTextEdit):
             # apply the style to the whold text block
             self.applyOverallBlock(partial(self.toggleFormat, Styles.Default))
 
-        addpagecontent = QAction('Make translation from text', menu)
-        addpagecontent.triggered.connect(add_page_content)
-        menu.insertAction(menu.actions()[0], addpagecontent)
+        A_addTranslation = QAction('Make translation from text', M_main)
+        A_addTranslation.triggered.connect(add_page_content)
+        M_main.insertAction(M_main.actions()[0], A_addTranslation)
 
         # getting the word
         tc = self.cursorForPosition(pos)
@@ -1259,28 +1262,52 @@ class Typer(QTextEdit):
         html_block = T.HTML.extractTextFragment(c_block.selection().toHtml())
 
         if S.LOCAL.audio_map:
-            block_audio = self.audio_map.getSolver(block.blockNumber())
+            block_audio = self.W_audioMap.getSolver(block.blockNumber())
             if block_audio > -1:
                 paragraph_realtime = T.HTML.paragraphTime(html_block)
-                open_audio = QAction(f"Open audio at time", menu)
-                open_audio.triggered.connect(partial(S.GLOBAL.AUDIOMAP.play, block_audio, paragraph_realtime))
-                menu.insertAction(menu.actions()[0], open_audio)
+                A_openAudioAtTime = QAction(f"Open audio at time", M_main)
+                A_openAudioAtTime.triggered.connect(partial(S.GLOBAL.AUDIOMAP.play, block_audio, paragraph_realtime))
+                M_main.insertAction(M_main.actions()[0], A_openAudioAtTime)
 
         if T.HTML.hasParagraphTime(html_block):
             paragraph_realtime = T.HTML.paragraphTime(html_block)
             paragraph_time = strftime('%Y-%m-%d %H:%M:%S', localtime(paragraph_realtime))
-            audio_time = QAction(f"Date : {paragraph_time}", menu)
-            audio_time.setDisabled(True)
-            menu.insertAction(menu.actions()[0], audio_time)
+
+            A_editDateTime = QAction('Edit date anchor', M_main)
+
+            def edit_paragraph_time():
+                epoch, ok = DateTimePickerDialog.getDateTime(t=paragraph_realtime)
+                if ok:
+                    html = self.toHtml()
+                    html = html.replace(str(paragraph_realtime), str(int(epoch)))
+                    self.setHtml(html)
+
+                    self.solveAudioMap()
+
+            A_editDateTime.triggered.connect(edit_paragraph_time)
+            M_main.insertAction(M_main.actions()[0], A_editDateTime)
+
+            A_dateTime = QAction(f"Date : {paragraph_time}", M_main)
+            A_dateTime.setDisabled(True)
+            M_main.insertAction(M_main.actions()[0], A_dateTime)
+        else:
+            A_setDateTime = QAction('Set date anchor', M_main)
+
+            def edit_paragraph_time():
+                epoch, ok = DateTimePickerDialog.getDateTime()
+                if ok:
+                    T.HTML.insertParagraphTime(self.textCursor(), t=int(epoch))
+                    self.solveAudioMap()
+            A_setDateTime.triggered.connect(edit_paragraph_time)
+            M_main.insertAction(M_main.actions()[0], A_setDateTime)
 
         # insert a separator to the beginning
-        menu.insertSeparator(menu.actions()[0])
+        M_main.insertSeparator(M_main.actions()[0])
 
         # if its recognized as an audio (thanks to the Highlighter class)
         if T.Regex.src_audio_path.match(html_text):
             # extract the correct filename
             audio_file = T.Regex.src_audio_path.sub(r'\1', html_text)
-
             audio_path = os.path.join(S.GLOBAL.audio_record_path, f'{audio_file}.ogg')
 
             def removeAudio(path: str, cursor_pos: QPoint):
@@ -1316,12 +1343,12 @@ class Typer(QTextEdit):
                     c.select(QTextCursor.WordUnderCursor)
                     c.removeSelectedText()
 
-            menu.insertSeparator(menu.actions()[0])
+            M_main.insertSeparator(M_main.actions()[0])
 
             # adding the remove audio menu
-            delete_audio_menu = QAction('Remove audio', menu)
-            delete_audio_menu.triggered.connect(partial(removeAudio, audio_path, pos))
-            menu.insertAction(menu.actions()[0], delete_audio_menu)
+            A_removeAudio = QAction('Remove audio', M_main)
+            A_removeAudio.triggered.connect(partial(removeAudio, audio_path, pos))
+            M_main.insertAction(M_main.actions()[0], A_removeAudio)
 
             # adding the play audio menu
             if '_' in audio_file:
@@ -1329,40 +1356,40 @@ class Typer(QTextEdit):
             else:
                 real_time = S.GLOBAL.audio_record_epoch + int(audio_file)
             time_str = strftime('%Y-%m-%d %H:%M:%S', localtime(real_time))
-            audio_menu = QAction(f'Open audio ({time_str})', menu)
-            audio_menu.triggered.connect(lambda: os.startfile(audio_path))
-            menu.insertAction(menu.actions()[0], audio_menu)
+            A_openAudio = QAction(f'Open audio ({time_str})', M_main)
+            A_openAudio.triggered.connect(lambda: os.startfile(audio_path))
+            M_main.insertAction(M_main.actions()[0], A_openAudio)
 
-            conj_sep = QAction('Audio Record', menu)
-            conj_sep.setDisabled(True)
-            menu.insertAction(menu.actions()[0], conj_sep)
+            AS_audioRecord = QAction('Audio Record', M_main)
+            AS_audioRecord.setDisabled(True)
+            M_main.insertAction(M_main.actions()[0], AS_audioRecord)
 
         else:
             # if the block's flagged as incorrect
             if block.userData().state == G.State_Correction:
 
                 # we add suggestions for the given word
-                solution_menu = QMenu(f'Suggestions for "{text}"', menu)
-                cnt = self.buildSpellMenu(text, tc, solution_menu)
+                M_suggestions = QMenu(f'Suggestions for "{text}"', M_main)
+                cnt = self.buildSpellMenu(text, tc, M_suggestions)
 
                 # add the word to the dictionary if its not (flagged as incorrect means its not in the dictionary
-                addword_menu = QAction(f'Add "{text}" to dictionary', menu)
-                addword_menu.setData(text)
-                menu.insertAction(menu.actions()[0], addword_menu)
-                addword_menu.triggered.connect(partial(T.SPELL.add, text))
+                A_addWord = QAction(f'Add "{text}" to dictionary', M_main)
+                A_addWord.setData(text)
+                M_main.insertAction(M_main.actions()[0], A_addWord)
+                A_addWord.triggered.connect(partial(T.SPELL.add, text))
 
                 # if suggestions for the word are at least one we display the menu
                 if cnt >= 1:
-                    menu.insertMenu(menu.actions()[0], solution_menu)
+                    M_main.insertMenu(M_main.actions()[0], M_suggestions)
 
             else:
                 # adding synonyms suggestions
-                synonym_menu = QMenu(f'Synonyms for "{text}"', menu)
-                cnt = self.buildSynMenu(text, tc, synonym_menu)
+                M_synonyms = QMenu(f'Synonyms for "{text}"', M_main)
+                cnt = self.buildSynMenu(text, tc, M_synonyms)
 
                 # if we got some synonyms
                 if cnt >= 1:
-                    menu.insertMenu(menu.actions()[0], synonym_menu)
+                    M_main.insertMenu(M_main.actions()[0], M_synonyms)
 
                 # if word's flagged as a verb
                 # TODO: add it as a signal to enable / disable a button in the Toolbar
@@ -1371,32 +1398,32 @@ class Typer(QTextEdit):
 
                 # if selection is a verb, display the menu...
                 if is_verb:
-                    open_conjugate_menu = QAction('Conjugate...', menu)
-                    open_conjugate_menu.triggered.connect(partial(self.openConjugate, tc, is_verb[0]))
-                    menu.insertAction(menu.actions()[0], open_conjugate_menu)
+                    A_conjugate = QAction('Conjugate...', M_main)
+                    A_conjugate.triggered.connect(partial(self.openConjugate, tc, is_verb[0]))
+                    M_main.insertAction(M_main.actions()[0], A_conjugate)
 
             # adding a section "Edit" for suggestion, dictionary ops
-            menu.insertSeparator(menu.actions()[0])
-            conj_sep = QAction('Lang', menu)
-            conj_sep.setDisabled(True)
-            menu.insertAction(menu.actions()[0], conj_sep)
+            M_main.insertSeparator(M_main.actions()[0])
+            AS_audioRecord = QAction('Lang', M_main)
+            AS_audioRecord.setDisabled(True)
+            M_main.insertAction(M_main.actions()[0], AS_audioRecord)
 
         # displaying the final popup menu
-        menu.exec_(global_pos)
+        M_main.exec_(global_pos)
 
     def clear(self):
         super().clear()
         self.textCursor().setBlockFormat(self.default_blockFormat)
 
     def resizeEvent(self, a0: QResizeEvent) -> None:
-        self.audio_map.resize(5, a0.size().height())
+        self.W_audioMap.resize(5, a0.size().height())
         super().resizeEvent(a0)
         self.graphAudioMap()
         self.solveAudioMap()
 
     def wheelEvent(self, e: QWheelEvent) -> None:
         super().wheelEvent(e)
-        self.audio_map.update()
+        self.W_audioMap.update()
 
 
 class TyperHighlighter(QSyntaxHighlighter):

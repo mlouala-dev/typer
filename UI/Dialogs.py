@@ -1,7 +1,6 @@
 # بسم الله الرحمان الرحيم
 import copy
 import win32api
-import os
 import re
 import html
 import sqlite3
@@ -18,244 +17,10 @@ from tools import G, S, T
 from tools.PDF import PDF_Exporter
 
 
-class BreadCrumbs(QWidget):
-    goto = pyqtSignal(int)
-
-    class Level(QLabel):
-        colors = ['267dff', '73c3ff', 'ffffff']
-        hoverChanged = pyqtSignal(bool)
-        clicked = pyqtSignal(QMouseEvent, int, int)
-
-        def __init__(self, level=1, parent=None):
-            self.level = level
-            self.last = level == 3
-            self.hover = False
-            self.nextHover = False
-            self.t = ''
-            self.n = -1
-
-            super().__init__('', parent)
-            self.setContentsMargins(10, 3, 25, 1)
-            self.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
-            self.setMouseTracking(True)
-
-        def mousePressEvent(self, e: QMouseEvent):
-            if e.button() == 1:
-                self.clicked.emit(e, self.level, self.n)
-
-        def enterEvent(self, e):
-            self.hover = True
-            self.hoverChanged.emit(True)
-            self.repaint()
-
-        def leaveEvent(self, e):
-            self.hover = False
-            self.hoverChanged.emit(False)
-            self.repaint()
-
-        def formatText(self, text=''):
-            num = f'{self.n}.&#x200e; ' if self.n != -1 else ''
-            return f'{num}<b><span style="color:#{self.colors[self.level - 1]}">{text}</span></b>'
-
-        def setText(self, p_str):
-            self.t = p_str
-            super().setText(self.formatText(self.t))
-
-        def setNum(self, num):
-            self.n = num
-            super().setText(self.formatText(self.t))
-
-        def nextStateChanged(self, state):
-            self.nextHover = state
-            self.repaint()
-
-        def paintEvent(self, event):
-            palette: QPalette
-            palette = self.palette()
-            default_bg = QBrush(palette.base())
-            on_color = QBrush(palette.alternateBase())
-            on_line = palette.alternateBase() if not self.hover else palette.highlight()
-            button_color = on_color if self.hover else default_bg
-            qp = QPainter(self)
-            qp.setRenderHint(QPainter.Antialiasing)
-            qp.setPen(Qt.NoPen)
-            qp.setBrush(button_color)
-            if self.level == 1:
-                qp.drawRoundedRect(QRect(0, 0, self.width() // 2 + 15, self.height()), 15, 15)
-            else:
-                qp.drawRect(QRect(0, 0, self.width() // 2, self.height()))
-
-            if not self.last:
-                qp.setBrush(default_bg if not self.nextHover else on_color)
-                qp.drawRect(QRect(self.width() // 2, 0, self.width() // 2 + 5, self.height()))
-
-            qp.setBrush(button_color)
-            qp.drawPolygon(QPolygon([
-                QPoint(self.width() // 2, -10),
-                QPoint(self.width() // 2, self.height() + 10),
-                QPoint(self.width() - 20, self.height() + 10),
-                QPoint(self.width(), self.height() // 2),
-                QPoint(self.width() - 20, -10)
-            ]), Qt.OddEvenFill)
-
-            qp.setPen(QPen(on_line, 3))
-            qp.drawLines([QLine(
-                    QPoint(self.width() - 20, self.height() + 10),
-                    QPoint(self.width(), self.height() // 2)
-                ), QLine(
-                    QPoint(self.width(), self.height() // 2),
-                    QPoint(self.width() - 20, -10)
-                )
-            ])
-
-            super().paintEvent(event)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setFont(G.get_font(1.2))
-        self.setFixedHeight(30)
-        self.setContentsMargins(0, 0, 0, 0)
-        layout = QHBoxLayout()
-        self.setMouseTracking(True)
-
-        self.l1 = BreadCrumbs.Level(1)
-        self.l1.clicked.connect(self.crumbPressed)
-        self.l2 = BreadCrumbs.Level(2)
-        self.l2.clicked.connect(self.crumbPressed)
-        self.l3 = BreadCrumbs.Level(3)
-        self.l2.hoverChanged.connect(self.l1.nextStateChanged)
-        self.l3.hoverChanged.connect(self.l2.nextStateChanged)
-
-        self.levels = [self.l1, self.l2, self.l3]
-
-        layout.addWidget(self.l1, stretch=0)
-        layout.addWidget(self.l2, stretch=0)
-        layout.addWidget(self.l3, stretch=0)
-        layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        layout.setContentsMargins(10, 0, 0, 0)
-        layout.setSpacing(0)
-
-        self.setLayout(layout)
-
-    def setLevel(self, level: int, text: str = '', num: int = -1):
-        self.levels[level - 1].setHidden(text == '')
-        self.levels[level - 1].setText(text)
-        self.levels[level - 1].setNum(num)
-
-    def crumbPressed(self, e: QMouseEvent, level: int, num: int = -1):
-        global_pos = self.mapToGlobal(e.pos())
-        menu = QMenu()
-
-        def goto(page):
-            S.LOCAL.page = page
-
-        if level == 1:
-            for kitab in S.LOCAL.BOOKMAP.kutub.values():
-                action = QAction(f'{kitab.id}.\u200e{kitab.name} ({int(kitab.page)})', menu)
-                if kitab.id == num:
-                    action.setIcon(G.icon('Accept'))
-                action.triggered.connect(partial(goto, int(kitab.page) + 1))
-                menu.addAction(action)
-
-        elif level == 2:
-            kitab = S.LOCAL.BOOKMAP.getKitab(S.LOCAL.BOOKMAP.pages[S.LOCAL.page].kid)
-            for bab in kitab.abwab:
-                action = QAction(f'{bab.id}.\u200e{bab.name} ({int(bab.page)})', menu)
-                if bab.id == num:
-                    action.setIcon(G.icon('Accept'))
-                action.triggered.connect(partial(goto, int(bab.page) + 1))
-                menu.addAction(action)
-
-        menu.exec_(global_pos)
-
-    @G.log
-    def updatePage(self, page):
-        if S.LOCAL.PDF:
-            p = S.LOCAL.BOOKMAP.getPage(page)
-
-            try:
-                k = S.LOCAL.BOOKMAP.getKitab(p.kid)
-                kitab = k.name
-            except KeyError:
-                kitab = ''
-
-            except AttributeError:
-                return
-
-            try:
-                b = S.LOCAL.BOOKMAP.getKitab(p.kid).getBab(p.bid)
-                bab = b.name
-            except KeyError:
-                bab = ''
-
-            if len(p.hids):
-                h = S.LOCAL.BOOKMAP.getHadithByPage(page)[0]
-                hadith = h.content
-                hadith_num = h.sub_id
-                if len(hadith) > 30:
-                    hadith = f'{hadith[:30]} (...)'
-            else:
-                hadith = ''
-                hadith_num = -1
-
-            self.setLevel(1, kitab, p.kid)
-            self.setLevel(2, bab, p.bid)
-            self.setLevel(3, hadith, hadith_num)
-
-
-class TopicsBar(QWidget):
-    """
-    The panel display the current topics for the given page
-    """
-    def __init__(self, parent=None):
-        super(TopicsBar, self).__init__(parent)
-        # FIXME:atm the domains doesn't work
-        self.current_page = 0
-        self.topic_dialog = TopicsDialog(parent, self)
-
-        self.setMaximumWidth(600)
-        self.setFixedHeight(50)
-        self.setContentsMargins(0, 0, 0, 0)
-
-        topic_layout = QHBoxLayout()
-        self.topic_overview = QLabel("")
-        self.topic_overview.setFont(G.get_font(1.2))
-
-        self.topic_edit = QPushButton("...")
-        self.topic_edit.setFixedWidth(45)
-        self.topic_edit.clicked.connect(self.topic_dialog.showTopics)
-
-        self.topics_settings = QPushButton(G.icon('Setting-Tools'), "")
-        self.topics_settings.setFixedWidth(45)
-
-        topic_layout.addWidget(self.topic_overview, 0)
-        topic_layout.addWidget(self.topic_edit, 0)
-        topic_layout.addWidget(self.topics_settings, 0)
-        topic_layout.setStretch(1, 0)
-        topic_layout.setContentsMargins(10, 0, 10, 0)
-        topic_layout.setSpacing(0)
-
-        self.setLayout(topic_layout)
-
-    def changePage(self, page=0):
-        # we update the panel's label with a list of all the topics
-        try:
-            self.topic_overview.setText(', '.join(map(str, sorted(S.LOCAL.TOPICS.pages[page]))))
-
-        except KeyError as e:
-            G.exception(e)
-            self.topic_overview.setText('')
-
-        # defining the current page
-        self.current_page = page
-
-
 class TopicsDialog(QDialog):
     """
     This allows you to pick the topics linked with the current page
     """
-    reference: TopicsBar
-
     class TopicFind(QLineEdit):
         """
         a simple lineEdit search widget
@@ -885,30 +650,30 @@ class Settings(QDialog):
         self._doc = self._typer.document()
         self.setFixedSize(600, 500)
 
-        document_layout = QGridLayout()
-        document_layout.setAlignment(Qt.AlignTop)
+        L_main = QGridLayout()
+        L_main.setAlignment(Qt.AlignTop)
 
         # GLOBAL SETTINGS
-        self.group_global = QGroupBox('Global Settings')
-        self.group_global_layout = QVBoxLayout()
-        self.group_global_layout.setAlignment(Qt.AlignTop)
-        self.group_global.setLayout(self.group_global_layout)
+        self.G_global = QGroupBox('Global Settings')
+        self.L_global = QVBoxLayout()
+        self.L_global.setAlignment(Qt.AlignTop)
+        self.G_global.setLayout(self.L_global)
 
-        self.theme, = self.addOption('Themes', self.group_global_layout, QComboBox())
+        self.theme, = self.addOption('Themes', self.L_global, QComboBox())
         themes = [s for s in S.GLOBAL.themes.keys()]
         self.theme.addItems(themes)
         self.theme.currentIndexChanged.connect(partial(self.updateGlobalSettings, 'theme'))
 
         self.minimum_word_length, = self.addOption(
             "Minimum Auto-suggestion Word's length",
-            self.group_global_layout,
+            self.L_global,
             QSpinBox()
         )
         self.minimum_word_length.valueChanged.connect(partial(self.updateGlobalSettings, 'minimum_word_length'))
 
         self.audio_record_path, self.audio_record_path_browse = self.addOption(
             'Audio Record Path',
-            self.group_global_layout,
+            self.L_global,
             QLabel(),
             QPushButton('...')
         )
@@ -917,7 +682,7 @@ class Settings(QDialog):
 
         self.audio_devices, = self.addOption(
             'Audio Input Devices',
-            self.group_global_layout,
+            self.L_global,
             QComboBox()
         )
         self.audio_devices.addItems(G.audio_input_devices_names)
@@ -925,7 +690,7 @@ class Settings(QDialog):
 
         self.audio_sample_rate, = self.addOption(
             'Audio Sample Rate',
-            self.group_global_layout,
+            self.L_global,
             QComboBox()
         )
         self.sample_rates = [8000, 16000, 24000, 48000]
@@ -940,7 +705,7 @@ class Settings(QDialog):
 
         self.verbose_level, = self.addOption(
             'Verbose Level',
-            self.group_global_layout,
+            self.L_global,
             QComboBox()
         )
         self.verbose_level.addItems(['critical', 'error', 'warning', 'info', 'debug', 'silent'])
@@ -948,19 +713,19 @@ class Settings(QDialog):
         self.verbose_level.currentIndexChanged.connect(partial(self.updateGlobalSettings, 'verbose_level'))
 
         # LOCAL SETTINGS
-        self.group_local = QGroupBox('Local Settings')
-        self.group_local_layout = QVBoxLayout()
-        self.group_local_layout.setAlignment(Qt.AlignTop)
-        self.group_local.setLayout(self.group_local_layout)
+        self.G_local = QGroupBox('Local Settings')
+        self.L_local = QVBoxLayout()
+        self.L_local.setAlignment(Qt.AlignTop)
+        self.G_local.setLayout(self.L_local)
 
         self.connected_box = self.addLocalOption('connected', 'Connect to PDF\'s pages')
         self.audio_map = self.addLocalOption('audio_map', 'Display Audio Map')
         self.viewer_external_box = self.addLocalOption('viewer_external', 'External PDF Viewer Frame')
         self.viewer_invert_box = self.addLocalOption('viewer_invert', 'Invert PDF Viewer Colors')
 
-        document_layout.addWidget(self.group_global)
-        document_layout.addWidget(self.group_local)
-        self.setLayout(document_layout)
+        L_main.addWidget(self.G_global)
+        L_main.addWidget(self.G_local)
+        self.setLayout(L_main)
 
     @staticmethod
     def addOption(nice_name: str, layout: QVBoxLayout, *objs):
@@ -968,12 +733,12 @@ class Settings(QDialog):
         return objs
 
     def addLocalOption(self, name: str, nice_name: str):
-        checkbox, = self.addOption(nice_name, self.group_local_layout, QCheckBox())
+        checkbox, = self.addOption(nice_name, self.L_local, QCheckBox())
         checkbox.clicked.connect(partial(self.updateLocalSettings, name))
         return checkbox
 
     def addGlobalOption(self, name: str, nice_name: str):
-        checkbox, = self.addOption(nice_name, self.group_global_layout, QCheckBox())
+        checkbox, = self.addOption(nice_name, self.L_global, QCheckBox())
         checkbox.clicked.connect(partial(self.updateGlobalSettings, name))
         return checkbox
 
@@ -1005,8 +770,7 @@ class Settings(QDialog):
             self._win.dockViewer(not state)
 
         elif domain == 'audio_map':
-            S.LOCAL.audio_map = state
-            self._win.typer.audio_map.setVisible(state)
+            S.LOCAL.W_audioMap = state
             if state:
                 self._win.typer.enableAudioMap()
             else:
@@ -1090,6 +854,7 @@ class Settings(QDialog):
         self.auto_load_box.setChecked(S.GLOBAL.auto_load)
         self.minimum_word_length.setValue(S.GLOBAL.minimum_word_length)
 
+        self.audio_map.setChecked(S.LOCAL.audio_map)
         self.connected_box.setChecked(S.LOCAL.connected)
         self.connected_box.setEnabled(S.LOCAL.hasPDF())
         self.viewer_external_box.setChecked(S.LOCAL.viewer_external)
@@ -1109,15 +874,15 @@ class Navigator(QDialog):
 
         # UI stuffs
         self.setFixedSize(550, 600)
-        self.main_layout = QVBoxLayout()
+        self.L_main = QVBoxLayout()
         self.setContentsMargins(0, 0, 0, 0)
-        self.setLayout(self.main_layout)
+        self.setLayout(self.L_main)
 
         self.setWindowTitle('TyperNavigator')
         self.setWindowIcon(G.icon('List'))
 
-        self.title = QLabel()
-        self.main_layout.addWidget(self.title, 1)
+        self.WL_title = QLabel()
+        self.L_main.addWidget(self.WL_title, 1)
 
     def addLine(self, start, end, start_title='', end_title=''):
         """
@@ -1159,7 +924,7 @@ class Navigator(QDialog):
             line.addWidget(goto, 0)
 
         # adding the new line to the layout
-        self.main_layout.addLayout(line, 0)
+        self.L_main.addLayout(line, 0)
 
     def buildMap(self):
         """
@@ -1172,9 +937,9 @@ class Navigator(QDialog):
         # this should delete everything but doesn't work completly
         # FIXME: QLabel artifacts
         # looping through all layout children
-        for i in reversed(range(self.main_layout.count())):
+        for i in reversed(range(self.L_main.count())):
             try:
-                self.main_layout.itemAt(i).layout().setParent(None)
+                self.L_main.itemAt(i).layout().setParent(None)
 
             except AttributeError:
                 pass
@@ -1236,7 +1001,7 @@ class Navigator(QDialog):
             i += 1
 
         # displays light resume of the operation
-        self.title.setText(f'{len(pages)} pages filled, {len(blocks)} blocks')
+        self.WL_title.setText(f'{len(pages)} pages filled, {len(blocks)} blocks')
 
         # expanding size for every block
         self.setFixedHeight(len(blocks) * 35 + 35)
@@ -1266,38 +1031,38 @@ class Exporter(QDialog):
 
         # UI stuffs
         self.setFixedSize(550, 700)
-        self.main_layout = QVBoxLayout()
+        self.L_main = QVBoxLayout()
         self.setContentsMargins(0, 0, 0, 0)
-        self.setLayout(self.main_layout)
+        self.setLayout(self.L_main)
 
         self.setWindowTitle('TyperExport')
         self.setWindowIcon(G.icon("File-Extension-Pdf"))
 
-        self.path_line = QLineEdit()
+        self.WI_path = QLineEdit()
         if self.settings['previous_export']:
-            self.path_line.setText(self.settings['previous_export'])
+            self.WI_path.setText(self.settings['previous_export'])
 
-        self.path_browse = QPushButton("...")
-        self.path_browse.clicked.connect(self.pick_file)
+        self.B_browse = QPushButton("...")
+        self.B_browse.clicked.connect(self.pick_file)
 
-        self.print_quality = QCheckBox("High Quality Export : ")
+        self.WC_quality = QCheckBox("High Quality Export : ")
 
-        self.zoom_factor = QDoubleSpinBox(minimum=0.5, value=1.1, maximum=4.0)
+        self.W_zoomFactor = QDoubleSpinBox(minimum=0.5, value=1.1, maximum=4.0)
 
-        self.min_range = QSpinBox()
-        self.max_range = QSpinBox()
+        self.WI_minRange = QSpinBox()
+        self.WI_maxRange = QSpinBox()
 
-        self.open_at_finish = QCheckBox("Open file when export finishes")
-        self.open_at_finish.setChecked(True)
-        self.log = QPlainTextEdit()
+        self.WC_openAtFinish = QCheckBox("Open file when export finishes")
+        self.WC_openAtFinish.setChecked(True)
+        self.W_log = QPlainTextEdit()
 
         def log_update(x):
             """
             just inserting line and scrolling to the end of the log
             :param x: log line
             """
-            self.log.insertPlainText(f"{x}\n")
-            self.log.ensureCursorVisible()
+            self.W_log.insertPlainText(f"{x}\n")
+            self.W_log.ensureCursorVisible()
 
         self.PDF_exporter.log.connect(log_update)
 
@@ -1306,13 +1071,13 @@ class Exporter(QDialog):
         self.B_export = QPushButton("Export")
         self.B_export.clicked.connect(self.export)
 
-        self.main_layout.addLayout(LineLayout(self, "Path : ", self.path_line, self.path_browse))
-        self.main_layout.addLayout(LineLayout(self, self.print_quality, "Zoom factor : ", self.zoom_factor))
-        self.main_layout.addLayout(LineLayout(self, "Start Page : ", self.min_range, "End Page : ", self.max_range))
-        self.main_layout.addWidget(self.log)
-        self.main_layout.setStretchFactor(self.log, 1)
-        self.main_layout.addLayout(LineLayout(self, self.open_at_finish))
-        self.main_layout.addLayout(LineLayout(self, self.B_cancel, self.B_export))
+        self.L_main.addLayout(LineLayout(self, "Path : ", self.WI_path, self.B_browse))
+        self.L_main.addLayout(LineLayout(self, self.WC_quality, "Zoom factor : ", self.W_zoomFactor))
+        self.L_main.addLayout(LineLayout(self, "Start Page : ", self.WI_minRange, "End Page : ", self.WI_maxRange))
+        self.L_main.addWidget(self.W_log)
+        self.L_main.setStretchFactor(self.W_log, 1)
+        self.L_main.addLayout(LineLayout(self, self.WC_openAtFinish))
+        self.L_main.addLayout(LineLayout(self, self.B_cancel, self.B_export))
 
     def export(self):
         """
@@ -1324,21 +1089,23 @@ class Exporter(QDialog):
             palette = QApplication.palette()
             palette.setColor(QPalette.ColorRole.Text, Qt.black)
             QApplication.setPalette(palette)
+            palette.setColor(QPalette.ColorRole.Text, QColor(169, 183, 198))
+            self.setPalette(palette)
 
-        self.log.clear()
+        self.W_log.clear()
 
         # forwarding some settings to the PDF Exporter
         self.PDF_exporter.settings.update({
-            'path': self.path_line.text(),
-            'factor': self.zoom_factor.value(),
-            'hq': self.print_quality.isChecked()
+            'path': self.WI_path.text(),
+            'factor': self.W_zoomFactor.value(),
+            'hq': self.WC_quality.isChecked()
         })
 
         # some additional params if we export multiple page
         if S.LOCAL.hasPDF() and S.LOCAL.connected:
             self.PDF_exporter.settings.update({
                 'viewer': self.settings['viewer'],
-                'range': (self.min_range.value(), self.max_range.value() + 1)
+                'range': (self.WI_minRange.value(), self.WI_maxRange.value() + 1)
             })
             self.PDF_exporter.run()
 
@@ -1350,7 +1117,6 @@ class Exporter(QDialog):
 
         # when export's done, we revert to dark mode
         if S.GLOBAL.theme == 'dark':
-            palette.setColor(QPalette.ColorRole.Text, Qt.white)
             QApplication.setPalette(palette)
 
     def pick_file(self):
@@ -1365,18 +1131,18 @@ class Exporter(QDialog):
 
         if dialog.exec_() == dialog.Accepted:
             filename = dialog.selectedFiles()
-            self.path_line.setText(filename[0])
+            self.WI_path.setText(filename[0])
             self.PDF_exporter.path = filename[0]
 
     def post_treatment(self):
         """
         Performs some post treatment to store the settings used
         """
-        if self.open_at_finish.isChecked():
-            win32api.ShellExecute(0, "open", self.path_line.text(), '', None, 1)
+        if self.WC_openAtFinish.isChecked():
+            win32api.ShellExecute(0, "open", self.WI_path.text(), '', None, 1)
 
         # storing the previous export
-        self.settings['previous_export'] = self.path_line.text()
+        self.settings['previous_export'] = self.WI_path.text()
 
     def show(self):
         """
@@ -1391,19 +1157,19 @@ class Exporter(QDialog):
         except (ValueError, AssertionError) as e:
             G.exception(e)
             # otherwise we disable this feature
-            self.min_range.setDisabled(True)
-            self.max_range.setDisabled(True)
+            self.WI_minRange.setDisabled(True)
+            self.WI_maxRange.setDisabled(True)
 
         else:
             # setting the values
-            for item in (self.min_range, self.max_range):
+            for item in (self.WI_minRange, self.WI_maxRange):
                 item.setMinimum(mini)
                 item.setMaximum(maxi)
 
-            self.min_range.setValue(mini)
-            self.max_range.setValue(maxi)
+            self.WI_minRange.setValue(mini)
+            self.WI_maxRange.setValue(maxi)
 
-        self.log.clear()
+        self.W_log.clear()
 
         super(Exporter, self).show()
 
@@ -1439,20 +1205,20 @@ class Conjugate(QDialog):
         self.textCursor = QTextCursor()
 
         # UI stuffs
-        self.main_layout = QVBoxLayout()
-        self.setLayout(self.main_layout)
+        self.L_main = QVBoxLayout()
+        self.setLayout(self.L_main)
 
-        self.sub_content = QLabel(self)
-        self.sub_content.linkActivated.connect(self.setWord)
+        self.WL_subContent = QLabel(self)
+        self.WL_subContent.linkActivated.connect(self.setWord)
 
-        self.scrollable = QScrollArea(self)
+        self.W_scrollArea = QScrollArea(self)
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.addWidget(self.sub_content)
-        self.scrollable.setWidget(widget)
-        self.scrollable.setWidgetResizable(True)
+        layout.addWidget(self.WL_subContent)
+        self.W_scrollArea.setWidget(widget)
+        self.W_scrollArea.setWidgetResizable(True)
 
-        self.main_layout.addWidget(self.scrollable)
+        self.L_main.addWidget(self.W_scrollArea)
 
         self.setMinimumSize(1200, 500)
 
@@ -1542,7 +1308,7 @@ class Conjugate(QDialog):
             html_text += sub_html
 
         # display the complete conjugation table
-        self.sub_content.setText(html_text)
+        self.WL_subContent.setText(html_text)
 
 
 class Jumper(QDialog):
@@ -1567,20 +1333,20 @@ class Jumper(QDialog):
         self.setWindowIcon(G.icon('Book-Spelling'))
 
         self.setFixedWidth(400)
-        self.search_field = SearchField(self)
-        self.search_field.keyPressed.connect(self.preview)
+        self.WI_searchField = SearchField(self)
+        self.WI_searchField.keyPressed.connect(self.preview)
 
-        self.search_field.setFont(G.get_font(2))
-        self.result_title = QLabel(self)
-        self.result_title.setFont(G.get_font(2))
+        self.WI_searchField.setFont(G.get_font(2))
+        self.WL_result = QLabel(self)
+        self.WL_result.setFont(G.get_font(2))
 
-        self.main_layout = QVBoxLayout(self)
-        self.main_layout.addWidget(self.search_field)
-        self.main_layout.addWidget(self.result_title)
-        self.main_layout.setSpacing(0)
+        self.L_main = QVBoxLayout(self)
+        self.L_main.addWidget(self.WI_searchField)
+        self.L_main.addWidget(self.WL_result)
+        self.L_main.setSpacing(0)
 
     def preview(self):
-        self.result_title.setText(S.LOCAL.BOOKMAP.getTextResult(self.search_field.text()))
+        self.WL_result.setText(S.LOCAL.BOOKMAP.getTextResult(self.WI_searchField.text()))
 
     def keyPressEvent(self, e: QKeyEvent) -> None:
         """
@@ -1589,7 +1355,7 @@ class Jumper(QDialog):
         if e.key() == Qt.Key.Key_Return:
 
             # finalizing the result before signal emission
-            cmd = self.search_field.text()
+            cmd = self.WI_searchField.text()
 
             # getting status for Alt, Ctrl and Shift
             modifiers = QApplication.keyboardModifiers()
@@ -1609,3 +1375,40 @@ class Jumper(QDialog):
             self.close()
 
         super(Jumper, self).keyPressEvent(e)
+
+
+class DateTimePickerDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent=parent)
+        self.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Minimum)
+        self.setModal(True)
+        L_main = QVBoxLayout()
+
+        self.W_datetimePicker = QDateTimeEdit(self)
+        self.W_datetimePicker.setCalendarPopup(True)
+        self.W_datetimePicker.setDateTime(QDateTime.currentDateTime())
+
+        W_buttonBox = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+
+        W_buttonBox.accepted.connect(self.accept)
+        W_buttonBox.rejected.connect(self.reject)
+
+        L_main.addWidget(self.W_datetimePicker)
+        L_main.addWidget(W_buttonBox)
+        self.setLayout(L_main)
+
+    # get current date and time from the dialog
+    def dateTime(self):
+        return self.W_datetimePicker.dateTime()
+
+    # static method to create the dialog and return (date, time, accepted)
+    @staticmethod
+    def getDateTime(parent=None, t: int = 0):
+        dialog = DateTimePickerDialog(parent)
+        if t:
+            dialog.W_datetimePicker.setDateTime(QDateTime.fromSecsSinceEpoch(t))
+
+        result = dialog.exec_()
+        date = dialog.dateTime()
+
+        return date.toMSecsSinceEpoch() / 1000, result == QDialog.Accepted

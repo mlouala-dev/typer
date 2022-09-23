@@ -15,8 +15,8 @@ QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
 from UI import QuranWorker, Editor
 from UI.HadithWorker import HadithSearch
-from UI.Modules import Settings, Navigator, GlobalSearch, Exporter, Jumper, TopicsBar, BreadCrumbs
-from UI.MainComponents import StatusBar, Summary, TitleBar, MainToolbar, SplashScreen, TextToolbar
+from UI.Dialogs import Settings, Navigator, GlobalSearch, Exporter, Jumper
+from UI.Components import StatusBar, Summary, TitleBar, MainToolbar, SplashScreen, TextToolbar, TopicsBar, BreadCrumbs
 
 from tools import G, PDF, Audio, S, T
 
@@ -214,7 +214,7 @@ class TyperWIN(QMainWindow):
         _splash.deleteLater()
 
         # SIGNALS
-        T.SPELL.finished.connect(self.typer.syntaxhighlighter.rehighlight)
+        T.SPELL.finished.connect(self.typer.W_syntaxHighlighter.rehighlight)
         T.SPELL.build()
 
         self.typer.contentEdited.connect(self.setModified)
@@ -614,6 +614,11 @@ class TyperWIN(QMainWindow):
         self.typer.ensureCursorVisible()
         self.typer.setTextCursor(cursor)
 
+        if S.LOCAL.audio_map:
+            self.typer.enableAudioMap()
+        else:
+            self.typer.disableAudioMap()
+
     @G.log
     def saveSettings(self):
         """
@@ -797,8 +802,20 @@ class TyperWIN(QMainWindow):
                 cursor = db.cursor()
                 source_dict = S.LOCAL.Dict(db, cursor)
 
-                for word in source_dict:
-                    S.LOCAL.DICT.soft_add(word)
+                S.POOL.waitForDone()
+
+                worker = S.LOCAL.DICT.Worker(
+                    source_dict.words,
+                    S.LOCAL.DICT.updateFromExisting,
+                    existing={
+                        'words': S.LOCAL.DICT.words,
+                        'hashes': S.LOCAL.DICT.hashes,
+                        'word_roots': S.LOCAL.DICT.word_roots,
+                        'word_wide_roots': S.LOCAL.DICT.word_wide_roots
+                    }
+                )
+
+                S.POOL.start(worker, uniq='digest')
 
             else:
                 with open(filename, mode="r", encoding="utf-8") as f:
@@ -807,19 +824,9 @@ class TyperWIN(QMainWindow):
                         if T.SPELL.block_check(line):
                             content.append(line)
 
-                    x, s = 0, len(content) // S.POOL.maxThreadCount()
-
-                    for y in range(s, len(content), s):
-                        S.LOCAL.DICT.digest('\n'.join(content[x:y]))
-                        self.updateStatus(int(90 * (x / s)),
-                                          'Digesting words from existing project...')
-                        x = y
-
-                    S.POOL.waitForDone()
-                    S.LOCAL.DICT.update_words()
+                    S.LOCAL.DICT.digest('\n'.join(content))
 
             self.updateStatus(90, 'Saving')
-            S.LOCAL.DICT.save()
 
             self.updateStatus(100, 'Digested')
 
@@ -832,10 +839,8 @@ class TyperWIN(QMainWindow):
 
         # We forward all wanted settings to the TyperExport module
         self.exporter.settings.update({
-            'book': self._book,
             'typer': self.typer,
-            'viewer': self.viewer,
-            'dark_mode': self.dark_mode
+            'viewer': self.viewer
         })
 
         # then display export's dialog
@@ -1050,12 +1055,15 @@ class TyperWIN(QMainWindow):
                 e.ignore()
                 return
 
+        self.updateStatus(20, 'Saving geometry...')
         self.bakeGeometry()
         S.LOCAL.saveVisualSettings()
 
+        self.updateStatus(30, 'Saving geometry...')
         if S.LOCAL.viewer_external:
             self.viewer_frame.close()
 
+        self.updateStatus(50, 'Saving geometry...')
         if S.LOCAL.PDF:
             try:
                 self.viewer.doc.close()
@@ -1064,6 +1072,11 @@ class TyperWIN(QMainWindow):
             finally:
                 os.unlink(S.LOCAL.PDF)
 
+        self.updateStatus(80, 'Abording tasks...')
+        S.POOL.clear()
+        S.POOL.waitForDone()
+
+        self.updateStatus(90, 'Releasing files...')
         for file in S.LIB.files.values():
             os.unlink(file)
 

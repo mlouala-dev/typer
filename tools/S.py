@@ -67,11 +67,12 @@ class _Pool(QThreadPool):
 
         super().start(job)
 
-    def jobDone(self, name:str):
+    def jobDone(self, name: str):
         self.jobs.remove(name)
         self.count = self.count - 1
 
-    def uniqJobDone(self, uniqid):
+    def uniqJobDone(self, uniqid, name):
+        self.jobs.remove(name)
         self.uniqids.remove(uniqid)
         self.count = self.count - 1
 
@@ -199,37 +200,39 @@ class GlobalSettings(_Settings):
             prev_verse, prev_surat = 1, 1
             for num, surat, verse in self.cursor.execute('SELECT * FROM pages ORDER BY page ASC, surat ASC').fetchall():
                 if surat != prev_surat:
-                    prev_verse = 1
+                    prev_verse = 0
 
-                page = self.Page(num)
+                if num in self.pages:
+                    page = self.pages[num]
+                else:
+                    page = self.Page(num)
+                    self.pages[num] = page
+
                 for ayat in self.surats[surat].ayats[prev_verse:verse]:
                     page.ayats.append(ayat)
                     ayat.page = page
 
                 self.surats[surat].pages.append(page)
-                self.pages[num] = page
 
                 prev_verse = verse
                 prev_surat = surat
 
-            print(self.pages[600])
-            print(self.getPageContent(600))
-
         def getPageContent(self, num: int):
-            page_content = ['']
+            page_content = [[]]
             page = self.pages[num].ayats
             previous_surat = page[0].surat.num
 
             for ayat in page:
                 if ayat.surat.num != previous_surat:
-                    page_content.append('')
-                else:
-                    page_content[-1] += ' ۝ '
+                    page_content.append([])
+                    previous_surat = ayat.surat.num
 
-                page_content[-1] += ayat.text
-                print(ayat.text)
+                page_content[-1].append(ayat)
 
             return page_content
+
+        def getSuratContent(self, num: int):
+            return [x.text for x in self.surats[num].ayats]
 
     class Style:
         name = 'Empty'
@@ -246,7 +249,7 @@ class GlobalSettings(_Settings):
         darkColor = QColor(45, 45, 45)
         disabledColor = QColor(127, 127, 127)
         whiteText = QColor(169, 183, 198)
-        highlight =  QColor(42, 130, 218)
+        highlight = QColor(42, 130, 218)
         palette.setColor(QPalette.ColorRole.Window, darkColor)
         palette.setColor(QPalette.ColorRole.WindowText, whiteText)
         palette.setColor(QPalette.ColorRole.Base, QColor(28, 28, 28))
@@ -772,18 +775,37 @@ class LocalSettings(_Settings):
         class Worker(QRunnable):
             name = 'Dictionnary'
 
-            def __init__(self, words, callback_fn):
+            def __init__(self, words, callback_fn, existing=None):
                 super().__init__()
 
                 self.callback_fn = callback_fn
                 self.words_to_process = words
 
-                self.words = []
-                self.hashes = []
-                self.word_roots = {}
-                self.word_wide_roots = {}
+                self.news = set()
+                self.updates = set()
 
-            def run(self):
+                if existing:
+                    self.words = existing['words']
+                    self.hashes = existing['hashes']
+                    self.word_roots = existing['word_roots']
+                    self.word_wide_roots = existing['word_wide_roots']
+
+                    self.runFrom = self.runFromExisting
+
+                else:
+                    self.words = []
+                    self.hashes = []
+                    self.word_roots = {}
+                    self.word_wide_roots = {}
+
+                    self.runFrom = self.runFromScratch
+
+            def __getitem__(self, item):
+                i = self.hashes.index(hash(item))
+                return self.words[i]
+
+            @G.log
+            def runFromScratch(self):
                 for word in self.words_to_process:
                     try:
                         assert word.previous in self.word_roots[word.root]
@@ -805,10 +827,50 @@ class LocalSettings(_Settings):
                         self.words.append(word)
                         self.hashes.append(hash(word))
 
+            @G.log
+            def runFromExisting(self):
+                for word in self.words_to_process:
+                    try:
+                        self[word].count += 1
+                        self.updates.add(self[word])
+
+                    # word not find
+                    except ValueError:
+                        try:
+                            assert word.previous in self.word_roots[word.root]
+                            self.word_roots[word.root][word.previous].append(word)
+                            self.word_wide_roots[word.root].append(word)
+
+                        # root not find
+                        except KeyError:
+                            self.word_roots[word.root] = {}
+                            self.word_roots[word.root][word.previous] = [word]
+                            self.word_wide_roots[word.root] = [word]
+
+                        # word previous is not an array
+                        except AssertionError:
+                            self.word_roots[word.root][word.previous] = [word]
+                            self.word_wide_roots[word.root].append(word)
+
+                        finally:
+                            self.words.append(word)
+                            self.news.add(word)
+                            self.hashes.append(hash(word))
+
+                    finally:
+                        self.word_roots[word.root][word.previous].sort(reverse=True)
+                        self.word_wide_roots[word.root].sort(reverse=True)
+
+            def run(self):
+                self.runFrom()
+
                 self.callback_fn(
                     self.word_wide_roots,
+                    self.word_roots,
                     self.words,
-                    self.hashes
+                    self.hashes,
+                    self.news,
+                    self.updates
                 )
 
                 self.done(self.name)
@@ -829,7 +891,8 @@ class LocalSettings(_Settings):
 
             if self._cursor:
                 self.words_to_process = [self.Word(w, c, p) for w, c, p in self._cursor.execute('SELECT * FROM dict').fetchall()]
-                worker = self.Worker(self.words_to_process, self.update)
+                worker = self.Worker(self.words_to_process, self.updateFromScratch)
+
                 POOL.start(worker)
 
         def __getitem__(self, item: Word) -> Word:
@@ -843,70 +906,20 @@ class LocalSettings(_Settings):
             for word in self.words:
                 yield word
 
-        def add(self, word: Word):
-            try:
-                self[word].count += 1
-                self.updates.add(self[word])
-
-            # word not find
-            except ValueError:
-                try:
-                    assert word.previous in self.word_roots[word.root]
-                    self.word_roots[word.root][word.previous].append(word)
-                    self.word_wide_roots[word.root].append(word)
-
-                # root not find
-                except KeyError:
-                    self.word_roots[word.root] = {}
-                    self.word_roots[word.root][word.previous] = [word]
-                    self.word_wide_roots[word.root] = [word]
-
-                # word previous is not an array
-                except AssertionError:
-                    self.word_roots[word.root][word.previous] = [word]
-                    self.word_wide_roots[word.root].append(word)
-
-                finally:
-                    self.words.append(word)
-                    self.news.add(word)
-                    self.hashes.append(hash(word))
-
-            finally:
-                self.word_roots[word.root][word.previous].sort(reverse=True)
-                self.word_wide_roots[word.root].sort(reverse=True)
-
-        def soft_add(self, word: Word):
-            self[word].count += word.count
-            self.updates.add(self[word])
-
-            try:
-                assert word.previous in self.word_roots[word.root]
-                self.word_roots[word.root][word.previous].append(word)
-
-            # root not find
-            except KeyError:
-                self.word_roots[word.root] = {}
-                self.word_roots[word.root][word.previous] = [word]
-
-            # word previous is not an array
-            except AssertionError:
-                self.word_roots[word.root][word.previous] = [word]
-
-            finally:
-                self.word_roots[word.root][word.previous].sort(reverse=True)
-                self.word_wide_roots[word.root].sort(reverse=True)
-
-        def update(self, word_wide_roots, words, hashes):
+        def updateFromScratch(self, word_wide_roots, word_roots, words, hashes, *args):
             self.word_wide_roots.update(word_wide_roots)
-            self.words.extend(words)
+            self.word_roots.update(word_roots)
             self.news.update(words)
+            self.words.extend(words)
             self.hashes.extend(hashes)
 
-        def update_words(self):
-            for word in self.news:
-                self.soft_add(word)
-
-            self.save()
+        def updateFromExisting(self, word_wide_roots, word_roots, words, hashes, news, updates):
+            self.word_wide_roots = word_wide_roots
+            self.word_roots = word_roots
+            self.words = words
+            self.hashes = hashes
+            self.news = news
+            self.updates = updates
 
         def digest(self, text: str):
             digest_list = []
@@ -922,8 +935,18 @@ class LocalSettings(_Settings):
                     else:
                         digest_list.append(self.Word(word_text, previous=phrase[i]))
 
-            worker = self.Worker(digest_list, self.update)
-            POOL.start(worker)
+            worker = self.Worker(
+                digest_list,
+                self.updateFromExisting,
+                existing={
+                    'words': self.words,
+                    'hashes': self.hashes,
+                    'word_roots': self.word_roots,
+                    'word_wide_roots': self.word_wide_roots
+                }
+            )
+
+            POOL.start(worker, uniq='digest')
 
         def find(self, word: Word, wide=False):
             """
@@ -1294,6 +1317,7 @@ class LocalSettings(_Settings):
                                     (self.viewer_geometry[1], 'viewer_y'),
                                     (self.viewer_geometry[2], 'viewer_w'),
                                     (self.viewer_geometry[3], 'viewer_h'),
+                                    (int(self.audio_map), 'audio_map')
                                 ])
 
         self.db.commit()
