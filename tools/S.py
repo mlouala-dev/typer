@@ -7,22 +7,73 @@ import html
 import tempfile
 import os
 import re
+from functools import partial
+from importlib.machinery import SourceFileLoader
 
 from PyQt5.QtWidgets import QApplication, QStyleFactory
 from PyQt5.QtGui import QPalette, QColor
 from PyQt5.QtCore import Qt, pyqtSignal, QObject, QThreadPool, QRunnable
 
-from tools import G, T
+from tools import G, T, Audio
 from tools.translitteration import translitterate, re_ignore_hamza, clean_harakat
 
 
+class LIB:
+    db = sqlite3.connect(G.rsc_path('ressources.db'))
+    cursor = db.cursor()
+
+    files = {}
+    for name, data, local in cursor.execute('SELECT name,data,local FROM files').fetchall():
+        if local:
+            files[name] = G.abs_path(name)
+        else:
+            files[name] = tempfile.mktemp()
+
+        with open(files[name], 'wb') as f:
+            f.write(data)
+
+    SourceFileLoader("ressources", files['ressources.py']).load_module()
+
+
 class _Pool(QThreadPool):
-    started = pyqtSignal()
-    done = pyqtSignal()
-    step = pyqtSignal(str)
+    state = pyqtSignal(int)
 
     def __init__(self):
+        self._count = 0
+        self.jobs = []
+        self.uniqids = []
         super().__init__()
+
+    @property
+    def count(self):
+        return self._count
+
+    @count.setter
+    def count(self, val):
+        self._count = val
+        self.state.emit(self._count)
+
+    def start(self, job, uniq=None):
+        if uniq and uniq in self.uniqids:
+            return
+        elif uniq:
+            self.uniqids.append(uniq)
+            job.done = partial(self.uniqJobDone, uniq)
+        else:
+            job.done = self.jobDone
+
+        self.count = self.count + 1
+        self.jobs.append(job.name)
+
+        super().start(job)
+
+    def jobDone(self, name:str):
+        self.jobs.remove(name)
+        self.count = self.count - 1
+
+    def uniqJobDone(self, uniqid):
+        self.uniqids.remove(uniqid)
+        self.count = self.count - 1
 
 
 POOL = _Pool()
@@ -93,6 +144,93 @@ class _Settings(QObject):
 
 
 class GlobalSettings(_Settings):
+    class Quran:
+        class Page:
+            def __init__(self, page: int):
+                self.num = page
+                self.ayats = []
+
+            def __repr__(self):
+                return f'[PAGE:{self.num} == {",".join(map(repr, self.ayats))}'
+
+        class Ayat:
+            def __init__(self, num: int, text: str):
+                self.num = num
+                self.text = text
+                self.surat = None
+                self.page = 0
+
+            def __repr__(self):
+                return f'[{self.num}:{self.surat.num}@{self.page.num}]'
+
+        class Surat:
+            def __init__(self, num: int, name: str, name_ar: str, rev: int, place: int):
+                self.num = num
+                self.name = name
+                self.arabic = name_ar
+                self.rev = rev
+                self.place = place
+
+                self.ayats = []
+                self.pages = []
+
+            def __repr__(self):
+                return f'[SURAT:{self.num} == {",".join(map(repr, self.ayats))}'
+
+        def __init__(self):
+            self.db = sqlite3.connect(G.rsc_path('quran.db'))
+            self.cursor = self.db.cursor()
+
+            self.ayats = []
+            self.surats = {}
+            self.pages = {}
+
+            i = 1
+            for name, arabic, revelation, place in self.cursor.execute('SELECT Name, Arabic, Revelation, Place FROM surats').fetchall():
+                self.surats[i] = self.Surat(i, name, arabic, revelation, place)
+                i += 1
+
+            for surat, ayat, txt in self.cursor.execute('SELECT * FROM quran').fetchall():
+                ayat = self.Ayat(ayat, txt)
+                ayat.surat = self.surats[surat]
+                self.surats[surat].ayats.append(ayat)
+                self.ayats.append(ayat)
+
+            prev_verse, prev_surat = 1, 1
+            for num, surat, verse in self.cursor.execute('SELECT * FROM pages ORDER BY page ASC, surat ASC').fetchall():
+                if surat != prev_surat:
+                    prev_verse = 1
+
+                page = self.Page(num)
+                for ayat in self.surats[surat].ayats[prev_verse:verse]:
+                    page.ayats.append(ayat)
+                    ayat.page = page
+
+                self.surats[surat].pages.append(page)
+                self.pages[num] = page
+
+                prev_verse = verse
+                prev_surat = surat
+
+            print(self.pages[600])
+            print(self.getPageContent(600))
+
+        def getPageContent(self, num: int):
+            page_content = ['']
+            page = self.pages[num].ayats
+            previous_surat = page[0].surat.num
+
+            for ayat in page:
+                if ayat.surat.num != previous_surat:
+                    page_content.append('')
+                else:
+                    page_content[-1] += ' ۝ '
+
+                page_content[-1] += ayat.text
+                print(ayat.text)
+
+            return page_content
+
     class Style:
         name = 'Empty'
         palette = QPalette()
@@ -159,6 +297,8 @@ class GlobalSettings(_Settings):
     step = pyqtSignal(int, str)
 
     def __init__(self):
+        self.QURAN = GlobalSettings.Quran()
+
         super().__init__()
         self.filename = G.appdata_path('config.db')
         self.create_db_link()
@@ -175,6 +315,8 @@ class GlobalSettings(_Settings):
         self.audio_sample_rate = self.defaults['audio_sample_rate']
         self.audio_record_epoch = 0
         self.minimum_word_length = self.defaults['minimum_word_length']
+
+        self.AUDIOMAP = Audio.AudioMap
 
     def setTheme(self, theme):
         self.theme = theme
@@ -198,6 +340,7 @@ class GlobalSettings(_Settings):
 
         if os.path.isdir(self.audio_record_path):
             self.audio_record_epoch = int(os.stat(self.audio_record_path).st_ctime)
+            self.AUDIOMAP = Audio.AudioMap(self.audio_record_path)
 
     def loadSettings(self):
         settings = self.loadCoreSettings()
@@ -210,6 +353,7 @@ class GlobalSettings(_Settings):
 
         self.auto_load = bool(settings['auto_load'])
         self.last_file = settings['last_file']
+
         if self.auto_load and not os.path.isfile(self.last_file):
             self.last_file = ''
 
@@ -256,6 +400,7 @@ class LocalSettings(_Settings):
         'viewer_y': 0,
         'viewer_w': 100,
         'viewer_h': 300,
+        'audio_map': False
     }
 
     step = pyqtSignal(int, str)
@@ -272,7 +417,7 @@ class LocalSettings(_Settings):
                 for page, content in self._cursor.execute('SELECT * FROM book').fetchall():
                     self._book[page] = html.unescape(content)
 
-        def getBook(self):
+        def getBook(self) -> dict:
             return self._book
 
         def savePage(self, page: int):
@@ -310,6 +455,15 @@ class LocalSettings(_Settings):
             for key, value in new_book.items():
                 self[key] = value
                 self.setModified(key)
+
+        def minPageNumber(self) -> int:
+            return int(min(self._book.keys()))
+
+        def maxPageNumber(self) -> int:
+            return int(max(self._book.keys()))
+
+        def pages(self) -> list:
+            return list(self._book.keys())
 
         def __getitem__(self, item):
             return self._book[item]
@@ -616,6 +770,8 @@ class LocalSettings(_Settings):
                 }
 
         class Worker(QRunnable):
+            name = 'Dictionnary'
+
             def __init__(self, words, callback_fn):
                 super().__init__()
 
@@ -655,6 +811,8 @@ class LocalSettings(_Settings):
                     self.hashes
                 )
 
+                self.done(self.name)
+
         def __init__(self, db: sqlite3.Connection = None, cursor: sqlite3.Cursor = None):
             self._db = db
             self._cursor = cursor
@@ -671,7 +829,6 @@ class LocalSettings(_Settings):
 
             if self._cursor:
                 self.words_to_process = [self.Word(w, c, p) for w, c, p in self._cursor.execute('SELECT * FROM dict').fetchall()]
-
                 worker = self.Worker(self.words_to_process, self.update)
                 POOL.start(worker)
 
@@ -831,6 +988,9 @@ class LocalSettings(_Settings):
             def __str__(self):
                 return self.name
 
+            def __repr__(self):
+                return self.name
+
             def __hash__(self):
                 return hash(repr(self))
 
@@ -907,6 +1067,7 @@ class LocalSettings(_Settings):
 
         self.summary = self.defaults['summary_visibility']
         self.viewer = self.defaults['viewer_visibility']
+        self.audio_map = self.defaults['audio_map']
         self.viewer_external = self.defaults['viewer_external']
         self.viewer_invert = self.defaults['viewer_invert']
         self.viewer_geometry = (
@@ -1076,6 +1237,7 @@ class LocalSettings(_Settings):
         self.summary = bool(settings['summary_visibility'])
 
         self.viewer = bool(settings['viewer_visibility'])
+        self.audio_map = bool(settings['audio_map'])
         self.viewer_external = bool(settings['viewer_external'])
         self.viewer_invert = bool(settings['viewer_invert'])
         self.viewer_geometry = (

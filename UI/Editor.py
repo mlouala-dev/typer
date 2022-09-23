@@ -1,12 +1,11 @@
 # بسم الله الرحمان الرحيم
-import copy
 import re
 import string
 import os
 import sqlite3
 from time import time, localtime, strftime
 from functools import partial
-from symspellpy import SymSpell, Verbosity
+from symspellpy import Verbosity
 
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
@@ -15,7 +14,7 @@ from PyQt5.QtCore import *
 from UI import QuranWorker
 from UI.Modules import Conjugate
 from tools.styles import Styles, Styles_Shortcut, TyperStyle
-from tools import G, T, S, translitteration
+from tools import G, T, S, translitteration, Audio
 
 
 class Typer(QTextEdit):
@@ -23,18 +22,15 @@ class Typer(QTextEdit):
     The main widget after the window, this is the one which display what used is typing, providing some
     interfacing with the other tools like right click menus & shortcuts
     """
-    symspell: SymSpell
     _win: QMainWindow
 
     symspell = None
     auto_complete = False
     auto_complete_available = True
-    default_font = G.get_font(1.2)
 
     # used to automatically superscript some patterns
     re_numbering = re.compile(r'((1)(ers?|ères?))|((\d+)([èe]mes?))')
     re_textblock = re.compile(r'(.*?>)( +)?[-\u2022]?(<span.*?>\d\)</span>)?( +)?([\w\d]+)(.*?)<', flags=re.IGNORECASE)
-    re_ignoretoken = r'\d|^[A-Z]|ﷺ|ﷻ'
     prophet_match = ('Muhammad', 'Prophète', 'Messager')
 
     contentChanged = pyqtSignal()
@@ -99,32 +95,29 @@ class Typer(QTextEdit):
         self.translitterate_mode = False
 
         self.default_blockFormat = QTextBlockFormat()
-        self.default_blockFormat.setAlignment(Qt.AlignJustify)
-        self.default_blockFormat.setTextIndent(10)
-        self.default_blockFormat.setLineHeight(100.0, 1)
-        self.default_blockFormat.setBottomMargin(10)
-        self.default_blockFormat.setLeftMargin(10)
-        self.default_blockFormat.setRightMargin(10)
+        T.QOperator.ApplyDefault.BlockFormat(self.default_blockFormat)
 
-        self.default_textFormat = QTextCharFormat()
-        self.default_font.setPointSizeF(self.default_font.pointSizeF())
-        self.default_font.setItalic(False)
-        self.default_font.setBold(False)
-        self.default_font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
-        self.default_textFormat.setFont(self.default_font)
-        self.default_textFormat.setProperty(8167, [G.__font__])
+        self.default_font = G.get_font(1.2)
+        T.QOperator.ApplyDefault.Font(self.default_font)
 
-        self.setCurrentCharFormat(self.default_textFormat)
         self.setFont(self.default_font)
         self.setCurrentFont(self.default_font)
-        self.document().setDefaultFont(self.default_font)
-        self.document().setIndentWidth(10)
-        self.document().setDefaultTextOption(QTextOption(Qt.AlignmentFlag.AlignLeft))
+
+        self.default_textFormat = QTextCharFormat()
+        self.default_textFormat.setFont(self.default_font)
+        self.default_textFormat.setProperty(8167, [G.__font__])
+        self.setCurrentCharFormat(self.default_textFormat)
+
+        T.QOperator.ApplyDefault.Document(self.document(), self.default_font)
+
         self.document().blockCountChanged.connect(self.contentChanged.emit)
         self.textCursor().setBlockFormat(self.default_blockFormat)
 
         # applying a simple syntax highlighter
         self.syntaxhighlighter = TyperHighlighter(self, self.document())
+
+        self.audio_map = TyperAudioMap(self)
+        self.enableAudioMap()
 
     @property
     def word(self):
@@ -216,6 +209,8 @@ class Typer(QTextEdit):
             func(block)
 
         tc.endEditBlock()
+
+        self.solveAudioMap()
 
     def offsetIndent(self, direction: int, block: QTextBlock):
         """
@@ -434,6 +429,8 @@ class Typer(QTextEdit):
 
             elif isinstance(obj, S.LocalSettings.BookMap.Hadith):
                 self.insertHtml(f'<h3><center>{obj.toHtml()}</center></h3>')
+
+            T.HTML.insertParagraphTime(tc)
             tc.insertBlock()
 
         else:
@@ -461,7 +458,7 @@ class Typer(QTextEdit):
             r = f'{obj.kid}_{obj.id}'
 
         elif isinstance(obj, S.LocalSettings.BookMap.Hadith):
-            r = f'{obj.kid}_{obj.bid}_{obj.id}'
+            r = f'{obj.id}'
 
         self.textCursor().insertText(f'#_REF_{r}_#')
 
@@ -513,21 +510,51 @@ class Typer(QTextEdit):
         tc, word = action.data()
         tc.insertHtml(word)
 
-    def addWord(self, word: str, state):
-        """
-        add a new word to the dictionary
-        TODO: upgrade to S.GLOBAL
-        :param word: new word
-        :param state: just the state sent by the signal
-        """
-        f = open(self._win.dictionnary.dict_path, 'a', encoding='utf-8')
+    def applyDefaultDocument(self, doc: QTextDocument):
+        doc.setDefaultFont(self.default_font)
+        doc.setIndentWidth(10)
+        doc.setDefaultTextOption(QTextOption(Qt.AlignmentFlag.AlignLeft))
 
-        # adding a new line for the word and a frequency of 1
-        f.write(f'\n{word}\t1')
-        f.close()
+    # AUDIO MAP
 
-        # reloading the dictionary
-        self._win.dictionnary.start()
+    def enableAudioMap(self):
+        if not S.LOCAL.audio_map:
+            return
+
+        self.audio_map.show()
+        self.document().blockCountChanged.connect(self.graphAudioMap)
+        self.document().blockCountChanged.connect(self.solveAudioMap)
+        self.verticalScrollBar().sliderMoved.connect(self.audio_map.update)
+        self.verticalScrollBar().sliderReleased.connect(self.graphAudioMap)
+        self.verticalScrollBar().sliderReleased.connect(self.solveAudioMap)
+        self.graphAudioMap()
+        self.solveAudioMap()
+
+    def disableAudioMap(self):
+        if not S.LOCAL.audio_map:
+            return
+
+        self.audio_map.hide()
+
+        try:
+            self.document().blockCountChanged.disconnect(self.graphAudioMap)
+            self.document().blockCountChanged.disconnect(self.solveAudioMap)
+            self.verticalScrollBar().sliderMoved.disconnect(self.audio_map.update)
+            self.verticalScrollBar().sliderReleased.disconnect(self.graphAudioMap)
+            self.verticalScrollBar().sliderReleased.disconnect(self.solveAudioMap)
+
+        except TypeError:
+            pass
+
+    def graphAudioMap(self):
+        html = self.toHtml()
+        if html != self.audio_map.page and len(self.toPlainText().strip()):
+            self.audio_map.page = html
+            S.POOL.start(T.QOperator.graphBlockMap(self.document(), self.audio_map.setMap), uniq='graph')
+
+    def solveAudioMap(self):
+        if len(self.audio_map.map):
+            S.POOL.start(T.QOperator.solveAudioMapping(self.toHtml(), self.audio_map.addSolver), uniq='solve')
 
     # MENUS
 
@@ -609,8 +636,8 @@ class Typer(QTextEdit):
         """
 
         # looking for corrections
-        suggestions = self.symspell.lookup(text, ignore_token=self.re_ignoretoken, max_edit_distance=2,
-                                           verbosity=Verbosity.CLOSEST, include_unknown=False, transfer_casing=False)
+        suggestions = T.SPELL.lookup(text, max_edit_distance=2, verbosity=Verbosity.CLOSEST,
+                                     include_unknown=False, transfer_casing=False)
 
         # adding results to menu
         self.insertItemsToMenu([a.term for a in suggestions], cursor, menu)
@@ -774,9 +801,8 @@ class Typer(QTextEdit):
                     if ratio <= 0.15 and not self.word[0].isupper():
                         # applies an automatic spell correction, the ignore token to be sure we don't try
                         # to correct the digits, proper names or glyphs
-                        suggestions = self.symspell.lookup(self.word, ignore_token=self.re_ignoretoken,
-                                                           max_edit_distance=1, verbosity=Verbosity.TOP,
-                                                           include_unknown=True, transfer_casing=True)
+                        suggestions = T.SPELL.lookup(self.word, max_edit_distance=1, verbosity=Verbosity.TOP,
+                                                     include_unknown=True, transfer_casing=True)
 
                         # this is the first and closest correction
                         correction = suggestions[0].term
@@ -806,12 +832,7 @@ class Typer(QTextEdit):
                 super().keyPressEvent(e)
 
         elif e.key() == Qt.Key_Return:
-            c_block = self.textCursor()
-            c_block.select(QTextCursor.BlockUnderCursor)
-            if not T.HTML.hasParagraphTime(c_block.selection().toHtml()):
-                c_block.movePosition(QTextCursor.MoveOperation.StartOfBlock, QTextCursor.MoveMode.MoveAnchor)
-                c_block.insertHtml(f'''<p><img src="paragraph_time_{int(time())}"
-                 width="0" height="{int(self.fontMetrics().height())}" /></p>''')
+            T.HTML.insertParagraphTime(self.textCursor())
 
         # this means we enter the translitterate mode, this is equivalent to type on Alt+Gr
         # TODO: find another less annoying shortcut, should be customizable by the user
@@ -1170,6 +1191,61 @@ class Typer(QTextEdit):
         addseparator.triggered.connect(lambda: self.insertHtml('<hr />'))
         menu.insertAction(menu.actions()[0], addseparator)
 
+        def add_page_content():
+            res = re.findall(
+                r'(۞)|<span style=\"[\w\d;:\., #\'\-]*font-size:30pt;[\w\d;:\., #\'\-]*\">(.*?)</span>|\[<span style=\"[\w\d;:\., #\'\-]*font-size:14.4pt;[\w\d;:\., #\'\-]*\">(.*?)</span>]|<span style=\"[\w\d;:\., #\'\-]*font-size:14.4pt;[\w\d;:\., #\'\-]*\"> ?\[(.*?)] ?</span>|<span style=\"[\w\d;:\., #\'\-]*color:#267dff;[\w\d;:\., #\'\-]*\">(.*?)</span>|<span style=\" font-family:\'Microsoft Uighur\';\"> ?\[(.*?)] ?</span>',
+                self.toHtml(), flags=re.MULTILINE)
+
+            ayat = S.GLOBAL.QURAN.pages[S.LOCAL.page - 1].ayats[0].num
+
+            result = ''
+            new_line = True
+            for x, s, a, b, c, d in res:
+                print(s)
+                if len(x) or '﴿' in a or '﴿' in b or '﴿' in c or '﴿' in d or len(s.strip()):
+                    if len(x) and new_line:
+                        continue
+                    if len(s.strip()):
+                        result += f'</p><p>\n{s.strip()}'
+                        ayat = 1
+                    else:
+                        result += f'</p><p>\n{ayat}. '
+                        ayat += 1
+                    new_line = True
+                    continue
+
+                if len(c.strip()) and c.strip()[0] in translitteration.arabic_hurufs:
+                    c = ''
+
+                line = ' '.join([a, b, c, d])
+                result += line
+
+                if len(line.strip()):
+                    new_line = False
+
+            result = re.sub(r'\(.*?\)', '', result)
+            result = result.replace('[', '').replace(']', '')
+            result = re.sub(r' {2,}', ' ', result)
+            result += '</p><hr />'
+
+            tc = self.textCursor()
+            tc.beginEditBlock()
+            tc.setPosition(0, tc.MoveMode.MoveAnchor)
+            tc.insertBlock()
+            tc.setPosition(0, tc.MoveMode.MoveAnchor)
+            tc.insertHtml(result)
+            tc.endEditBlock()
+            tc.movePosition(tc.MoveOperation.PreviousBlock, tc.MoveMode.MoveAnchor)
+            tc.setPosition(0, tc.MoveMode.KeepAnchor)
+            self.setTextCursor(tc)
+            self.ensureCursorVisible()
+            # apply the style to the whold text block
+            self.applyOverallBlock(partial(self.toggleFormat, Styles.Default))
+
+        addpagecontent = QAction('Make translation from text', menu)
+        addpagecontent.triggered.connect(add_page_content)
+        menu.insertAction(menu.actions()[0], addpagecontent)
+
         # getting the word
         tc = self.cursorForPosition(pos)
         tc.select(QTextCursor.WordUnderCursor)
@@ -1182,11 +1258,20 @@ class Typer(QTextEdit):
         block = c_block.block()
         html_block = T.HTML.extractTextFragment(c_block.selection().toHtml())
 
+        if S.LOCAL.audio_map:
+            block_audio = self.audio_map.getSolver(block.blockNumber())
+            if block_audio > -1:
+                paragraph_realtime = T.HTML.paragraphTime(html_block)
+                open_audio = QAction(f"Open audio at time", menu)
+                open_audio.triggered.connect(partial(S.GLOBAL.AUDIOMAP.play, block_audio, paragraph_realtime))
+                menu.insertAction(menu.actions()[0], open_audio)
+
         if T.HTML.hasParagraphTime(html_block):
-            paragraph_time = strftime('%Y-%m-%d %H:%M:%S', localtime(T.HTML.paragraphTime(html_block)))
-            conj_sep = QAction(f"Date : {paragraph_time}", menu)
-            conj_sep.setDisabled(True)
-            menu.insertAction(menu.actions()[0], conj_sep)
+            paragraph_realtime = T.HTML.paragraphTime(html_block)
+            paragraph_time = strftime('%Y-%m-%d %H:%M:%S', localtime(paragraph_realtime))
+            audio_time = QAction(f"Date : {paragraph_time}", menu)
+            audio_time.setDisabled(True)
+            menu.insertAction(menu.actions()[0], audio_time)
 
         # insert a separator to the beginning
         menu.insertSeparator(menu.actions()[0])
@@ -1196,7 +1281,7 @@ class Typer(QTextEdit):
             # extract the correct filename
             audio_file = T.Regex.src_audio_path.sub(r'\1', html_text)
 
-            audio_path = os.path.join(S.GLOBAL.audio_record_path, f'{audio_file}.wav')
+            audio_path = os.path.join(S.GLOBAL.audio_record_path, f'{audio_file}.ogg')
 
             def removeAudio(path: str, cursor_pos: QPoint):
                 """
@@ -1239,7 +1324,10 @@ class Typer(QTextEdit):
             menu.insertAction(menu.actions()[0], delete_audio_menu)
 
             # adding the play audio menu
-            real_time = S.GLOBAL.audio_record_epoch + int(audio_file)
+            if '_' in audio_file:
+                real_time = int(audio_file.split('_')[0])
+            else:
+                real_time = S.GLOBAL.audio_record_epoch + int(audio_file)
             time_str = strftime('%Y-%m-%d %H:%M:%S', localtime(real_time))
             audio_menu = QAction(f'Open audio ({time_str})', menu)
             audio_menu.triggered.connect(lambda: os.startfile(audio_path))
@@ -1261,7 +1349,7 @@ class Typer(QTextEdit):
                 addword_menu = QAction(f'Add "{text}" to dictionary', menu)
                 addword_menu.setData(text)
                 menu.insertAction(menu.actions()[0], addword_menu)
-                addword_menu.triggered.connect(partial(self.addWord, text))
+                addword_menu.triggered.connect(partial(T.SPELL.add, text))
 
                 # if suggestions for the word are at least one we display the menu
                 if cnt >= 1:
@@ -1300,6 +1388,16 @@ class Typer(QTextEdit):
         super().clear()
         self.textCursor().setBlockFormat(self.default_blockFormat)
 
+    def resizeEvent(self, a0: QResizeEvent) -> None:
+        self.audio_map.resize(5, a0.size().height())
+        super().resizeEvent(a0)
+        self.graphAudioMap()
+        self.solveAudioMap()
+
+    def wheelEvent(self, e: QWheelEvent) -> None:
+        super().wheelEvent(e)
+        self.audio_map.update()
+
 
 class TyperHighlighter(QSyntaxHighlighter):
     """
@@ -1321,17 +1419,13 @@ class TyperHighlighter(QSyntaxHighlighter):
     ref_format.setFontWeight(800)
 
     def __init__(self, parent=None, *args):
-        super(TyperHighlighter, self).__init__(*args)
         self.typer = parent
+        super(TyperHighlighter, self).__init__(*args)
 
     def highlightBlock(self, text):
         """
         Overridden QSyntaxHighlighter method to apply the highlight
         """
-        # abort if no parent or not yet loaded resources
-        if not self.typer or (self.typer and not self.typer.symspell):
-            return
-
         def tokenize(body_text: str) -> (int, str):
             """
             this tokenize the text with a rule
@@ -1340,7 +1434,7 @@ class TyperHighlighter(QSyntaxHighlighter):
             """
             index = 0
             # TODO: this split regex should be an re.unescape(''.join(G.escape...) ???
-            for word_match in re.split(r"[ \-\.\,:;!?\"\'\(\)\[\]]", body_text):
+            for word_match in T.Regex.highlight_split.split(body_text):
                 yield index, word_match
 
                 # increments the current text's index
@@ -1364,16 +1458,13 @@ class TyperHighlighter(QSyntaxHighlighter):
             # otherwise we check if word' spelling is invalid
             else:
                 try:
+                    assert T.SPELL.loaded
                     # first make sure the word's length is correct
                     assert len(word) > 1 and ord(word[0]) != 65532
 
                     # now getting the word correction
-                    suggestions = self.typer.symspell.lookup(word, ignore_token=Typer.re_ignoretoken,
-                                                             max_edit_distance=2, verbosity=Verbosity.TOP,
-                                                             include_unknown=False, transfer_casing=False)
-
                     # abort if word's already in the dictionary
-                    assert suggestions[0].term != word
+                    assert not T.SPELL.word_check(word)
 
                     # if we reach this point it means the word is incorrect and have some spell suggestions
                     self.setFormat(idx, len(word), self.err_format)
@@ -1388,3 +1479,53 @@ class TyperHighlighter(QSyntaxHighlighter):
 
         # applying the data
         self.setCurrentBlockUserData(data)
+
+
+class TyperAudioMap(QWidget):
+    def __init__(self, parent: QTextEdit = None):
+        super().__init__(parent)
+        self.page = ''
+        self._map = {}
+        self.solved = {}
+        self.scrollX = 0
+
+    @property
+    def map(self):
+        return self._map
+
+    @map.setter
+    def map(self, val):
+        self._map = val
+
+    def setMap(self, map: dict):
+        self.map = map
+        self.update()
+
+    def addSolver(self, solver: dict):
+        self.solved.clear()
+        self.solved.update(solver)
+        self.update()
+
+    def getSolver(self, block_id: int):
+        try:
+            return self.solved[block_id]
+        except KeyError:
+            return -2
+
+    def update(self) -> None:
+        self.scrollX = self.parent().verticalScrollBar().value()
+        super().update()
+
+    def paintEvent(self, event):
+        qp = QPainter(self)
+        qp.setPen(Qt.NoPen)
+        qp.translate(0, -self.scrollX)
+
+        for i, bound in enumerate(self._map.values()):
+            s = self.getSolver(i)
+
+            w = 5 if s >= -1 else 2
+            c = self.palette().highlight() if s > 0 else self.palette().alternateBase()
+
+            qp.setBrush(c)
+            qp.drawRect(0, int(bound[0]), w, int(bound[1]))

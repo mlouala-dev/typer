@@ -8,8 +8,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 
 from tools.styles import Styles
-from tools import G
-from rsc import ressources
+from tools import G, S
 
 
 class SplashScreen(QWidget):
@@ -528,8 +527,6 @@ class StatusBar(QStatusBar):
         self.connection_status = QLabel("Connected to...")
 
         self.record_status = QLabel("Recording (00:00) ...", parent=self)
-        self.record_status_icon = QLabel(self)
-        self.record_status_icon.setPixmap(G.pixmap("icons/Control-Play-Blue", size=21))
 
         self.record_volume = StatusBar.VolumeBar(self)
         self.record_volume.setOrientation(Qt.Vertical)
@@ -543,7 +540,6 @@ class StatusBar(QStatusBar):
         self.connection_status_icon.hide()
         self.connection_status.hide()
         self.record_status.hide()
-        self.record_status_icon.hide()
         self.record_volume.hide()
 
         self.progress = QProgressBar(self)
@@ -551,28 +547,30 @@ class StatusBar(QStatusBar):
         self.progress.setTextVisible(False)
         self.progress.setMaximumWidth(300)
 
+        self.processing_blink_state = True
+        self.timer_id = 0
+        self.processing_icon = QLabel(self)
+        self.processing_icon.setPixmap(G.pixmap(f"icons/Apple-Half", size=19))
+        self.processing_icon.setToolTipDuration(1000)
+        self.processing_icon.hide()
         self.not_saved_icon = QLabel(self)
         self.not_saved_icon.setPixmap(G.pixmap("icons/Bullet-Red", size=21))
         self.not_saved_icon.hide()
-        self.processing_icon = QLabel(self)
-        self.processing_icon.setPixmap(G.pixmap("icons/Plant", size=21))
-        self.processing_icon.hide()
         self.saving_icon = QLabel(self)
         self.saving_icon.setPixmap(G.pixmap("icons/Bullet-Orange", size=21))
         self.saving_icon.hide()
         self.saved_icon = QLabel(self)
         self.saved_icon.setPixmap(G.pixmap("icons/Bullet-Green", size=21))
 
+        self.addPermanentWidget(self.processing_icon, 0)
         self.addPermanentWidget(self.page_label, 1)
         self.addPermanentWidget(self.connection_status_icon, 0)
         self.addPermanentWidget(self.connection_status, 0)
-        self.addPermanentWidget(self.record_status_icon, 0)
         self.addPermanentWidget(self.record_volume, 0)
         self.addPermanentWidget(self.record_status, 0)
         self.addPermanentWidget(self.label, 1)
         self.addPermanentWidget(self.progress, 1)
         self.addPermanentWidget(self.not_saved_icon, 0)
-        self.addPermanentWidget(self.processing_icon, 0)
         self.addPermanentWidget(self.saving_icon, 0)
         self.addPermanentWidget(self.saved_icon, 0)
 
@@ -588,7 +586,6 @@ class StatusBar(QStatusBar):
         self.progress.setValue(int(val))
 
         # Forcing ui's redraw
-        self.repaint()
         QApplication.processEvents()
 
     def updateSavedState(self, state: int):
@@ -599,9 +596,9 @@ class StatusBar(QStatusBar):
         2: saved
         :param state: the save status
         """
-        save_status = [self.processing_icon, self.not_saved_icon, self.saving_icon, self.saved_icon]
+        save_status = [self.not_saved_icon, self.saving_icon, self.saved_icon]
         for i, status in enumerate(save_status):
-            status.setVisible(state == (i - 1))
+            status.setVisible(state == i)
 
     def updateRecording(self, sec: int):
         """
@@ -616,9 +613,25 @@ class StatusBar(QStatusBar):
         Display or hide the audio recording widgets
         :param state: recording state
         """
-        self.record_status_icon.setVisible(state)
         self.record_status.setVisible(state)
         self.record_volume.setVisible(state)
+
+    def timerEvent(self, a0: QTimerEvent) -> None:
+        self.processing_blink_state = not self.processing_blink_state
+        self.processing_icon.setPixmap(G.pixmap(f"icons/Apple{'' if self.processing_blink_state else '-Half'}", size=19))
+
+    def loadingState(self, state: int):
+        if state <= 0:
+            self.processing_icon.hide()
+            self.killTimer(self.timer_id)
+            return
+
+        elif self.processing_icon.isHidden():
+            self.processing_icon.show()
+            self.timer_id = self.startTimer(1000)
+
+        joblist = "\n".join(S.POOL.jobs)
+        self.processing_icon.setToolTip(f'Active threads ({S.POOL.activeThreadCount()}) :\n{joblist}')
 
     @G.log
     def setConnection(self, file: str | bool = False):

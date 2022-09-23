@@ -3,12 +3,17 @@
 Some handful text operations especially on HTML code
 NOT IMPLEMENTED YET
 """
+import copy
 import re
+import time
+
+from PyQt5.QtWidgets import QWidget, QApplication
 from symspellpy import SymSpell, Verbosity
 from string import ascii_letters, digits, whitespace
 from html.parser import HTMLParser
 
-from PyQt5.QtCore import QRunnable, pyqtSignal, QObject
+from PyQt5.QtCore import QRunnable, pyqtSignal, QObject, Qt, QSizeF
+from PyQt5.QtGui import QTextDocument, QFont, QTextOption, QTextBlockFormat, QTextCursor, QFontMetrics
 from tools import G, S
 
 
@@ -25,7 +30,7 @@ def buildCharMap(*characters):
 
 class Keys:
     phrase_characters = '.!?'
-    word_characters = '(),:; "_[]' + phrase_characters
+    word_characters = '(),:; "_[]«»' + phrase_characters
     quote_characters = '(\'"'
 
     NewPhrase = buildCharMap(*phrase_characters)
@@ -38,20 +43,25 @@ class Keys:
 
 
 class SpellChecker(QObject):
-    dictionnary: SymSpell
+    dictionary: SymSpell
+    dictionary_path = G.appdata_path("dict.txt")
     finished = pyqtSignal()
 
     class Worker(QRunnable):
+        name = 'SpellChecker'
+
         def __init__(self, callback_fn):
             super().__init__()
             self.callback_fn = callback_fn
 
         def run(self) -> None:
-            dict_path = G.appdata_path("dict.txt")
             sympell = SymSpell(max_dictionary_edit_distance=2, prefix_length=5)
-            sympell.load_dictionary(dict_path, term_index=0, count_index=1, encoding="utf8", separator="\t")
+            sympell.load_dictionary(SpellChecker.dictionary_path, term_index=0,
+                                    count_index=1, encoding="utf8", separator="\t")
 
             self.callback_fn(sympell)
+
+            self.done(self.name)
 
     def __init__(self):
         super().__init__()
@@ -66,6 +76,18 @@ class SpellChecker(QObject):
         self.finished.emit()
         self.loaded = True
 
+    def add(self, word):
+        """
+        add a new word to the dictionary
+        :param word: new word
+        """
+
+        with open(self.dictionary_path, 'a', encoding='utf-8') as f:
+            # adding a new line for the word and a frequency of 1
+            f.write(f'\n{word}\t1')
+
+        self.build()
+
     def lookup(self, *args, **kwargs):
         return self.dictionary.lookup(*args, ignore_token=Regex.re_ignoretoken, **kwargs)
 
@@ -74,7 +96,7 @@ class SpellChecker(QObject):
                                   include_unknown=False, transfer_casing=False)
 
         # abort if word's already in the dictionary
-        return len(suggestions) and suggestions[0].term == word
+        return suggestions[0].term == word
 
     def block_check(self, text: str):
         for word in Regex.highlight_split.split(text):
@@ -193,7 +215,24 @@ class HtmlOperator(HTMLParser):
 
     def paragraphTime(self, block: str) -> int:
         times = Regex.paragraph_time.findall(block)
-        return int(times[0])
+        try:
+            return int(times[0])
+        except IndexError:
+            return 0
+
+    @staticmethod
+    def getParagraphTime(metrics: QFontMetrics = None) -> str:
+        if not metrics:
+            metrics = QFontMetrics(G.get_font())
+        return f'''<p><img src="paragraph_time_{int(time.time())}"
+                 width="0" height="{int(metrics.height())}" /></p>'''
+
+    def insertParagraphTime(self, cursor: QTextCursor):
+        cursor.select(QTextCursor.BlockUnderCursor)
+
+        if not self.hasParagraphTime(cursor.selection().toHtml()):
+            cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock, QTextCursor.MoveMode.MoveAnchor)
+            cursor.insertHtml(self.getParagraphTime())
 
     @staticmethod
     def extractTextFragment(t: str, wide=False) -> str:
@@ -252,16 +291,74 @@ HTML = HtmlOperator()
 TEXT = TextOperator()
 
 
-if __name__ == "__main__":
-    text = '''Ce Coran est une révélation (ou Il l'a fait descendre) du Seigneur des Mondes, est descendu avec l'Esprit Fidèle (Jibril ￼) Il l'a fait descendre sur ton coeur afin que tu sois du nombre des avertisseurs [auprès de ta communauté] en une langue arabe claire. Le Coran (ou la mention du Prophète ﷺ  ou la mention de la religion de l'islam) figure dans les livres (زُبُر) des premiers anciens (la Torah, le انجِيل et les autres livres célestes) N'est pas un signe pour les détracteurs que le fait que les érudits des بَنُ اسرَائِيل le (il y a différents avis sur ce ضَمِير : les propos du Coran, le Prophète) connaissent et si nous l'avions fait descendre sur quelques non arabe et qu'il leur aurait récité il n'y croiraient pas car ça a été révélé en notre langue. Et iil n'y croiront pas aoir d'avoir le châtiment douloureux.
+class QOperator:
+    """
+    Operations over Qt objects
+    """
+    class ApplyDefault:
+        @staticmethod
+        def BlockFormat(blockformat: QTextBlockFormat):
+            blockformat.setAlignment(Qt.AlignJustify)
+            blockformat.setTextIndent(10)
+            blockformat.setLineHeight(100.0, 1)
+            blockformat.setBottomMargin(10)
+            blockformat.setLeftMargin(10)
+            blockformat.setRightMargin(10)
 
-Ainsi nous l'avons fait entrer dans les coeurs des criminels
+        @staticmethod
+        def Document(document: QTextDocument, font: QFont = None):
+            if not font:
+                font = G.get_font(1.2)
 
-19/05
-20/05
-une fourmi avait avert lorsque Soulayman ￼ avait voulu traverser : elle aussi a un soucis pour ses semblables. 
-Soulayman a entendu une fourmi 
-C'est une sourate مَكِّيَّة
-Voici les versets d'un Livre explicite (le Coran) un guide [vers le paradis] et une bonne annonce [de récompense] pour les croyants, ceux ...
-Ceux qui ne croient pas en l'au-delà, nous embellissons à leurs yeux leurs actions, ils pensent être dans le bien, la condition qui valide les actes de biens c'est la foi, certains font de mauvaises actions et se croient être dans le bien. Et ils se montreront hésitants [dans ce monde], Allah nous montre que sans la foi, même si certaines sont reconnues comme étant de bonnes actions'''
-    print(TEXT.split(text))
+            document.setDefaultFont(font)
+            document.setIndentWidth(10)
+            document.setDefaultTextOption(QTextOption(Qt.AlignmentFlag.AlignLeft))
+
+        @staticmethod
+        def Font(font: QFont):
+            font.setItalic(False)
+            font.setBold(False)
+            font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
+
+    class graphBlockMap(QRunnable):
+        name = 'graphBlockMap'
+
+        def __init__(self, document: QTextDocument, callback_fn):
+            self.callback_fn = callback_fn
+            self.doc = document.clone()
+            self.doc.setHtml(document.toHtml())
+            self.doc.size()
+
+            super().__init__()
+
+        def run(self):
+            map = {}
+
+            for block_id in range(self.doc.blockCount()):
+                block = self.doc.findBlockByNumber(block_id)
+                map[block_id] = (block.layout().position().y(), block.layout().boundingRect().height())
+
+            self.callback_fn(map)
+            self.done(self.name)
+
+    class solveAudioMapping(QRunnable):
+        name = 'solveAudioMapping'
+
+        def __init__(self, html: str, callback_fn):
+            self.callback_fn = callback_fn
+            self.html = re.split('<body.*?>', html)[-1].split('\n')
+
+            super().__init__()
+
+        def run(self):
+            blocks = {}
+
+            for i, html_block in enumerate(self.html):
+                if HTML.hasParagraphTime(html_block):
+                    solve = S.GLOBAL.AUDIOMAP.find(HTML.paragraphTime(html_block))
+                    blocks[i - 1] = solve
+                else:
+                    blocks[i - 1] = -2
+
+            self.callback_fn(blocks)
+            self.done(self.name)

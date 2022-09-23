@@ -5,6 +5,7 @@
 
 # Typer backup
 backup.db
+*/ressources.db
 
 # Node artifact files
 node_modules/

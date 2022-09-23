@@ -9,15 +9,16 @@ from shutil import copyfile
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
-from PyQt5.QtSql import QSqlDatabase
+
+QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
 from UI import QuranWorker, Editor
 from UI.HadithWorker import HadithSearch
 from UI.Modules import Settings, Navigator, GlobalSearch, Exporter, Jumper, TopicsBar, BreadCrumbs
 from UI.MainComponents import StatusBar, Summary, TitleBar, MainToolbar, SplashScreen, TextToolbar
 
-from tools import G, PDF, Threads, S, T
-from rsc import ressources
+from tools import G, PDF, Audio, S, T
 
 # Exception catch for Qt
 
@@ -42,20 +43,10 @@ class TyperWIN(QMainWindow):
     """
     The main window's class
     """
-    db_file: QSqlDatabase
-    db_backup: QSqlDatabase
     _file: str
-    _book = dict()
     _version = G.__ver__
     _variant = ''
     _title = f"{G.__app__} {_variant}"
-
-    # TODO: need to be transfered in S.GLOBAL
-    dark_mode = True
-
-    # the dbs
-    db_backup = None    # a copy of the current file if it crashes or fails
-    db_file = None  # where we store the app settings etc
 
     modified = set()    # a list of all the modified page
 
@@ -158,7 +149,7 @@ class TyperWIN(QMainWindow):
         self.statusbar = StatusBar()
 
         _splash.progress(70, "Loading Audio Recorder...")
-        self.audio_recorder = Threads.AudioWorker()
+        self.audio_recorder = Audio.AudioWorker()
         self.recording = False
 
         # Main layout operations
@@ -185,6 +176,7 @@ class TyperWIN(QMainWindow):
         S.GLOBAL.loadSettings()
         S.GLOBAL.step.connect(self.statusbar.updateStatus)
         S.LOCAL.step.connect(self.statusbar.updateStatus)
+        S.POOL.state.connect(self.statusbar.loadingState)
         S.LOCAL.pageChanged.connect(self.changePage)
         S.LOCAL.pageChanged.connect(self.viewer.load_page)
         S.LOCAL.pageChanged.connect(lambda x: self.viewer_frame.setWindowTitle(f'Page {x}'))
@@ -230,6 +222,7 @@ class TyperWIN(QMainWindow):
 
         self.audio_recorder.audio_pike.connect(self.statusbar.record_volume.setValue)
         self.audio_recorder.progress.connect(lambda x: self.statusbar.updateRecording(x))
+        self.audio_recorder.finished.connect(lambda: S.POOL.start(Audio.AudioConverter(self.audio_recorder.filename)))
 
         self.viewer.documentLoaded.connect(partial(self.statusbar.updateStatus, 100, "Reference Loaded"))
         self.exporter.PDF_exporter.progress.connect(self.statusbar.updateStatus)
@@ -261,6 +254,8 @@ class TyperWIN(QMainWindow):
 
         super(TyperWIN, self).show()
         self.typer.setFocus()
+
+        S.POOL.start(S.GLOBAL.AUDIOMAP)
 
         if S.GLOBAL.auto_load and len(S.GLOBAL.last_file):
             self.openProject(S.GLOBAL.last_file)
@@ -337,8 +332,8 @@ class TyperWIN(QMainWindow):
         self.updateStatus(50, 'Loading settings')
         self.loadSettings()
         self.updateStatus(85, 'Loading book')
-        self.loadProject()
 
+        self.loadProject()
         self.updateTitle()
 
         # we mark the file as saved since it's freshly loaded
@@ -534,9 +529,6 @@ class TyperWIN(QMainWindow):
                 self.viewer_frame.hide()
                 return
 
-            if len(S.LOCAL.BOOKMAP.pages):
-                self.breadcrumbs.show()
-
         else:
             # if ever path isn't valid we hide the PDF viewer
             self.viewer_frame.hide()
@@ -548,6 +540,8 @@ class TyperWIN(QMainWindow):
         Update the current page
         """
         # we first save the current page to book
+        self.typer.disableAudioMap()
+
         if S.LOCAL.connected and len(self.typer.toPlainText()):
             S.LOCAL.BOOK[self.page_nb] = self.typer.toHtml()
 
@@ -575,6 +569,8 @@ class TyperWIN(QMainWindow):
         self.statusbar.updatePage(self.page_nb)
         self.breadcrumbs.updatePage(self.page_nb)
 
+        self.typer.enableAudioMap()
+
         return True
 
     # SETTINGS
@@ -593,6 +589,7 @@ class TyperWIN(QMainWindow):
         self.window_title.setMaximized(S.LOCAL.maximized)
 
         self.dockViewer(not S.LOCAL.viewer_external)
+        self.breadcrumbs.setVisible(S.LOCAL.BOOKMAP.active)
 
         # if it's not connected to a PDF reference, we update the viewer and current page
         if not S.LOCAL.connected:
@@ -738,7 +735,7 @@ class TyperWIN(QMainWindow):
             self.updateStatus(0, 'Start recording')
 
             # we define the audio file's name
-            epoch_time = int(time.time() - S.GLOBAL.audio_record_epoch)
+            epoch_time = str(time.time()).replace('.', '_')
             epoch_data = f'<img src="audio_record_{epoch_time}" width="0" height="{int(self.typer.fontMetrics().height())}" />'
             # we extract the current file name
             self.audio_recorder.filename = str(epoch_time)
@@ -748,7 +745,6 @@ class TyperWIN(QMainWindow):
 
             # and insert the marker in document
             # TODO: nice marker as icon and store data hidden (Paragraph User data ?)
-            self.typer.textCursor().block().setUserState(epoch_time)
             self.typer.insertPlainText(' ')
             self.typer.insertHtml(f'\u266A{epoch_data}')
             self.typer.insertPlainText(' ')
@@ -1067,6 +1063,9 @@ class TyperWIN(QMainWindow):
                 pass
             finally:
                 os.unlink(S.LOCAL.PDF)
+
+        for file in S.LIB.files.values():
+            os.unlink(file)
 
 
 if __name__ == "__main__":

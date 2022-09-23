@@ -22,7 +22,7 @@ from PyQt5.QtWidgets import QAction, QShortcut
 
 # The application's core settings
 __app__ = 'Typer'   # name
-__ver__ = 1.5       # version
+__ver__ = 1.6       # version
 __ext__ = '786'     # extension
 __debug_level__ = logging.ERROR
 
@@ -159,8 +159,8 @@ def icon(name: str) -> QIcon:
     return QIcon(f':/icons/{name}')
 
 
-def get_steps(length: int):
-    return max(1, length / 100)
+def get_steps(length: int, maximum = 100):
+    return max(1, length / maximum)
 
 
 class SQLConnection(object):

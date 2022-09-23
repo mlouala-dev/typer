@@ -1,6 +1,6 @@
 # بسم الله الرحمان الرحيم
 import copy
-import math
+import win32api
 import os
 import re
 import html
@@ -178,6 +178,9 @@ class BreadCrumbs(QWidget):
                 kitab = k.name
             except KeyError:
                 kitab = ''
+
+            except AttributeError:
+                return
 
             try:
                 b = S.LOCAL.BOOKMAP.getKitab(p.kid).getBab(p.bid)
@@ -951,9 +954,8 @@ class Settings(QDialog):
         self.group_local.setLayout(self.group_local_layout)
 
         self.connected_box = self.addLocalOption('connected', 'Connect to PDF\'s pages')
-
+        self.audio_map = self.addLocalOption('audio_map', 'Display Audio Map')
         self.viewer_external_box = self.addLocalOption('viewer_external', 'External PDF Viewer Frame')
-
         self.viewer_invert_box = self.addLocalOption('viewer_invert', 'Invert PDF Viewer Colors')
 
         document_layout.addWidget(self.group_global)
@@ -981,14 +983,14 @@ class Settings(QDialog):
         """
         if isinstance(state, bool):
             state = int(state)
-        if domain in ('connected', 'viewer_external', 'viewer_invert'):
-            if state and not S.LOCAL.PDF:
-                QMessageBox.critical(
-                    None,
-                    "Typer - No reference",
-                    "There is <b>no reference</b> linked to the current project.",
-                )
-                return
+
+        if state and not S.LOCAL.PDF:
+            QMessageBox.critical(
+                None,
+                "Typer - No reference",
+                "There is <b>no reference</b> linked to the current project.",
+            )
+            return
 
         if domain == 'connected':
             S.LOCAL.connected = state
@@ -1001,6 +1003,14 @@ class Settings(QDialog):
         elif domain == 'viewer_external':
             S.LOCAL.viewer_external = state
             self._win.dockViewer(not state)
+
+        elif domain == 'audio_map':
+            S.LOCAL.audio_map = state
+            self._win.typer.audio_map.setVisible(state)
+            if state:
+                self._win.typer.enableAudioMap()
+            else:
+                self._win.typer.disableAudioMap()
 
         elif domain == 'viewer_invert':
             S.LOCAL.viewer_invert = state
@@ -1250,11 +1260,7 @@ class Exporter(QDialog):
 
         # the widget's settings, where we store book's datas, etc
         self.settings = {
-            'book': {},
             'viewer': None,
-            'topics': {},
-            'dark_mode': False,
-            'multi_page': False,
             'previous_export': None
         }
 
@@ -1314,7 +1320,7 @@ class Exporter(QDialog):
         """
 
         # if the palette was a dark one, we turn it black and white for printing
-        if self.settings['dark_mode']:
+        if S.GLOBAL.theme == 'dark':
             palette = QApplication.palette()
             palette.setColor(QPalette.ColorRole.Text, Qt.black)
             QApplication.setPalette(palette)
@@ -1329,11 +1335,9 @@ class Exporter(QDialog):
         })
 
         # some additional params if we export multiple page
-        if self.settings['multi_page']:
+        if S.LOCAL.hasPDF() and S.LOCAL.connected:
             self.PDF_exporter.settings.update({
-                'book': self.settings['book'],
                 'viewer': self.settings['viewer'],
-                'topics': self.settings['topics'],
                 'range': (self.min_range.value(), self.max_range.value() + 1)
             })
             self.PDF_exporter.run()
@@ -1345,7 +1349,7 @@ class Exporter(QDialog):
             self.PDF_exporter.single_page_export(doc)
 
         # when export's done, we revert to dark mode
-        if self.settings['dark_mode']:
+        if S.GLOBAL.theme == 'dark':
             palette.setColor(QPalette.ColorRole.Text, Qt.white)
             QApplication.setPalette(palette)
 
@@ -1367,10 +1371,9 @@ class Exporter(QDialog):
     def post_treatment(self):
         """
         Performs some post treatment to store the settings used
-        :FIXME open at finish don't work
         """
         if self.open_at_finish.isChecked():
-            os.startfile(self.path_line.text(), 'open')
+            win32api.ShellExecute(0, "open", self.path_line.text(), '', None, 1)
 
         # storing the previous export
         self.settings['previous_export'] = self.path_line.text()
@@ -1381,12 +1384,12 @@ class Exporter(QDialog):
         """
         try:
             # if we can get consistent values from the book
-            mini, maxi = min(self.settings['book'].keys()), max(self.settings['book'].keys())
-
+            mini, maxi = S.LOCAL.BOOK.minPageNumber(), S.LOCAL.BOOK.maxPageNumber()
             # and min and max are not the same
-            assert mini == maxi
+            assert mini != maxi
 
-        except (ValueError, AssertionError):
+        except (ValueError, AssertionError) as e:
+            G.exception(e)
             # otherwise we disable this feature
             self.min_range.setDisabled(True)
             self.max_range.setDisabled(True)
@@ -1396,6 +1399,7 @@ class Exporter(QDialog):
             for item in (self.min_range, self.max_range):
                 item.setMinimum(mini)
                 item.setMaximum(maxi)
+
             self.min_range.setValue(mini)
             self.max_range.setValue(maxi)
 

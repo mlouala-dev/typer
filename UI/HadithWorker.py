@@ -98,6 +98,8 @@ class HadithSearch(QDialog):
     result_click = pyqtSignal(str)
 
     class Worker(QRunnable):
+        name = 'HadithSearch'
+
         def __init__(self, callback_fn, start=0, end=0):
             super().__init__()
 
@@ -122,6 +124,8 @@ class HadithSearch(QDialog):
                     self.hadiths.append(h)
 
             self.callback_fn(self.hadiths)
+
+            self.done(self.name)
 
     def __init__(self, parent=None):
         self.hadiths = []
