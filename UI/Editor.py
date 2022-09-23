@@ -524,6 +524,7 @@ class Typer(QTextEdit):
         self.W_audioMap.show()
         self.document().blockCountChanged.connect(self.graphAudioMap)
         self.document().blockCountChanged.connect(self.solveAudioMap)
+        self.document().documentLayout().documentSizeChanged.connect(self.graphAudioMap)
         self.verticalScrollBar().sliderMoved.connect(self.W_audioMap.update)
         self.verticalScrollBar().sliderReleased.connect(self.graphAudioMap)
         self.verticalScrollBar().sliderReleased.connect(self.solveAudioMap)
@@ -539,6 +540,7 @@ class Typer(QTextEdit):
         try:
             self.document().blockCountChanged.disconnect(self.graphAudioMap)
             self.document().blockCountChanged.disconnect(self.solveAudioMap)
+            self.document().documentLayout().documentSizeChanged.disconnect(self.graphAudioMap)
             self.verticalScrollBar().sliderMoved.disconnect(self.W_audioMap.update)
             self.verticalScrollBar().sliderReleased.disconnect(self.graphAudioMap)
             self.verticalScrollBar().sliderReleased.disconnect(self.solveAudioMap)
