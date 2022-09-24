@@ -347,12 +347,9 @@ class TyperWIN(QMainWindow):
         if self.page_nb in S.LOCAL.BOOK:
             self.typer.clear()
 
-            self.typer.setHtml(S.LOCAL.BOOK[self.page_nb])
-
-            # positioning the cursor in the last saved position
-            tc = self.typer.textCursor()
-            tc.movePosition(tc.MoveOperation.End, tc.MoveMode.MoveAnchor)
-            self.typer.setTextCursor(tc)
+            self.typer.setHtml(S.LOCAL.BOOK[self.page_nb].content)
+            self.typer.textCursor().setPosition(S.LOCAL.BOOK[self.page_nb].cursor)
+            self.typer.ensureCursorVisible()
 
             # rebuild the summary (F2)
             self.summary_view.build(self.typer.document())
@@ -400,7 +397,8 @@ class TyperWIN(QMainWindow):
         S.LOCAL.backup()
 
         # save current page
-        S.LOCAL.BOOK[self.page_nb] = self.typer.toHtml()
+        S.LOCAL.BOOK[self.page_nb].content = self.typer.toHtml()
+        S.LOCAL.BOOK[self.page_nb].cursor = self.typer.textCursor().position()
         S.LOCAL.BOOK.saveAllPage()
 
         # update widgets
@@ -543,10 +541,12 @@ class TyperWIN(QMainWindow):
         self.typer.disableAudioMap()
 
         if S.LOCAL.connected and len(self.typer.toPlainText()):
-            S.LOCAL.BOOK[self.page_nb] = self.typer.toHtml()
+            S.LOCAL.BOOK[self.page_nb].content = self.typer.toHtml()
+            S.LOCAL.BOOK[self.page_nb].cursor = self.typer.textCursor().position()
 
         elif len(self.typer.toPlainText()):
-            S.LOCAL.BOOK[0] = self.typer.toHtml()
+            S.LOCAL.BOOK[0].content = self.typer.toHtml()
+            S.LOCAL.BOOK[0].cursor = self.typer.textCursor().position()
 
         self.page_nb = page
 
@@ -560,7 +560,10 @@ class TyperWIN(QMainWindow):
 
         # load the current page if exists
         try:
-            self.typer.document().setHtml(S.LOCAL.BOOK[page])
+            self.typer.setHtml(S.LOCAL.BOOK[page].content)
+            tc = self.typer.textCursor()
+            tc.setPosition(S.LOCAL.BOOK[page].cursor)
+            self.typer.setTextCursor(tc)
             self.typer.ensureCursorVisible()
 
         except KeyError:
@@ -607,13 +610,6 @@ class TyperWIN(QMainWindow):
 
         self.toolbar.buttons['book_jumper'].setEnabled(S.LOCAL.BOOKMAP.active)
 
-        # we update the cursor
-        cursor = self.typer.textCursor()
-        cursor.setPosition(S.LOCAL.position, cursor.MoveMode.MoveAnchor)
-
-        self.typer.ensureCursorVisible()
-        self.typer.setTextCursor(cursor)
-
         if S.LOCAL.audio_map:
             self.typer.enableAudioMap()
         else:
@@ -652,7 +648,7 @@ class TyperWIN(QMainWindow):
         state = True
 
         try:
-            assert S.LOCAL.BOOK[S.LOCAL.page] != self.typer.toHtml()
+            assert S.LOCAL.BOOK[S.LOCAL.page].content != self.typer.toHtml()
 
         except KeyError:
             pass
@@ -698,7 +694,8 @@ class TyperWIN(QMainWindow):
         S.LOCAL.createSettings(filename)
 
         # adding the current page to the db
-        S.LOCAL.BOOK[0] = self.typer.toHtml()
+        S.LOCAL.BOOK[0].content = self.typer.toHtml()
+        S.LOCAL.BOOK[0].cursor = self.typer.textCursor().position()
         S.LOCAL.BOOK.savePage(0)
 
     @G.debug
@@ -989,6 +986,8 @@ class TyperWIN(QMainWindow):
         # saving geometry state before maxizing
         self.bakeGeometry()
         super(TyperWIN, self).showMaximized()
+
+        self.typer.graphAudioMap()
 
     def keyPressEvent(self, e: QKeyEvent):
         """

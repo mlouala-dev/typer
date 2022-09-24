@@ -410,6 +410,25 @@ class LocalSettings(_Settings):
     pageChanged = pyqtSignal(int)
 
     class Book:
+        class Page:
+            def __init__(self, content: str, cursor: int = -1):
+                self._content = content
+                self.cursor = cursor if cursor is not None else 0
+
+            @property
+            def content(self):
+                return self._content
+
+            @content.setter
+            def content(self, new_content):
+                self._content = new_content
+
+            def __repr__(self):
+                return self.content
+
+            def __str__(self):
+                return self.content
+
         def __init__(self, db: sqlite3.Connection = None, cursor: sqlite3.Cursor = None):
             self._mod = set()
             self._book = {}
@@ -417,17 +436,26 @@ class LocalSettings(_Settings):
             self._cursor = cursor
 
             if self._cursor:
-                for page, content in self._cursor.execute('SELECT * FROM book').fetchall():
-                    self._book[page] = html.unescape(content)
+                try:
+                    self._cursor.execute('SELECT cursor FROM book').fetchone()
+                except sqlite3.OperationalError:
+                    G.error('Inconsistent database (missing cursor column), updating')
+                    self._cursor.execute('ALTER TABLE book ADD cursor INTEGER')
+                    self._db.commit()
+                finally:
+                    for p, text, cur in self._cursor.execute('SELECT page, text, cursor FROM book').fetchall():
+                        self._book[p] = self.Page(html.unescape(text), cur)
 
         def getBook(self) -> dict:
             return self._book
 
         def savePage(self, page: int):
             try:
-                self._cursor.execute('INSERT INTO book ("page", "text") VALUES (?, ?)', (page, html.escape(self[page])))
+                self._cursor.execute('INSERT INTO book ("page", "text", "cursor") VALUES (?, ?, ?)',
+                                     (page, html.escape(self[page].content), self[page].cursor))
             except sqlite3.IntegrityError:
-                self._cursor.execute(f'UPDATE book SET text=? WHERE page={page}', (html.escape(self[page]),))
+                self._cursor.execute(f'UPDATE book SET text=?, cursor=? WHERE page={page}',
+                                     (html.escape(self[page].content), self[page].cursor))
 
             self._db.commit()
             self._mod.remove(page)
@@ -456,7 +484,7 @@ class LocalSettings(_Settings):
 
         def update(self, new_book: dict):
             for key, value in new_book.items():
-                self[key] = value
+                self[key].content = value
                 self.setModified(key)
 
         def minPageNumber(self) -> int:
@@ -473,14 +501,14 @@ class LocalSettings(_Settings):
 
         def __setitem__(self, key, value):
             try:
-                assert self._book[key] != value
+                assert self._book[key].content != value
             except AssertionError:
                 return
             except KeyError:
                 pass
             finally:
                 self._mod.add(key)
-                self._book[key] = value
+                self._book[key].content = value
 
         def __contains__(self, item):
             return item in self._book

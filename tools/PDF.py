@@ -513,7 +513,7 @@ class PDF_Exporter(QThread):
         printer = self.build_pdf_context()
 
         # we get a version of the book without empty pages
-        clean_book = [a for a in sorted(S.LOCAL.BOOK.pages()) if PDF_Exporter.eval_doc(S.LOCAL.BOOK[a])]
+        clean_book = [a for a in sorted(S.LOCAL.BOOK.pages()) if PDF_Exporter.eval_doc(S.LOCAL.BOOK[a].content)]
         perc = 100.0 / len(clean_book)
 
         # looping through every page of the book
@@ -571,7 +571,7 @@ class PDF_Exporter(QThread):
         printer = self.build_pdf_context(fp)
 
         # same cleaning process as in the multi_page_export function
-        clean_book = [a for a in sorted(S.LOCAL.BOOK.pages()) if PDF_Exporter.eval_doc(S.LOCAL.BOOK[a])]
+        clean_book = [a for a in sorted(S.LOCAL.BOOK.pages()) if PDF_Exporter.eval_doc(S.LOCAL.BOOK[a].content)]
         perc = 100.0 / len(clean_book)
 
         for page_pdf in clean_book:
@@ -585,7 +585,7 @@ class PDF_Exporter(QThread):
             # we store the processed page for future export of the final version, before making some
             # changes in the core text
             self.currentRect = QRectF(QRect(QPoint(0, 0), self.rect.size()))
-            head, body = self.post_treatment(S.LOCAL.BOOK[page_pdf])
+            head, body = self.post_treatment(S.LOCAL.BOOK[page_pdf].content)
             self.processed_pages[page_pdf] = (head, body)
 
             # these regexs could be used to catch all ayats, but not used atm

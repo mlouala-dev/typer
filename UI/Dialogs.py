@@ -763,7 +763,9 @@ class Settings(QDialog):
                 self._win.changePage(S.LOCAL.page)
 
             elif not state:
-                self._win.typer.document().setHtml(S.LOCAL.BOOK[0])
+                self._win.typer.document().setHtml(S.LOCAL.BOOK[0].content)
+                self._win.typer.textCursor().setPosition(S.LOCAL.BOOK[0].cursor)
+                self._win.typer.ensureCursorVisible()
 
         elif domain == 'viewer_external':
             S.LOCAL.viewer_external = state
@@ -956,10 +958,10 @@ class Navigator(QDialog):
 
         # for every page, we store to the temp doc
         for i in S.LOCAL.BOOK:
-            tmp_doc.setHtml(S.LOCAL.BOOK[i])
+            tmp_doc.setHtml(S.LOCAL.BOOK[i].content)
 
             # we try to find all surats
-            match_surat = header_matcher.findall(S.LOCAL.BOOK[i])
+            match_surat = header_matcher.findall(S.LOCAL.BOOK[i].content)
 
             # if ever we got one or more, adding the last in the page
             if match_surat:
