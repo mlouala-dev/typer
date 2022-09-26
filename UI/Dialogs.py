@@ -764,7 +764,9 @@ class Settings(QDialog):
 
             elif not state:
                 self._win.typer.document().setHtml(S.LOCAL.BOOK[0].content)
-                self._win.typer.textCursor().setPosition(S.LOCAL.BOOK[0].cursor)
+                tc = self._win.typer.textCursor()
+                tc.setPosition(S.LOCAL.BOOK[0].cursor)
+                self._win.typer.setTextCursor(tc)
                 self._win.typer.ensureCursorVisible()
 
         elif domain == 'viewer_external':

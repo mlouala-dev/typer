@@ -397,8 +397,8 @@ class TyperWIN(QMainWindow):
         S.LOCAL.backup()
 
         # save current page
-        S.LOCAL.BOOK[self.page_nb].content = self.typer.toHtml()
-        S.LOCAL.BOOK[self.page_nb].cursor = self.typer.textCursor().position()
+        self.saveCurrentPage()
+
         S.LOCAL.BOOK.saveAllPage()
 
         # update widgets
@@ -541,12 +541,10 @@ class TyperWIN(QMainWindow):
         self.typer.disableAudioMap()
 
         if S.LOCAL.connected and len(self.typer.toPlainText()):
-            S.LOCAL.BOOK[self.page_nb].content = self.typer.toHtml()
-            S.LOCAL.BOOK[self.page_nb].cursor = self.typer.textCursor().position()
+            self.saveCurrentPage()
 
         elif len(self.typer.toPlainText()):
-            S.LOCAL.BOOK[0].content = self.typer.toHtml()
-            S.LOCAL.BOOK[0].cursor = self.typer.textCursor().position()
+            self.saveCurrentPage(0)
 
         self.page_nb = page
 
@@ -640,18 +638,30 @@ class TyperWIN(QMainWindow):
 
     # OTHER
 
+    def saveCurrentPage(self, page: int = -1):
+        if page < 0:
+            page = self.page_nb
+
+        try:
+            S.LOCAL.BOOK[self.page_nb].content = self.typer.toHtml()
+            S.LOCAL.BOOK[self.page_nb].cursor = self.typer.textCursor().position()
+
+        except KeyError:
+            S.LOCAL.BOOK[self.page_nb] = S.LOCAL.BOOK.Page(
+                self.typer.toHtml(),
+                self.typer.textCursor().position()
+            )
+
     def setModified(self):
         """
         Update which page will need to be saved and marked as modified
         """
 
-        state = True
-
         try:
             assert S.LOCAL.BOOK[S.LOCAL.page].content != self.typer.toHtml()
 
         except KeyError:
-            pass
+            S.LOCAL.setModifiedFlag()
 
         except AssertionError:
             S.LOCAL.unsetModifiedFlag()

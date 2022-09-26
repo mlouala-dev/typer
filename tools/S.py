@@ -500,15 +500,22 @@ class LocalSettings(_Settings):
             return self._book[item]
 
         def __setitem__(self, key, value):
-            try:
-                assert self._book[key].content != value
-            except AssertionError:
-                return
-            except KeyError:
-                pass
-            finally:
-                self._mod.add(key)
-                self._book[key].content = value
+            if isinstance(value, self.Page):
+                self._book[key] = value
+
+            else:
+                try:
+                    assert self._book[key].content != value
+
+                except AssertionError:
+                    return
+
+                except KeyError:
+                    pass
+
+                finally:
+                    self._mod.add(key)
+                    self._book[key].content = value
 
         def __contains__(self, item):
             return item in self._book
