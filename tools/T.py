@@ -238,11 +238,11 @@ class HtmlOperator(HTMLParser):
         return self.paragraphs[-4]
 
     @staticmethod
-    def hasParagraphTime(self, block: str) -> bool:
+    def hasParagraphTime(block: str) -> bool:
         return 'src="paragraph_time_' in block
 
     @staticmethod
-    def paragraphTime(self, block: str) -> int:
+    def paragraphTime(block: str) -> int:
         times = Regex.paragraph_time.findall(block)
         try:
             return int(times[0])
