@@ -309,7 +309,7 @@ SHORTCUT.add(shortcut='Ctrl+Shift+2', name='h2', hint='h2', icon_name="Text-Head
 SHORTCUT.add(shortcut='Ctrl+Shift+3', name='h3', hint='h3', icon_name="Text-Heading-3")
 SHORTCUT.add(shortcut='Ctrl+Shift+4', name='h4', hint='h4', icon_name="Text-Heading-4")
 SHORTCUT.add(shortcut='Ctrl+Shift+L', name='aleft', hint='aleft', icon_name="Text-Align-Left")
-SHORTCUT.add(shortcut='Ctrl+Shift+C', name='acenter', hint='acenter', icon_name="Text-Align-Center")
+SHORTCUT.add(shortcut='', name='acenter', hint='acenter', icon_name="Text-Align-Center")
 SHORTCUT.add(shortcut='Ctrl+Shift+R', name='aright', hint='aright', icon_name="Text-Align-Right")
 SHORTCUT.add(shortcut='Ctrl+Shift+J', name='ajustify', hint='ajustify', icon_name="Text-Align-Justify")
 

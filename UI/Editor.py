@@ -846,8 +846,7 @@ class Typer(QTextEdit):
             return
 
         # this means we enter the translitterate mode, this is equivalent to type on Alt+Gr
-        # TODO: find another less annoying shortcut, should be customizable by the user
-        if e.key() == Qt.Key.Key_Alt and modifiers == Qt.KeyboardModifier.ControlModifier:
+        if e.key() == Qt.Key.Key_Space and modifiers == Qt.KeyboardModifier.ControlModifier:
             tc = self.textCursor()
 
             # selection has length
