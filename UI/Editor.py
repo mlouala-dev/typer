@@ -837,7 +837,9 @@ class Typer(QTextEdit):
                 super().keyPressEvent(e)
 
         elif e.key() == Qt.Key_Return:
+            super().keyPressEvent(e)
             T.HTML.insertParagraphTime(self.textCursor())
+            return
 
         # this means we enter the translitterate mode, this is equivalent to type on Alt+Gr
         # TODO: find another less annoying shortcut, should be customizable by the user
