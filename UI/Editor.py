@@ -837,6 +837,10 @@ class Typer(QTextEdit):
                 super().keyPressEvent(e)
 
         elif e.key() == Qt.Key_Return:
+            # insert time anchor before inserting new line
+            if tc.block().length() > 2:
+                T.HTML.insertParagraphTime(self.textCursor())
+
             super().keyPressEvent(e)
             T.HTML.insertParagraphTime(self.textCursor())
             return
