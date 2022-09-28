@@ -34,7 +34,7 @@ __additional_fonts__.insert(0, __font__)
 # the file extension of the app
 
 
-def get_font(size: float = 1, *args, **kwargs) -> QFont:
+def get_font(size: float = 1.2, *args, **kwargs) -> QFont:
     """
     Will convert the size from "em" format to "point size" then forward
     every additional param

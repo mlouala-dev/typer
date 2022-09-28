@@ -246,7 +246,7 @@ class GlobalSearch(QDialog):
 
         super(GlobalSearch, self).__init__(parent)
 
-        self.setFixedSize(600, 400)
+        self.setFixedSize(800, 600)
         self.setWindowTitle("Find & Replace")
         self.setWindowIcon(G.icon("Google-Custom-Search"))
         self.setFont(G.get_font())
@@ -1017,7 +1017,7 @@ class Navigator(QDialog):
         self.WL_title.setText(f'{len(pages)} pages filled, {len(blocks)} blocks')
 
         # expanding size for every block
-        self.setFixedHeight(len(blocks) * 20 + 35)
+        self.setFixedHeight(len(blocks) * 35 + 35)
 
         # adding the widgets
         for block in blocks:

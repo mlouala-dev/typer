@@ -744,7 +744,7 @@ class Typer(QTextEdit):
             # for the other case we need images... until we implement the ThanaaWaMadh font
             else:
                 # adding it as a HTML special font
-                tc.insertHtml(f'''<span style="font-family:'ThanaaWaMadh';">{ThanaaWaMadh[lowered_text]}</span><span style=" font-family:'Microsoft Uighur'; font-size:14.4pt;">{e.text()}</span>''')
+                tc.insertHtml(f'''<span style="font-family:'ThanaaWaMadh';">{ThanaaWaMadh[lowered_text]}</span><span style=" font-family:'Microsoft Uighur'; font-size:normal;">{e.text()}</span>''')
 
             # setting word to null
             self.word = ""

@@ -1008,10 +1008,16 @@ class LocalSettings(_Settings):
 
         def save(self):
             if self._cursor:
-                self._cursor.executemany('INSERT INTO dict (word, count, before) VALUES (:word, :count, :before)',
-                                         [w.disp() for w in self.news])
-                self._cursor.executemany('UPDATE dict SET count=:count WHERE word=:word AND before=:before',
-                                         [w.disp() for w in self.updates])
+                for w in [w.disp() for w in self.news]:
+                    try:
+                        self._cursor.execute('INSERT INTO dict (word, count, before) VALUES (:word, :count, :before)', w)
+                    except sqlite3.IntegrityError:
+                        pass
+                for w in [w.disp() for w in self.updates]:
+                    try:
+                        self._cursor.execute('UPDATE dict SET count=:count WHERE word=:word AND before=:before', w)
+                    except sqlite3.IntegrityError:
+                        pass
 
                 self.news.clear()
                 self.updates.clear()
@@ -1171,6 +1177,7 @@ class LocalSettings(_Settings):
             "word"	TEXT,
             "count"	INTEGER,
             "before"	TEXT
+            CONSTRAINT "uniq" UNIQUE("word","before")
         );
         CREATE TABLE "topics" (
             "name"	TEXT,

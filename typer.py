@@ -10,15 +10,15 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 
-QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
-QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
-
 from UI import QuranWorker, Editor
 from UI.HadithWorker import HadithSearch
 from UI.Dialogs import Settings, Navigator, GlobalSearch, Exporter, Jumper
 from UI.Components import StatusBar, Summary, TitleBar, MainToolbar, SplashScreen, TextToolbar, TopicsBar, BreadCrumbs
 
 from tools import G, PDF, Audio, S, T
+
+QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
 # Exception catch for Qt
 
@@ -1091,6 +1091,8 @@ class TyperWIN(QMainWindow):
 
 
 if __name__ == "__main__":
+    os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "0"
+    os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
     app = QApplication(sys.argv)
 
     # checking if the current font is available in the system,
