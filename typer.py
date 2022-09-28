@@ -546,6 +546,22 @@ class TyperWIN(QMainWindow):
         elif len(self.typer.toPlainText()):
             self.saveCurrentPage(0)
 
+        elif self.page_nb in S.LOCAL.BOOK:
+            res = QMessageBox.warning(
+                None,
+                "Remove page",
+                "Page appears to be empty, remove from book ?",
+                buttons=QMessageBox.Cancel | QMessageBox.No | QMessageBox.Yes,
+                defaultButton=QMessageBox.Yes
+            )
+
+            if res == QMessageBox.Yes:
+                S.LOCAL.BOOK.removePage(self.page_nb)
+
+            elif res == QMessageBox.Cancel:
+                self.typer.enableAudioMap()
+                return
+
         self.page_nb = page
 
         if not S.LOCAL.connected:
@@ -643,11 +659,11 @@ class TyperWIN(QMainWindow):
             page = self.page_nb
 
         try:
-            S.LOCAL.BOOK[self.page_nb].content = self.typer.toHtml()
-            S.LOCAL.BOOK[self.page_nb].cursor = self.typer.textCursor().position()
+            S.LOCAL.BOOK[page].content = self.typer.toHtml()
+            S.LOCAL.BOOK[page].cursor = self.typer.textCursor().position()
 
         except KeyError:
-            S.LOCAL.BOOK[self.page_nb] = S.LOCAL.BOOK.Page(
+            S.LOCAL.BOOK[page] = S.LOCAL.BOOK.Page(
                 self.typer.toHtml(),
                 self.typer.textCursor().position()
             )

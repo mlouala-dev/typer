@@ -460,6 +460,12 @@ class LocalSettings(_Settings):
             self._db.commit()
             self._mod.remove(page)
 
+        def removePage(self, page: int):
+            self._book.pop(page)
+            self.unsetModified(page)
+            self._cursor.execute('DELETE FROM book WHERE page=?', (page, ))
+            self._db.commit()
+
         @G.log
         def saveAllPage(self):
             for page in self._mod.intersection(set(self._book.keys())):
