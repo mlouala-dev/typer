@@ -525,9 +525,7 @@ class Typer(QTextEdit):
         self.document().blockCountChanged.connect(self.graphAudioMap)
         self.document().blockCountChanged.connect(self.solveAudioMap)
         self.document().documentLayout().documentSizeChanged.connect(self.graphAudioMap)
-        self.verticalScrollBar().sliderMoved.connect(self.W_audioMap.update)
-        self.verticalScrollBar().sliderReleased.connect(self.graphAudioMap)
-        self.verticalScrollBar().sliderReleased.connect(self.solveAudioMap)
+        self.verticalScrollBar().valueChanged.connect(self.W_audioMap.update)
         self.graphAudioMap()
         self.solveAudioMap()
 
@@ -541,9 +539,7 @@ class Typer(QTextEdit):
             self.document().blockCountChanged.disconnect(self.graphAudioMap)
             self.document().blockCountChanged.disconnect(self.solveAudioMap)
             self.document().documentLayout().documentSizeChanged.disconnect(self.graphAudioMap)
-            self.verticalScrollBar().sliderMoved.disconnect(self.W_audioMap.update)
-            self.verticalScrollBar().sliderReleased.disconnect(self.graphAudioMap)
-            self.verticalScrollBar().sliderReleased.disconnect(self.solveAudioMap)
+            self.verticalScrollBar().valueChanged.disconnect(self.W_audioMap.update)
 
         except TypeError:
             pass
