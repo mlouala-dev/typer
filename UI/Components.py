@@ -517,7 +517,7 @@ class StatusBar(QStatusBar):
     def __init__(self, parent: QWidget = None):
         super(StatusBar, self).__init__(parent)
         self.setFixedHeight(20)
-        self.setContentsMargins(10, 0, 0, 0)
+        self.setContentsMargins(5, 0, 0, 0)
 
         # UI stuffs
         self.page_label = QLabel(self)
@@ -761,7 +761,7 @@ class BreadCrumbs(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFont(G.get_font())
-        self.setFixedHeight(30)
+        self.setFixedHeight(25)
         self.setContentsMargins(0, 0, 0, 0)
         layout = QHBoxLayout()
         self.setMouseTracking(True)
@@ -780,7 +780,7 @@ class BreadCrumbs(QWidget):
         layout.addWidget(self.l2, stretch=0)
         layout.addWidget(self.l3, stretch=0)
         layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        layout.setContentsMargins(10, 0, 0, 0)
+        layout.setContentsMargins(10, 2, 0, 0)
         layout.setSpacing(0)
 
         self.setLayout(layout)

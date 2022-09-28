@@ -246,9 +246,10 @@ class GlobalSearch(QDialog):
 
         super(GlobalSearch, self).__init__(parent)
 
-        self.setFixedSize(800, 600)
+        self.setFixedSize(600, 400)
         self.setWindowTitle("Find & Replace")
         self.setWindowIcon(G.icon("Google-Custom-Search"))
+        self.setFont(G.get_font())
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         widgets_layout = QVBoxLayout(self)
@@ -652,11 +653,15 @@ class Settings(QDialog):
 
         L_main = QGridLayout()
         L_main.setAlignment(Qt.AlignTop)
+        L_main.setSpacing(0)
+        L_main.setContentsMargins(2, 2, 2, 2)
 
         # GLOBAL SETTINGS
         self.G_global = QGroupBox('Global Settings')
         self.L_global = QVBoxLayout()
         self.L_global.setAlignment(Qt.AlignTop)
+        self.L_global.setSpacing(0)
+        self.L_global.setContentsMargins(2, 2, 2, 2)
         self.G_global.setLayout(self.L_global)
 
         self.theme, = self.addOption('Themes', self.L_global, QComboBox())
@@ -716,6 +721,8 @@ class Settings(QDialog):
         self.G_local = QGroupBox('Local Settings')
         self.L_local = QVBoxLayout()
         self.L_local.setAlignment(Qt.AlignTop)
+        self.L_local.setSpacing(0)
+        self.L_local.setContentsMargins(2, 2, 2, 2)
         self.G_local.setLayout(self.L_local)
 
         self.connected_box = self.addLocalOption('connected', 'Connect to PDF\'s pages')
@@ -878,6 +885,7 @@ class Navigator(QDialog):
 
         # UI stuffs
         self.setFixedSize(550, 600)
+        self.setFont(G.get_font())
         self.L_main = QVBoxLayout()
         self.setContentsMargins(0, 0, 0, 0)
         self.setLayout(self.L_main)
@@ -886,6 +894,7 @@ class Navigator(QDialog):
         self.setWindowIcon(G.icon('List'))
 
         self.WL_title = QLabel()
+        self.WL_title.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
         self.L_main.addWidget(self.WL_title, 1)
 
     def addLine(self, start, end, start_title='', end_title=''):
@@ -1008,7 +1017,7 @@ class Navigator(QDialog):
         self.WL_title.setText(f'{len(pages)} pages filled, {len(blocks)} blocks')
 
         # expanding size for every block
-        self.setFixedHeight(len(blocks) * 35 + 35)
+        self.setFixedHeight(len(blocks) * 20 + 35)
 
         # adding the widgets
         for block in blocks:
