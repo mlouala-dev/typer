@@ -546,7 +546,7 @@ class TyperWIN(QMainWindow):
         elif len(self.typer.toPlainText()):
             self.saveCurrentPage(0)
 
-        elif self.page_nb in S.LOCAL.BOOK:
+        elif self.page_nb != 0 and self.page_nb in S.LOCAL.BOOK:
             res = QMessageBox.warning(
                 None,
                 "Remove page",
