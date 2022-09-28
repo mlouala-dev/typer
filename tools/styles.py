@@ -46,18 +46,17 @@ class TyperStyle:
         block.setAlignment(Qt.AlignJustify)
         block.setTextIndent(10)
         block.setLineHeight(100.0, 1)
-        block.setBottomMargin(10)
         block.setLeftMargin(10)
         block.setRightMargin(10)
 
         f = textchar.font()
-        f.setPointSizeF(G.get_font(1.2).pointSizeF())
+        f.setPointSizeF(G.get_font().pointSizeF())
         f.setItalic(False)
         f.setBold(False)
         f.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
 
         textchar.setFont(f)
-        textchar.setFontPointSize(14.4)
+        textchar.setFontPointSize(f.pointSize())
         textchar.setFont(f)
 
     def matching_props(self, block: QTextBlock) -> bool:

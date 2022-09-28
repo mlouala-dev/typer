@@ -334,14 +334,13 @@ class QOperator:
             blockformat.setAlignment(Qt.AlignJustify)
             blockformat.setTextIndent(10)
             blockformat.setLineHeight(100.0, 1)
-            blockformat.setBottomMargin(10)
             blockformat.setLeftMargin(10)
             blockformat.setRightMargin(10)
 
         @staticmethod
         def Document(document: QTextDocument, font: QFont = None):
             if not font:
-                font = G.get_font(1.2)
+                font = G.get_font()
 
             document.setDefaultFont(font)
             document.setIndentWidth(10)
@@ -369,7 +368,7 @@ class QOperator:
 
             for block_id in range(self.doc.blockCount()):
                 block = self.doc.findBlockByNumber(block_id)
-                map[block_id] = (block.layout().position().y(), block.layout().boundingRect().height())
+                map[block_id] = (block.layout().position().y() + 1, block.layout().boundingRect().height() - 2)
 
             self.callback_fn(map)
             self.done(self.name)

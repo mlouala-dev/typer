@@ -47,8 +47,8 @@ class TopicsDialog(QDialog):
         self.original_topics = set()
 
         # UI
-        self.setFont(G.get_font(1.2))
-        self.fm = QFontMetrics(G.get_font(1.4))
+        self.setFont(G.get_font())
+        self.fm = QFontMetrics(self.font())
 
         self.pointer_rect = QRect(0, 30, 1, 1)
 

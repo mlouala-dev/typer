@@ -57,7 +57,7 @@ class Typer(QTextEdit):
         # autocomplete label
         self.WL_autoComplete = QLabel(self)
         self.WL_autoComplete.hide()
-        self.WL_autoComplete.setFont(G.get_font(1.2))
+        self.WL_autoComplete.setFont(G.get_font())
         self.WL_autoComplete.setStyleSheet("""
         QLabel {
             color: #2a82da;
@@ -97,7 +97,7 @@ class Typer(QTextEdit):
         self.default_blockFormat = QTextBlockFormat()
         T.QOperator.ApplyDefault.BlockFormat(self.default_blockFormat)
 
-        self.default_font = G.get_font(1.2)
+        self.default_font = G.get_font()
         T.QOperator.ApplyDefault.Font(self.default_font)
 
         self.setFont(self.default_font)
@@ -841,10 +841,6 @@ class Typer(QTextEdit):
             if tc.block().length() > 2:
                 T.HTML.insertParagraphTime(self.textCursor())
 
-            super().keyPressEvent(e)
-            T.HTML.insertParagraphTime(self.textCursor())
-            return
-
         # this means we enter the translitterate mode, this is equivalent to type on Alt+Gr
         if e.key() == Qt.Key.Key_Space and modifiers == Qt.KeyboardModifier.ControlModifier:
             tc = self.textCursor()
@@ -1061,9 +1057,11 @@ class Typer(QTextEdit):
 
             # apply the default style to the new paragraph
             tc = self.textCursor()
-            block = self.default_blockFormat
+            block = tc.blockFormat()
             block.setIndent(indent)
             tc.setBlockFormat(block)
+
+            T.HTML.insertParagraphTime(self.textCursor())
 
         elif not (e.key() == Qt.Key.Key_Tab and self.auto_complete_available):
             # forward Tab only if we're sure there is no autocomplete to do
@@ -1558,7 +1556,7 @@ class TyperAudioMap(QWidget):
         for i, bound in enumerate(self._map.values()):
             s = self.getSolver(i)
 
-            w = 5 if s >= -1 else 2
+            w = 3 if s >= -1 else 2
             c = self.palette().highlight() if s > 0 else self.palette().alternateBase()
 
             qp.setBrush(c)

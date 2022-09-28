@@ -447,7 +447,7 @@ class LocalSettings(_Settings):
                         self._book[p] = self.Page(html.unescape(text), cur)
 
         def getBook(self) -> dict:
-            return self._book
+            return {a: b.content for a, b in self._book.items()}
 
         def savePage(self, page: int):
             try:

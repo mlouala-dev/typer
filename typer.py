@@ -56,7 +56,7 @@ class TyperWIN(QMainWindow):
         _splash.show()
         _layout = QGridLayout(self)
 
-        self.setFont(G.get_font(1.2))
+        self.setFont(G.get_font())
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setWindowIcon(QIcon(":/ico"))
         self.setFocusPolicy(Qt.StrongFocus)

@@ -67,8 +67,8 @@ class TitleBar(QFrame):
     """
     # style in format : (bar's height, stylesheet)
 
-    default_style = (32, "QFrame#TitleBar { border-top:2px solid grey; }")
-    maximized_style = (30, "QFrame#TitleBar { border:0; }")
+    default_style = (22, "QFrame#TitleBar { border-top:2px solid grey; }")
+    maximized_style = (20, "QFrame#TitleBar { border:0; }")
     geometryChanged = pyqtSignal()
 
     def __init__(self, parent: QMainWindow = None):
@@ -82,29 +82,31 @@ class TitleBar(QFrame):
         self.setStyleSheet(style)
 
         layout = QHBoxLayout()
-        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
         ico = QLabel("")
-        ico.setPixmap(G.pixmap('ico', size=25))
-        ico.setFixedSize(28, 28)
+        ico.setPixmap(G.pixmap('ico', size=17))
+        ico.setFixedSize(17, 17)
+        ico.setScaledContents(True)
 
         self.window_title = QLabel("Window's title")
-        self.window_title.setFont(G.get_font(1.3))
+        self.window_title.setFont(G.get_font())
         self.window_title.setObjectName('WindowTitle')
         self.window_title.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-        self.window_title.setFixedHeight(30)
+        self.window_title.setFixedHeight(20)
 
         self.min_button = QPushButton('\u268A')
-        self.min_button.setStyleSheet("QPushButton:hover{background:#2a82da;}")
+        self.min_button.setStyleSheet("QPushButton{border:0;}QPushButton:hover{background:#2a82da;border:0;}")
         self.max_button = QPushButton('\u271B')
-        self.max_button.setStyleSheet("QPushButton:hover{background:orange;}")
+        self.max_button.setStyleSheet("QPushButton{border:0;}QPushButton:hover{background:orange;border:0;}")
         self.close_button = QPushButton('\u2715')
-        self.close_button.setStyleSheet("QPushButton:hover{background:red;}")
+        self.close_button.setStyleSheet("QPushButton{border:0;}QPushButton:hover{background:red;border:0;}")
 
         layout.addWidget(ico, 0)
         layout.addWidget(self.window_title, 1)
         for b in (self.min_button, self.max_button, self.close_button):
-            b.setFixedWidth(50)
+            b.setFixedWidth(30)
             layout.addWidget(b, 0)
 
         self.setLayout(layout)
@@ -260,7 +262,7 @@ class MainToolbar(Toolbar):
         basmallah = QLabel('بسم الله الرحمان الرحيم')
         basmallah.setAlignment(Qt.AlignmentFlag.AlignCenter)
         basmallah.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        basmallah.setFont(G.get_font(1.2))
+        basmallah.setFont(G.get_font())
 
         self.addWidget(basmallah)
 
@@ -514,7 +516,7 @@ class StatusBar(QStatusBar):
 
     def __init__(self, parent: QWidget = None):
         super(StatusBar, self).__init__(parent)
-        self.setFixedHeight(25)
+        self.setFixedHeight(20)
         self.setContentsMargins(10, 0, 0, 0)
 
         # UI stuffs
@@ -523,7 +525,7 @@ class StatusBar(QStatusBar):
         self.page_label.setVisible(False)
 
         self.connection_status_icon = QLabel(self)
-        self.connection_status_icon.setPixmap(G.pixmap("Link", size=21))
+        self.connection_status_icon.setPixmap(G.pixmap("Link", size=17))
         self.connection_status = QLabel("Connected to...")
 
         self.record_status = QLabel("Recording (00:00) ...", parent=self)
@@ -550,17 +552,17 @@ class StatusBar(QStatusBar):
         self.processing_blink_state = True
         self.timer_id = 0
         self.processing_icon = QLabel(self)
-        self.processing_icon.setPixmap(G.pixmap(f"icons/Apple-Half", size=19))
+        self.processing_icon.setPixmap(G.pixmap(f"icons/Apple-Half", size=15))
         self.processing_icon.setToolTipDuration(1000)
         self.processing_icon.hide()
         self.not_saved_icon = QLabel(self)
-        self.not_saved_icon.setPixmap(G.pixmap("icons/Bullet-Red", size=21))
+        self.not_saved_icon.setPixmap(G.pixmap("icons/Bullet-Red", size=17))
         self.not_saved_icon.hide()
         self.saving_icon = QLabel(self)
-        self.saving_icon.setPixmap(G.pixmap("icons/Bullet-Orange", size=21))
+        self.saving_icon.setPixmap(G.pixmap("icons/Bullet-Orange", size=17))
         self.saving_icon.hide()
         self.saved_icon = QLabel(self)
-        self.saved_icon.setPixmap(G.pixmap("icons/Bullet-Green", size=21))
+        self.saved_icon.setPixmap(G.pixmap("icons/Bullet-Green", size=17))
 
         self.addPermanentWidget(self.processing_icon, 0)
         self.addPermanentWidget(self.page_label, 1)
@@ -618,7 +620,7 @@ class StatusBar(QStatusBar):
 
     def timerEvent(self, a0: QTimerEvent) -> None:
         self.processing_blink_state = not self.processing_blink_state
-        self.processing_icon.setPixmap(G.pixmap(f"icons/Apple{'' if self.processing_blink_state else '-Half'}", size=19))
+        self.processing_icon.setPixmap(G.pixmap(f"icons/Apple{'' if self.processing_blink_state else '-Half'}", size=15))
 
     def loadingState(self, state: int):
         if state <= 0:
@@ -758,7 +760,7 @@ class BreadCrumbs(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFont(G.get_font(1.2))
+        self.setFont(G.get_font())
         self.setFixedHeight(30)
         self.setContentsMargins(0, 0, 0, 0)
         layout = QHBoxLayout()
@@ -864,7 +866,7 @@ class TopicsBar(QWidget):
 
         topic_layout = QHBoxLayout()
         self.topic_overview = QLabel("")
-        self.topic_overview.setFont(G.get_font(1.2))
+        self.topic_overview.setFont(G.get_font())
 
         self.topic_edit = QPushButton("...")
         self.topic_edit.setFixedWidth(45)
