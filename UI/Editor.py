@@ -315,7 +315,7 @@ class Typer(QTextEdit):
 
         # if block has no length
         l = len(text)
-        if l == 2 and text[0] == '\u2029' and ord(text[1]) == 65532:
+        if l == 2 and text[0] == '\u2029' and not T.TEXT.is_audio_tag(text[1]):
             l = 0
 
         # preparing the ayat paragraph for upcoming styling
@@ -719,6 +719,8 @@ class Typer(QTextEdit):
         tc.select(tc.SelectionType.WordUnderCursor)
         self.word = tc.selectedText()
 
+        metrics = QFontMetrics(self.currentFont())
+
         # ARABIC GLYPHS #
         lowered_text = tc.selectedText().lower()
         ThanaaWaMadh = {
@@ -823,19 +825,36 @@ class Typer(QTextEdit):
 
         # resetting timing if backspace pressed for more accurate ratio
         if e.key() == Qt.Key.Key_Backspace and len(self.previous_character):
-            if ord(self.previous_character) == 65532:
+            if T.TEXT.is_audio_tag(self.previous_character):
                 super().keyPressEvent(e)
 
             self.word_time = time()
 
         elif e.key() == Qt.Key.Key_Delete and len(next_character):
-            if ord(next_character) == 65532:
+            if T.TEXT.is_audio_tag(next_character):
                 super().keyPressEvent(e)
 
         elif e.key() == Qt.Key_Return:
             # insert time anchor before inserting new line
             if tc.block().length() > 2:
-                T.HTML.insertParagraphTime(self.textCursor())
+                T.HTML.insertParagraphTime(self.textCursor(), metric=self.fontMetrics())
+
+        elif e.key() == Qt.Key_Home:
+            block = tc.block()
+            if block.text().startswith(chr(T.TEXT.audio_char)):
+                tc.setPosition(block.position() + 1, tc.MoveAnchor)
+                self.setTextCursor(tc)
+                return
+
+        elif e.key() == Qt.Key_Left and self.previous_character:
+            if T.TEXT.is_audio_tag(self.previous_character):
+                print('jump over prev')
+                super().keyPressEvent(e)
+
+        elif e.key() == Qt.Key_Right and self.next_character:
+            if T.TEXT.is_audio_tag(self.next_character):
+                print('jumper over nex')
+                super().keyPressEvent(e)
 
         # this means we enter the translitterate mode, this is equivalent to type on Alt+Gr
         if e.key() == Qt.Key.Key_Space and modifiers == Qt.KeyboardModifier.ControlModifier:
@@ -1057,7 +1076,7 @@ class Typer(QTextEdit):
             block.setIndent(indent)
             tc.setBlockFormat(block)
 
-            T.HTML.insertParagraphTime(self.textCursor())
+            T.HTML.insertParagraphTime(self.textCursor(), metric=self.fontMetrics())
 
         elif not (e.key() == Qt.Key.Key_Tab and self.auto_complete_available):
             # forward Tab only if we're sure there is no autocomplete to do
@@ -1476,7 +1495,7 @@ class TyperHighlighter(QSyntaxHighlighter):
             # a word with # around is a reference
             # TODO: should match a regex pattern, same for the audio
 
-            if [*map(ord, word)] == [9834, 65532]:
+            if [*map(ord, word)] == [9834, T.TEXT.audio_char]:
                 self.setFormat(idx, len(word), self.audio_format)
 
             elif word.startswith("#") and word.endswith("#"):
@@ -1488,7 +1507,7 @@ class TyperHighlighter(QSyntaxHighlighter):
                 try:
                     assert T.SPELL.loaded
                     # first make sure the word's length is correct
-                    assert len(word) > 1 and ord(word[0]) != 65532
+                    assert len(word) > 1 and not T.TEXT.is_audio_tag(word[0])
 
                     # now getting the word correction
                     # abort if word's already in the dictionary

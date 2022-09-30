@@ -257,15 +257,15 @@ class HtmlOperator(HTMLParser):
         if not metrics:
             metrics = QFontMetrics(G.get_font())
 
-        return f'''<p><img src="paragraph_time_{t}"
-                 width="0" height="{int(metrics.height())}" /></p>'''
+        return f'''<img src="paragraph_time_{t}"
+                 width="0" height="{int(metrics.height() - metrics.leading())}" />'''
 
-    def insertParagraphTime(self, cursor: QTextCursor, t: int = 0):
+    def insertParagraphTime(self, cursor: QTextCursor, t: int = 0, metric: QFontMetrics = None):
         cursor.select(QTextCursor.BlockUnderCursor)
 
         if not self.hasParagraphTime(cursor.selection().toHtml()):
             cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock, QTextCursor.MoveMode.MoveAnchor)
-            cursor.insertHtml(self.getParagraphTime(t=t))
+            cursor.insertHtml(self.getParagraphTime(metrics=metric, t=t))
 
     @staticmethod
     def extractTextFragment(t: str, wide=False) -> str:
@@ -291,8 +291,13 @@ class TextOperator:
     """
     Core operations over TEXT
     """
+    audio_char = 65532
     re_exit_keys = re.compile(f'[{re.escape("".join(Keys.Exits.values()))}]')
     seq_exit_keys = set(Keys.Exits.values()).union(set(digits)).union(set(whitespace))
+
+    @staticmethod
+    def is_audio_tag(char):
+        return ord(char) == TextOperator.audio_char
 
     def valid(self, word: str, length: int = 1) -> bool:
         """
