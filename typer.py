@@ -540,11 +540,8 @@ class TyperWIN(QMainWindow):
         # we first save the current page to book
         self.typer.disableAudioMap()
 
-        if S.LOCAL.connected and len(self.typer.toPlainText()):
+        if len(self.typer.toPlainText()):
             self.saveCurrentPage()
-
-        elif len(self.typer.toPlainText()):
-            self.saveCurrentPage(0)
 
         elif self.page_nb != 0 and self.page_nb in S.LOCAL.BOOK:
             res = QMessageBox.warning(
@@ -656,7 +653,7 @@ class TyperWIN(QMainWindow):
 
     def saveCurrentPage(self, page: int = -1):
         if page < 0:
-            page = self.page_nb
+            page = self.page_nb if S.LOCAL.connected else 0
 
         try:
             S.LOCAL.BOOK[page].content = self.typer.toHtml()
