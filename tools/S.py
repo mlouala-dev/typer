@@ -874,6 +874,11 @@ class LocalSettings(_Settings):
                     try:
                         self[word].count += 1
                         self.updates.add(self[word])
+                        assert word.previous in self.word_roots[word.root]
+
+                    except AssertionError:
+                        self.word_roots[word.root][word.previous] = [word]
+                        self.word_wide_roots[word.root].append(word)
 
                     # word not find
                     except ValueError:

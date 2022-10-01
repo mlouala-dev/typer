@@ -64,6 +64,11 @@ InsertRole = 0
 QuoteRole = 1
 
 
+class MAX_SCREEN_SIZE:
+    width = 1280
+    height = 720
+
+
 # PATH OPERATORS
 
 # the absolute path of the app

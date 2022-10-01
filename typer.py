@@ -982,7 +982,12 @@ class TyperWIN(QMainWindow):
         if not self.viewer_frame.parent():
             vgeo = self.viewer_frame.geometry()
 
-            S.LOCAL.viewer_geometry = (vgeo.left(), vgeo.top(), vgeo.width(), vgeo.height())
+            S.LOCAL.viewer_geometry = (
+                vgeo.left(),
+                vgeo.top(),
+                min(vgeo.width(), G.MAX_SCREEN_SIZE.width),
+                min(vgeo.height(), G.MAX_SCREEN_SIZE.height)
+            )
 
     def dockViewer(self, state: bool):
         self.viewer_frame.hide()
@@ -1110,6 +1115,13 @@ if __name__ == "__main__":
     os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "0"
     os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
     app = QApplication(sys.argv)
+
+    desktop = QDesktopWidget()
+
+    G.MAX_SCREEN_SIZE.width = sum([desktop.screen(w).width() for w in range(desktop.screenCount())])
+    G.MAX_SCREEN_SIZE.height = sum([desktop.screen(h).height() for h in range(desktop.screenCount())])
+
+    del desktop
 
     # checking if the current font is available in the system,
     # otherwise we load it from rsc/fonts folder
