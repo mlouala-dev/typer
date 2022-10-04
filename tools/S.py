@@ -423,6 +423,14 @@ class LocalSettings(_Settings):
             def content(self, new_content):
                 self._content = new_content
 
+            @property
+            def head(self):
+                return self.content.split('<hr />')[0]
+
+            @property
+            def body(self):
+                return self.content.split('<hr />')[-1]
+
             def __repr__(self):
                 return self.content
 

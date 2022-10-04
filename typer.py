@@ -867,22 +867,34 @@ class TyperWIN(QMainWindow):
         self.exporter.show()
 
     def exportHTMLDialog(self):
-        tc = self.typer.textCursor()
-        bf = tc.blockFormat()
-        bf.setAlignment(Qt.AlignCenter)
-        tc.setBlockFormat(bf)
-        # for page in S.LOCAL.BOOK:
-        #     if page <= 50:
-        #         continue
-        #     if page >= 79:
-        #         break
-        #     content = S.LOCAL.BOOK[page]
-        #     content = re.sub('<img.*?>', '', content)
-        #     content = content.replace('text-indent:10px;', '')
-        #     content = re.sub(r'-qt-block-indent:(?P<val>\d+);', 'text-indent: \g<val>0px;', content)
-        #     with open(G.rsc('ali_imran.html'), 'a', encoding='utf-8') as f:
-        #         f.write(f'{content}\n')
-        # pass
+        import re
+        dialog = QFileDialog(None, 'Export to HTML', S.GLOBAL.default_path)
+
+        # we define some defaults settings used by all our file dialogs
+        dialog.setFileMode(QFileDialog.FileMode.AnyFile)
+        dialog.setDefaultSuffix('html')
+        dialog.setNameFilter(f"HTML Files (*.html)")
+        dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+
+        if dialog.exec_() == QFileDialog.Accepted:
+            filename = dialog.selectedFiles()
+            filename = filename[0]
+            tc = self.typer.textCursor()
+            bf = tc.blockFormat()
+            bf.setAlignment(Qt.AlignCenter)
+            tc.setBlockFormat(bf)
+            s = 100 / len(S.LOCAL.BOOK)
+            p = 0
+
+            with open(filename, 'a', encoding='utf-8') as f:
+                for page in S.LOCAL.BOOK:
+                    self.updateStatus(int(p), f'Page {page} exported')
+                    content = S.LOCAL.BOOK[page].body
+                    content = re.sub('<img.*?>', '', content)
+                    content = content.replace('text-indent:10px;', '')
+                    content = re.sub(r'-qt-block-indent:(?P<val>\d+);', 'text-indent: \g<val>0px;', content)
+                    f.write(f'{content}\n')
+                    p += s
 
     def navigatorDialog(self):
         """
