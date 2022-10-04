@@ -1498,9 +1498,9 @@ class TyperHighlighter(QSyntaxHighlighter):
         data.state = state = G.State_Default
 
         for idx, word in tokenize(text):
-            # a word with # around is a reference
-            # TODO: should match a regex pattern, same for the audio
             if len(word) > 1:
+                # a word with # around is a reference
+                # TODO: should match a regex pattern, same for the audio
                 if [*map(ord, word)] == [9834, T.TEXT.audio_char]:
                     self.setFormat(idx, len(word), self.audio_format)
 
