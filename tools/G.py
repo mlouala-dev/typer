@@ -4,6 +4,7 @@ the main tool function defining core functions used in the whole script
 and reference variables
 and the logging system
 """
+import time as tm
 import os
 import logging
 import traceback
@@ -393,3 +394,17 @@ def error_exception(e, tb):
     :param tb: traceback for the exception
     """
     logger.error(''.join(traceback.format_tb(tb)) + repr(e))
+
+def time(func):
+    """
+    a wrapper in log level
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        s = tm.time()
+        result = func(*args, **kwargs)
+        e = tm.time() - s
+        logger.info(f'{e}ms for {function_info(func)}')
+        return result
+
+    return wrapper

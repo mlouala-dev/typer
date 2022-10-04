@@ -32,6 +32,13 @@ class Typer(QTextEdit):
     re_numbering = re.compile(r'((1)(ers?|ères?))|((\d+)([èe]mes?))')
     re_textblock = re.compile(r'(.*?>)( +)?[-\u2022]?(<span.*?>\d\)</span>)?( +)?([\w\d]+)(.*?)<', flags=re.IGNORECASE)
     prophet_match = ('Muhammad', 'Prophète', 'Messager')
+    ThanaaWaMadh = {
+        'aas': 'e',
+        'ra': 'h',
+        'raha': 'i',
+        'rahuma': 'j',
+        'rahum': 'k'
+    }
 
     contentChanged = pyqtSignal()
     contentEdited = pyqtSignal()
@@ -149,16 +156,16 @@ class Typer(QTextEdit):
         return text_cursor.selectedText()
 
     @property
-    def next_character(self, *args) -> str:
+    def next_character(self) -> str:
         try:
-            return self.textOperation(*args, operation=QTextCursor.NextCharacter)[0]
+            return self.textOperation(self.textCursor(), operation=QTextCursor.NextCharacter)[0]
         except IndexError:
             return ''
 
     @property
-    def previous_character(self, *args) -> str:
+    def previous_character(self) -> str:
         try:
-            return self.textOperation(*args, operation=QTextCursor.PreviousCharacter)[0]
+            return self.textOperation(self.textCursor(), operation=QTextCursor.PreviousCharacter)[0]
         except IndexError:
             return ''
 
@@ -430,7 +437,7 @@ class Typer(QTextEdit):
             elif isinstance(obj, S.LocalSettings.BookMap.Hadith):
                 self.insertHtml(f'<h3><center>{obj.toHtml()}</center></h3>')
 
-            T.HTML.insertParagraphTime(tc)
+            T.HTML.insertParagraphTime(tc, block=tc.block())
             tc.insertBlock()
 
         else:
@@ -705,6 +712,7 @@ class Typer(QTextEdit):
         else:
             super().mouseReleaseEvent(e)
 
+    @G.time
     def keyPressEvent(self, e: QKeyEvent) -> None:
         """
         The main function, handle every thing when a letter is typed
@@ -713,36 +721,31 @@ class Typer(QTextEdit):
 
         # we check if next character exists to prevent useless autocompletion display
         next_character = self.next_character
-
+        previous_character = self.previous_character
+        key, current_text = e.key(), e.text()
+        modifiers = QApplication.keyboardModifiers()
+        
         # getting the current word
         tc = self.textCursor()
         tc.select(tc.SelectionType.WordUnderCursor)
         self.word = tc.selectedText()
 
-        metrics = QFontMetrics(self.currentFont())
-
         # ARABIC GLYPHS #
-        lowered_text = tc.selectedText().lower()
-        ThanaaWaMadh = {
-            'aas': 'e',
-            'ra': 'h',
-            'raha': 'i',
-            'rahuma': 'j',
-            'rahum': 'k'
-        }
-        if lowered_text in ("sws", "saws", "jj", "aas", "ra", 'raha', 'rahuma', 'rahum') and e.key() in T.Keys.Exits:
+        lowered_text = self.word.lower()
+
+        if lowered_text in ("sws", "saws", "jj", "aas", "ra", 'raha', 'rahuma', 'rahum') and key in T.Keys.Exits:
             # a glyph for Salla Allahu 'alayhi wa sallam
             if lowered_text in ("sws", "saws"):
-                tc.insertText("ﷺ" + e.text())
+                tc.insertText("ﷺ" + current_text)
 
             # a glyph for Jalla Jalaaluhu
             elif lowered_text == "jj":
-                tc.insertText("ﷻ" + e.text())
+                tc.insertText("ﷻ" + current_text)
 
             # for the other case we need images... until we implement the ThanaaWaMadh font
             else:
                 # adding it as a HTML special font
-                tc.insertHtml(f'''<span style="font-family:'ThanaaWaMadh';">{ThanaaWaMadh[lowered_text]}</span><span style=" font-family:'Microsoft Uighur'; font-size:normal;">{e.text()}</span>''')
+                tc.insertHtml(f'''<span style="font-family:'ThanaaWaMadh';">{self.ThanaaWaMadh[lowered_text]}</span><span style=" font-family:'Microsoft Uighur'; font-size:normal;">{current_text}</span>''')
 
             # setting word to null
             self.word = ""
@@ -753,29 +756,29 @@ class Typer(QTextEdit):
         is_number = self.re_numbering.match(self.word)
 
         # if the user corrected the ى manually, we update the text database
-        if e.text() == "ى" and (next_character in T.Keys.NewWord.values() or len(next_character) == 0):
+        if current_text == "ى" and (next_character in T.Keys.NewWord.values() or len(next_character) == 0):
             translitteration.append_to_dict(self.word + "ى")
 
         # it make the 'st' 'er' to superscript
-        elif is_number and e.key() in T.Keys.NewWord:
+        elif is_number and key in T.Keys.NewWord:
             # getting the groups from the regex match
             num = int(is_number.groups()[1] or is_number.groups()[4])
             sup = is_number.groups()[2] or is_number.groups()[5]
 
             # and insert the next char to force the <sup> tag to be closed
-            tc.insertHtml(f"{num}<sup>{sup}</sup><span>{e.text()}</span>")
+            tc.insertHtml(f"{num}<sup>{sup}</sup><span>{current_text}</span>")
 
             # since we added the current char, no need to continue
             return
 
         # Quote text
-        elif e.key() in T.Keys.Quotes and len(self.textCursor().selectedText()):
-            self.quoteText(e.text())
+        elif key in T.Keys.Quotes and len(self.textCursor().selectedText()):
+            self.quoteText(current_text)
             return
 
         # brackets override, this mean that < and > will become [ and ] useful when typing a translation
         # and need to insert a translation note
-        elif e.key() in [60, 62]:   # 60 is < and 62 >
+        elif key in [60, 62]:   # 60 is < and 62 >
 
             # the replacement pattern
             eq = {60: "[", 62: "]"}
@@ -785,7 +788,7 @@ class Typer(QTextEdit):
 
             # otherwise we just override the < and >
             else:
-                self.textCursor().insertText(eq[e.key()])
+                self.textCursor().insertText(eq[key])
 
             # since we added what we want from this event, abort
             return
@@ -795,7 +798,7 @@ class Typer(QTextEdit):
             if len(self.word):
 
                 # if we start a new word
-                if e.key() in T.Keys.NewWord:
+                if key in T.Keys.NewWord:
                     # we measure the time it took to type the previous word and applies an automatic
                     # correction if ratio is under a given value
                     ratio = (time() - self.word_time) / len(self.word)
@@ -821,43 +824,39 @@ class Typer(QTextEdit):
 
                     self.new_word = True
 
-        modifiers = QApplication.keyboardModifiers()
-
         # resetting timing if backspace pressed for more accurate ratio
-        if e.key() == Qt.Key.Key_Backspace and len(self.previous_character):
-            if T.TEXT.is_audio_tag(self.previous_character):
+        if key == Qt.Key.Key_Backspace and len(previous_character):
+            if T.TEXT.is_audio_tag(previous_character):
                 super().keyPressEvent(e)
 
             self.word_time = time()
 
-        elif e.key() == Qt.Key.Key_Delete and len(next_character):
+        elif key == Qt.Key.Key_Delete and len(next_character):
             if T.TEXT.is_audio_tag(next_character):
                 super().keyPressEvent(e)
 
-        elif e.key() == Qt.Key_Return:
+        elif key == Qt.Key_Return:
             # insert time anchor before inserting new line
             if tc.block().length() > 2:
-                T.HTML.insertParagraphTime(self.textCursor(), metric=self.fontMetrics())
+                T.HTML.insertParagraphTime(self.textCursor(), block=tc.block())
 
-        elif e.key() == Qt.Key_Home:
+        elif key == Qt.Key_Home and not int(modifiers):
             block = tc.block()
             if block.text().startswith(chr(T.TEXT.audio_char)):
                 tc.setPosition(block.position() + 1, tc.MoveAnchor)
                 self.setTextCursor(tc)
                 return
 
-        elif e.key() == Qt.Key_Left and self.previous_character:
-            if T.TEXT.is_audio_tag(self.previous_character):
-                print('jump over prev')
+        elif key == Qt.Key_Left and previous_character:
+            if T.TEXT.is_audio_tag(previous_character):
                 super().keyPressEvent(e)
 
-        elif e.key() == Qt.Key_Right and self.next_character:
-            if T.TEXT.is_audio_tag(self.next_character):
-                print('jumper over nex')
+        elif key == Qt.Key_Right and next_character:
+            if T.TEXT.is_audio_tag(next_character):
                 super().keyPressEvent(e)
 
         # this means we enter the translitterate mode, this is equivalent to type on Alt+Gr
-        if e.key() == Qt.Key.Key_Space and modifiers == Qt.KeyboardModifier.ControlModifier:
+        if key == Qt.Key.Key_Space and modifiers == Qt.KeyboardModifier.ControlModifier:
             tc = self.textCursor()
 
             # selection has length
@@ -901,24 +900,24 @@ class Typer(QTextEdit):
         if (modifiers & Qt.KeyboardModifier.ControlModifier) and (modifiers & Qt.KeyboardModifier.ShiftModifier):
 
             # to copy the HTML code of the selection
-            if e.key() == Qt.Key.Key_C:
+            if key == Qt.Key.Key_C:
                 tc = self.textCursor()
                 QApplication.clipboard().setText(tc.selection().toHtml())
 
             # to paste the clipboard as HTML
-            elif e.key() == Qt.Key.Key_V:
+            elif key == Qt.Key.Key_V:
                 self.insertHtml(QApplication.clipboard().text())
                 self.contentChanged.emit()
 
             # to cut HTML code
-            elif e.key() == Qt.Key.Key_X:
+            elif key == Qt.Key.Key_X:
                 tc = self.textCursor()
                 QApplication.clipboard().setText(tc.selection().toHtml())
                 tc.removeSelectedText()
                 self.contentChanged.emit()
 
             # insert a force RTL character
-            elif e.key() == Qt.Key.Key_E:
+            elif key == Qt.Key.Key_E:
                 self.insertHtml('&#x200e;')
 
             # otherwise we just consider it a normal command
@@ -929,35 +928,35 @@ class Typer(QTextEdit):
         elif modifiers == Qt.KeyboardModifier.AltModifier:
 
             # the main title shortcut
-            if e.key() in Styles_Shortcut:  # Alt+1
+            if key in Styles_Shortcut:  # Alt+1
 
                 # apply the style to the whold text block
-                self.applyOverallBlock(partial(self.toggleFormat, Styles_Shortcut[e.key()]))
+                self.applyOverallBlock(partial(self.toggleFormat, Styles_Shortcut[key]))
 
                 # and update parent's widget(s)
                 self.contentChanged.emit()
 
             # unindent the text block
-            elif e.key() == Qt.Key.Key_Left:
+            elif key == Qt.Key.Key_Left:
                 self.applyOverallBlock(partial(self.offsetIndent, -1))
 
             # indent the text block
-            elif e.key() == Qt.Key.Key_Right:
+            elif key == Qt.Key.Key_Right:
                 self.applyOverallBlock(partial(self.offsetIndent, 1))
 
             # moving cursor to the previous text block
-            elif e.key() == Qt.Key.Key_Up:
+            elif key == Qt.Key.Key_Up:
                 tc.movePosition(tc.MoveOperation.PreviousBlock, tc.MoveMode.MoveAnchor)
                 self.setTextCursor(tc)
 
             # moving cursor to the next text block
-            elif e.key() == Qt.Key.Key_Down:
+            elif key == Qt.Key.Key_Down:
                 tc.movePosition(tc.MoveOperation.NextBlock, tc.MoveMode.MoveAnchor)
                 self.setTextCursor(tc)
 
             # add numerotation
             # TODO: could be largely improved, customized numerotation, automatic determination of sub numering, etc
-            elif e.key() == Qt.Key.Key_N:
+            elif key == Qt.Key.Key_N:
                 tc = self.textCursor()
 
                 # we get the current selection as html
@@ -980,7 +979,7 @@ class Typer(QTextEdit):
 
             # add bullets
             # TODO: CHANGE TO the OL / UL tags when the HTML parser is done in sha Allah
-            elif e.key() == Qt.Key.Key_B:
+            elif key == Qt.Key.Key_B:
                 tc = self.textCursor()
 
                 # getting the current selection as html
@@ -996,7 +995,7 @@ class Typer(QTextEdit):
 
             # if we call some of the existing shortcuts... forward to parent
             # TODO: dynamically load the existing shortcuts
-            elif e.key() in (Qt.Key.Key_H, Qt.Key.Key_V, Qt.Key.Key_R,
+            elif key in (Qt.Key.Key_H, Qt.Key.Key_V, Qt.Key.Key_R,
                              Qt.Key.Key_F, Qt.Key.Key_C, Qt.Key.Key_G,
                              Qt.Key.Key_A, Qt.Key.Key_E, Qt.Key.Key_S):
                 super(self._win.__class__, self._win).keyPressEvent(e)
@@ -1005,37 +1004,37 @@ class Typer(QTextEdit):
                 super(Typer, self).keyPressEvent(e)
 
         # same for Control modifier... forward to parent
-        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() in (Qt.Key.Key_G, Qt.Key.Key_S):
+        elif modifiers == Qt.KeyboardModifier.ControlModifier and key in (Qt.Key.Key_G, Qt.Key.Key_S):
             super(self._win.__class__, self._win).keyPressEvent(e)
 
         # some style to apply
         # TODO: need to be stored in external library / user defined
-        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_B:
+        elif modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_B:
             self.applyStyle(lambda x: x.bold(), lambda y: y.setBold)    # bold
 
-        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_Q:
+        elif modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_Q:
             self.applyStyle(lambda x: x.bold(), lambda y: y.setBold, QColor(22, 155, 76))
 
-        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_W:
+        elif modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_W:
             self.applyStyle(lambda x: x.bold(), lambda y: y.setBold, QColor(38, 125, 255))
 
-        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_D:
+        elif modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_D:
             self.applyStyle(None, None, QColor(68, 156, 205))
 
-        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_I:
+        elif modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_I:
             self.applyStyle(lambda x: x.italic(), lambda y: y.setItalic)    # italic
 
-        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_U:
+        elif modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_U:
             self.applyStyle(lambda x: x.underline(), lambda y: y.setUnderline)  # underline
 
-        elif modifiers == Qt.KeyboardModifier.ControlModifier and e.key() == Qt.Key.Key_H:
+        elif modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_H:
             # inserts a custom bullet (for Quran tafsir purpose, ayat separator)
             tc = self.textCursor()
             tc.beginEditBlock()
             bullet = '<span style="color:#9622d3;">\u06de</span>'
 
             # we first determine if we need extra spaces or no
-            if self.textCursor().positionInBlock() != 0 and self.previous_character not in string.whitespace:
+            if self.textCursor().positionInBlock() != 0 and previous_character not in string.whitespace:
                 tc.insertText(' ')
 
             next_char = self.next_character
@@ -1047,11 +1046,11 @@ class Typer(QTextEdit):
             return
 
         # forwarding to parent to jump through pages
-        elif e.key() in (Qt.Key.Key_PageUp, Qt.Key.Key_PageDown):
+        elif key in (Qt.Key.Key_PageUp, Qt.Key.Key_PageDown):
             super(self._win.__class__, self._win).keyPressEvent(e)
 
         # once return is pressed
-        elif e.key() == Qt.Key.Key_Return and tc.block().userData():
+        elif key == Qt.Key.Key_Return and tc.block().userData():
             # we cleanup the previous block
             tc.select(tc.SelectionType.BlockUnderCursor)
             indent = tc.blockFormat().indent()
@@ -1076,9 +1075,9 @@ class Typer(QTextEdit):
             block.setIndent(indent)
             tc.setBlockFormat(block)
 
-            T.HTML.insertParagraphTime(self.textCursor(), metric=self.fontMetrics())
+            T.HTML.insertParagraphTime(self.textCursor(), block=tc.block())
 
-        elif not (e.key() == Qt.Key.Key_Tab and self.auto_complete_available):
+        elif not (key == Qt.Key.Key_Tab and self.auto_complete_available):
             # forward Tab only if we're sure there is no autocomplete to do
             super(Typer, self).keyPressEvent(e)
 
@@ -1102,8 +1101,11 @@ class Typer(QTextEdit):
             if not candidate:
                 candidate = S.LOCAL.DICT.find(word, True)
 
-            if candidate == self.word and self.word in self.prophet_match:
-                candidate = f'{self.word} ﷺ'
+            elif candidate == self.word:
+                if self.word in self.prophet_match:
+                    candidate = f'{self.word} ﷺ'
+                elif self.word == 'Allah':
+                    candidate = f'{self.word}ﷻ '
 
             # if there is a candidate, we draw the autocomplete_label
             # we also require that the next character is a new word character (' ' or ", etc...)
@@ -1129,7 +1131,7 @@ class Typer(QTextEdit):
                 self.WL_autoComplete.hide()
 
         # finally, if Tab was pressed and there is an auto complete suggestion active
-        if e.key() == Qt.Key.Key_Tab and self.auto_complete_available and self.WL_autoComplete.isVisible():
+        if key == Qt.Key.Key_Tab and self.auto_complete_available and self.WL_autoComplete.isVisible():
             # inserting the suggestion
             self.insertPlainText(self.WL_autoComplete.text())
 
@@ -1150,7 +1152,7 @@ class Typer(QTextEdit):
             self.new_word = True
 
         # if there is a character we update the changed state
-        if len(e.text()):
+        if len(current_text):
             self.contentEdited.emit()
 
     def canInsertFromMimeData(self, source):
@@ -1316,7 +1318,7 @@ class Typer(QTextEdit):
             def edit_paragraph_time():
                 epoch, ok = DateTimePickerDialog.getDateTime()
                 if ok:
-                    T.HTML.insertParagraphTime(self.textCursor(), t=int(epoch))
+                    T.HTML.insertParagraphTime(self.textCursor(), t=int(epoch), block=block)
                     self.solveAudioMap()
             A_setDateTime.triggered.connect(edit_paragraph_time)
             M_main.insertAction(M_main.actions()[0], A_setDateTime)
@@ -1469,10 +1471,14 @@ class TyperHighlighter(QSyntaxHighlighter):
         self.typer = parent
         super(TyperHighlighter, self).__init__(*args)
 
+    @G.time
     def highlightBlock(self, text):
         """
         Overridden QSyntaxHighlighter method to apply the highlight
         """
+        if not T.SPELL.loaded:
+            return
+
         def tokenize(body_text: str) -> (int, str):
             """
             this tokenize the text with a rule
@@ -1494,35 +1500,23 @@ class TyperHighlighter(QSyntaxHighlighter):
         for idx, word in tokenize(text):
             # a word with # around is a reference
             # TODO: should match a regex pattern, same for the audio
+            if len(word) > 1:
+                if [*map(ord, word)] == [9834, T.TEXT.audio_char]:
+                    self.setFormat(idx, len(word), self.audio_format)
 
-            if [*map(ord, word)] == [9834, T.TEXT.audio_char]:
-                self.setFormat(idx, len(word), self.audio_format)
+                elif word.startswith("#") and word.endswith("#"):
+                    self.setFormat(idx, len(word), self.ref_format)
+                    state = G.State_Reference
 
-            elif word.startswith("#") and word.endswith("#"):
-                self.setFormat(idx, len(word), self.ref_format)
-                state = G.State_Reference
-
-            # otherwise we check if word' spelling is invalid
-            else:
-                try:
-                    assert T.SPELL.loaded
-                    # first make sure the word's length is correct
-                    assert len(word) > 1 and not T.TEXT.is_audio_tag(word[0])
-
-                    # now getting the word correction
-                    # abort if word's already in the dictionary
-                    assert not T.SPELL.word_check(word)
-
+                # otherwise we check if word' spelling is invalid
+                elif not T.SPELL.word_check(word):
                     # if we reach this point it means the word is incorrect and have some spell suggestions
                     self.setFormat(idx, len(word), self.err_format)
 
                     state = G.State_Correction
 
-                except (AssertionError, IndexError):
-                    pass
-
-            # finally setting the data state
-            data.state = state
+                # finally setting the data state
+                data.state = state
 
         # applying the data
         self.setCurrentBlockUserData(data)

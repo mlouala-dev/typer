@@ -14,15 +14,15 @@ from string import ascii_letters, digits, whitespace
 from html.parser import HTMLParser
 
 from PyQt5.QtCore import QRunnable, pyqtSignal, QObject, Qt, QSizeF
-from PyQt5.QtGui import QTextDocument, QFont, QTextOption, QTextBlockFormat, QTextCursor, QFontMetrics
+from PyQt5.QtGui import QTextDocument, QFont, QTextOption, QTextBlockFormat, QTextCursor, QFontMetrics, QTextBlock
 from tools import G, S
 
 
 class Regex:
     src_audio_path = re.compile(r'^.*?src="audio_record_(.*?)".*?$')
     paragraph_time = re.compile(r'src="paragraph_time_(.*?)"')
-    highlight_split = re.compile(r'[ \-\.\,:;!?\"\'\(\)\[\]\n]')
-    re_ignoretoken = r'\d|^[A-Z]|ﷺ|ﷻ'
+    highlight_split = re.compile(r'[ \-\.\,:;!?\"\'\(\)\[\]\n￼«»]')
+    re_ignoretoken = re.compile(r'\d|^[A-Z]|ﷺ|ﷻ|[\u0621-\u064a\ufb50-\ufdff\ufe70-\ufefc]')
 
 
 def buildCharMap(*characters):
@@ -56,7 +56,7 @@ class SpellChecker(QObject):
             self.callback_fn = callback_fn
 
         def run(self) -> None:
-            sympell = SymSpell(max_dictionary_edit_distance=2, prefix_length=5)
+            sympell = SymSpell(max_dictionary_edit_distance=3, prefix_length=5)
             sympell.load_dictionary(SpellChecker.dictionary_path, term_index=0,
                                     count_index=1, encoding="utf8", separator="\t")
 
@@ -96,8 +96,11 @@ class SpellChecker(QObject):
         suggestions = self.lookup(word, max_edit_distance=2, verbosity=Verbosity.TOP,
                                   include_unknown=False, transfer_casing=False)
 
-        # abort if word's already in the dictionary
-        return suggestions[0].term == word
+        try:
+            return suggestions[0].term == word
+
+        except IndexError:
+            pass
 
     def block_check(self, text: str):
         for word in Regex.highlight_split.split(text):
@@ -250,22 +253,23 @@ class HtmlOperator(HTMLParser):
             return 0
 
     @staticmethod
-    def getParagraphTime(metrics: QFontMetrics = None, t: int = 0) -> str:
+    def getParagraphTime(block: QTextBlock = None, t: int = 0) -> str:
         if not t:
             t = int(time.time())
 
-        if not metrics:
-            metrics = QFontMetrics(G.get_font())
+        if not block:
+            block = QTextBlock()
 
-        return f'''<img src="paragraph_time_{t}"
-                 width="0" height="{int(metrics.height() - metrics.leading())}" />'''
+        h = int(block.layout().boundingRect().height())
 
-    def insertParagraphTime(self, cursor: QTextCursor, t: int = 0, metric: QFontMetrics = None):
+        return f'''<img src="paragraph_time_{t}" width="0" height="{h}" />'''
+
+    def insertParagraphTime(self, cursor: QTextCursor, t: int = 0, block: QTextBlock = None):
         cursor.select(QTextCursor.BlockUnderCursor)
 
         if not self.hasParagraphTime(cursor.selection().toHtml()):
             cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock, QTextCursor.MoveMode.MoveAnchor)
-            cursor.insertHtml(self.getParagraphTime(metrics=metric, t=t))
+            cursor.insertHtml(self.getParagraphTime(block=block, t=t))
 
     @staticmethod
     def extractTextFragment(t: str, wide=False) -> str:
