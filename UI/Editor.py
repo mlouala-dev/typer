@@ -437,7 +437,7 @@ class Typer(QTextEdit):
             elif isinstance(obj, S.LocalSettings.BookMap.Hadith):
                 self.insertHtml(f'<h3><center>{obj.toHtml()}</center></h3>')
 
-            T.HTML.insertParagraphTime(tc, block=tc.block())
+            T.HTML.insertParagraphTime(tc)
             tc.insertBlock()
 
         else:
@@ -838,7 +838,7 @@ class Typer(QTextEdit):
         elif key == Qt.Key_Return:
             # insert time anchor before inserting new line
             if tc.block().length() > 2:
-                T.HTML.insertParagraphTime(self.textCursor(), block=tc.block())
+                T.HTML.insertParagraphTime(self.textCursor(), metric=self.fontMetrics())
 
         elif key == Qt.Key_Home and not int(modifiers):
             block = tc.block()
@@ -1075,7 +1075,7 @@ class Typer(QTextEdit):
             block.setIndent(indent)
             tc.setBlockFormat(block)
 
-            T.HTML.insertParagraphTime(self.textCursor(), block=tc.block())
+            T.HTML.insertParagraphTime(self.textCursor(), metric=self.fontMetrics())
 
         elif not (key == Qt.Key.Key_Tab and self.auto_complete_available):
             # forward Tab only if we're sure there is no autocomplete to do
@@ -1318,7 +1318,7 @@ class Typer(QTextEdit):
             def edit_paragraph_time():
                 epoch, ok = DateTimePickerDialog.getDateTime()
                 if ok:
-                    T.HTML.insertParagraphTime(self.textCursor(), t=int(epoch), block=block)
+                    T.HTML.insertParagraphTime(self.textCursor(), t=int(epoch))
                     self.solveAudioMap()
             A_setDateTime.triggered.connect(edit_paragraph_time)
             M_main.insertAction(M_main.actions()[0], A_setDateTime)
