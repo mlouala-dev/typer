@@ -118,7 +118,17 @@ class Typer(QTextEdit):
         self.setCurrentCharFormat(self.default_textFormat)
 
         T.QOperator.ApplyDefault.Document(self.document(), self.default_font)
-
+        self.document().setDefaultStyleSheet(f'''
+        p {{
+            margin-top:0px;
+            margin-bottom:0px;
+            margin-left:0px;
+            margin-right:0px;
+            font-family:'{G.__font__}';
+            font-size:{G.__font_size__}pt;
+        }}
+        ''')
+        self.document().setDocumentMargin(10)
         self.document().blockCountChanged.connect(self.contentChanged.emit)
         self.textCursor().setBlockFormat(self.default_blockFormat)
 
@@ -723,7 +733,7 @@ class Typer(QTextEdit):
         previous_character = self.previous_character
         key, current_text = e.key(), e.text()
         modifiers = QApplication.keyboardModifiers()
-        
+
         # getting the current word
         tc = self.textCursor()
         tc.select(tc.SelectionType.WordUnderCursor)
@@ -744,7 +754,7 @@ class Typer(QTextEdit):
             # for the other case we need images... until we implement the ThanaaWaMadh font
             else:
                 # adding it as a HTML special font
-                tc.insertHtml(f'''<span style="font-family:'ThanaaWaMadh';">{self.ThanaaWaMadh[lowered_text]}</span><span style=" font-family:'Microsoft Uighur'; font-size:normal;">{current_text}</span>''')
+                tc.insertHtml(f'''<span style="font-family:'ThanaaWaMadh';">{self.ThanaaWaMadh[lowered_text]}</span><span style=" font-family:'{G.__font__}'; font-size:normal;">{current_text}</span>''')
 
             # setting word to null
             self.word = ""
@@ -839,6 +849,31 @@ class Typer(QTextEdit):
             if tc.block().length() > 2:
                 T.HTML.insertParagraphTime(self.textCursor())
 
+            if tc.block().userData():
+                # we cleanup the previous block
+                tc.select(tc.SelectionType.BlockUnderCursor)
+                indent = tc.blockFormat().indent()
+
+                # first we make sure our block doesn't contains spelling errors
+                if tc.block().userData().state != G.State_Correction:
+                    # and imports all word to our frequency list
+                    # we split the paragraph in phrase, so the previous word suggestion will be coherent
+                    S.LOCAL.DICT.digest(tc.selectedText().replace("\u2029", ""))
+
+                # forward to superclass
+                tc = self.textCursor()
+                block = tc.blockFormat()
+                block.setIndent(indent)
+                tc.insertBlock(block)
+
+                # light save settings
+                S.LOCAL.saveVisualSettings()
+
+                # # apply the default style to the new paragraph
+
+                T.HTML.insertParagraphTime(self.textCursor())
+                return
+
         elif key == Qt.Key.Key_Home and modifiers == Qt.KeyboardModifier.NoModifier:
             block = tc.block()
             if block.text().startswith(chr(T.TEXT.audio_char)):
@@ -896,7 +931,7 @@ class Typer(QTextEdit):
                         tc.insertText(translitteration.translitterate(txt))
 
         # handling some special shortcuts
-        if (modifiers & Qt.KeyboardModifier.ControlModifier) and (modifiers & Qt.KeyboardModifier.ShiftModifier):
+        elif (modifiers & Qt.KeyboardModifier.ControlModifier) and (modifiers & Qt.KeyboardModifier.ShiftModifier):
 
             # to copy the HTML code of the selection
             if key == Qt.Key.Key_C:
@@ -964,7 +999,7 @@ class Typer(QTextEdit):
                 res, cnt = '', 0
                 # every line patching pattern
                 for line in html.split('\n'):
-                    line_res = self.re_textblock.sub(fr'\1\2 <span style=" font-family:\'{G.__font__}\'; font-size:15pt; font-weight:600; color:#267dff;">{cnt})</span> \5\6<', line, count=1)
+                    line_res = self.re_textblock.sub(fr'\1\2 <span style=" font-family:{G.__font__}; font-size:15pt; font-weight:600; color:#267dff;">{cnt})</span> \5\6<', line, count=1)
                     res += line_res
                     # ignoring the empty paragraphs
                     if '-qt-paragraph-type:empty;' not in line:
@@ -995,8 +1030,8 @@ class Typer(QTextEdit):
             # if we call some of the existing shortcuts... forward to parent
             # TODO: dynamically load the existing shortcuts
             elif key in (Qt.Key.Key_H, Qt.Key.Key_V, Qt.Key.Key_R,
-                             Qt.Key.Key_F, Qt.Key.Key_C, Qt.Key.Key_G,
-                             Qt.Key.Key_A, Qt.Key.Key_E, Qt.Key.Key_S):
+                         Qt.Key.Key_F, Qt.Key.Key_C, Qt.Key.Key_G,
+                         Qt.Key.Key_A, Qt.Key.Key_E, Qt.Key.Key_S):
                 super(self._win.__class__, self._win).keyPressEvent(e)
 
             else:
@@ -1046,36 +1081,11 @@ class Typer(QTextEdit):
 
         # forwarding to parent to jump through pages
         elif key in (Qt.Key.Key_PageUp, Qt.Key.Key_PageDown):
-            super(self._win.__class__, self._win).keyPressEvent(e)
+            return super(self._win.__class__, self._win).keyPressEvent(e)
 
-        # once return is pressed
-        if key == Qt.Key.Key_Return and tc.block().userData():
-            # we cleanup the previous block
-            tc.select(tc.SelectionType.BlockUnderCursor)
-            indent = tc.blockFormat().indent()
-
-            # first we make sure our block doesn't contains spelling errors
-            if tc.block().userData().state != G.State_Correction:
-                # and imports all word to our frequency list
-                # we split the paragraph in phrase, so the previous word suggestion will be coherent
-                S.LOCAL.DICT.digest(tc.selectedText().replace("\u2029", ""))
-
-            # forward to superclass
-            tc = self.textCursor()
-            block = tc.blockFormat()
-            block.setIndent(indent)
-            tc.insertBlock(block)
-
-            # light save settings
-            S.LOCAL.saveVisualSettings()
-
-            # # apply the default style to the new paragraph
-
-            T.HTML.insertParagraphTime(self.textCursor())
-
-        elif not (key == Qt.Key.Key_Tab and self.auto_complete_available):
+        if not (key == Qt.Key.Key_Tab and self.auto_complete_available):
             # forward Tab only if we're sure there is no autocomplete to do
-            super(Typer, self).keyPressEvent(e)
+            super().keyPressEvent(e)
 
         if self.auto_complete_available:
             tc = self.textCursor()

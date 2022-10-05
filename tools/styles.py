@@ -5,7 +5,7 @@ The styles applied in the app
 from PyQt6.QtGui import QTextBlockFormat, QTextCharFormat, QFont, QTextCursor, QTextBlock, QBrush, QColor
 from PyQt6.QtCore import Qt
 
-from tools import G
+from tools import G, T
 
 
 class TyperStyle:
@@ -43,11 +43,7 @@ class TyperStyle:
         block: QTextBlockFormat
         textchar: QTextCharFormat
 
-        block.setAlignment(Qt.AlignmentFlag.AlignJustify)
-        block.setTextIndent(10)
-        block.setLineHeight(100.0, 1)
-        block.setLeftMargin(10)
-        block.setRightMargin(10)
+        T.QOperator.ApplyDefault.BlockFormat(block)
 
         f = textchar.font()
         f.setPointSizeF(G.get_font().pointSizeF())
@@ -101,7 +97,6 @@ class Title(TyperStyle):
 
     def apply(self, block: QTextBlockFormat, textchar: QTextCharFormat):
         block.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        block.setLineHeight(100.0, 1)
 
         f = textchar.font()
         f.setBold(True)

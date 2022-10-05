@@ -28,6 +28,9 @@ __debug_level__ = logging.ERROR
 
 # the font(s) used by the app
 __font__ = 'Microsoft Uighur'
+def get_font_size(size: float = 1.2):
+    return int(size * 12 * 10) / 10.0
+__font_size__ = get_font_size()
 __additional_fonts__ = ['Microsoft Uighur Bold', 'AGA Arabesque', 'ThanaaWaMadh']
 __additional_fonts__.insert(0, __font__)
 
@@ -45,7 +48,7 @@ def get_font(size: float = 1.2, *args, **kwargs) -> QFont:
     :return: the complete QFont object
     """
     font = QFont(__font__, *args, **kwargs)
-    font.setPointSizeF(int(size * 12 * 10) / 10.0)
+    font.setPointSizeF(get_font_size(size))
 
     # we force the antialias
     font.setStyleStrategy(QFont.StyleStrategy.PreferQuality)

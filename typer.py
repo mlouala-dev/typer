@@ -349,7 +349,7 @@ class TyperWIN(QMainWindow):
             self.typer.ensureCursorVisible()
 
             # rebuild the summary (F2)
-            self.summary_view.build(self.typer.document())
+            # self.summary_view.build(self.typer.document())
 
         # flagging as not modified
         self.modified.clear()

@@ -459,12 +459,15 @@ class LocalSettings(_Settings):
             return {a: b.content for a, b in self._book.items()}
 
         def savePage(self, page: int):
+            clean_page = html.escape(T.Regex.complete_page_filter(self[page].content))
+
             try:
                 self._cursor.execute('INSERT INTO book ("page", "text", "cursor") VALUES (?, ?, ?)',
-                                     (page, html.escape(self[page].content), self[page].cursor))
+                                     (page, clean_page, self[page].cursor))
+
             except sqlite3.IntegrityError:
                 self._cursor.execute(f'UPDATE book SET text=?, cursor=? WHERE page={page}',
-                                     (html.escape(self[page].content), self[page].cursor))
+                                     (clean_page, self[page].cursor))
 
             self._db.commit()
             self._mod.remove(page)
