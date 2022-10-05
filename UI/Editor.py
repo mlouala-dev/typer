@@ -107,7 +107,6 @@ class Typer(QTextEdit):
         self.default_font = G.get_font()
         T.QOperator.ApplyDefault.Font(self.default_font)
         metrics = QFontMetrics(self.default_font)
-        print(metrics.ascent())
         T.HTML.default_height = metrics.ascent()
 
         self.setFont(self.default_font)
@@ -838,7 +837,7 @@ class Typer(QTextEdit):
         elif key == Qt.Key.Key_Return:
             # insert time anchor before inserting new line
             if tc.block().length() > 2:
-                T.HTML.insertParagraphTime(self.textCursor(), metric=self.fontMetrics())
+                T.HTML.insertParagraphTime(self.textCursor())
 
         elif key == Qt.Key.Key_Home and modifiers == Qt.KeyboardModifier.NoModifier:
             block = tc.block()
@@ -1072,7 +1071,7 @@ class Typer(QTextEdit):
 
             # # apply the default style to the new paragraph
 
-            T.HTML.insertParagraphTime(self.textCursor(), metric=self.fontMetrics())
+            T.HTML.insertParagraphTime(self.textCursor())
 
         elif not (key == Qt.Key.Key_Tab and self.auto_complete_available):
             # forward Tab only if we're sure there is no autocomplete to do

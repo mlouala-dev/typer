@@ -159,11 +159,11 @@ class TitleBar(QFrame):
             movement = end - self.start
 
             # moving the window
-            self.win.setGeometry(
-                self.mapToGlobal(movement).x(),
-                self.mapToGlobal(movement).y(),
-                self.win.width(),
-                self.win.height()
+            self.win.move(
+                QPoint(
+                    self.mapToGlobal(movement).x(),
+                    self.mapToGlobal(movement).y()
+                )
             )
 
             self.start = end
