@@ -7,9 +7,9 @@ import sqlite3
 from logging import CRITICAL, ERROR, WARNING, INFO, DEBUG, NOTSET
 from functools import partial
 
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+from PyQt6.QtCore import *
+from PyQt6.QtGui import *
+from PyQt6.QtWidgets import *
 
 from UI.BasicElements import LineLayout, ListWidget, HighlightModelItem, NumberModelItem, SearchField, \
     MultiLineModelItem
@@ -652,14 +652,14 @@ class Settings(QDialog):
         self.setFixedSize(600, 500)
 
         L_main = QGridLayout()
-        L_main.setAlignment(Qt.AlignTop)
+        L_main.setAlignment(Qt.AlignmentFlag.AlignTop)
         L_main.setSpacing(0)
         L_main.setContentsMargins(2, 2, 2, 2)
 
         # GLOBAL SETTINGS
         self.G_global = QGroupBox('Global Settings')
         self.L_global = QVBoxLayout()
-        self.L_global.setAlignment(Qt.AlignTop)
+        self.L_global.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.L_global.setSpacing(0)
         self.L_global.setContentsMargins(2, 2, 2, 2)
         self.G_global.setLayout(self.L_global)
@@ -720,7 +720,7 @@ class Settings(QDialog):
         # LOCAL SETTINGS
         self.G_local = QGroupBox('Local Settings')
         self.L_local = QVBoxLayout()
-        self.L_local.setAlignment(Qt.AlignTop)
+        self.L_local.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.L_local.setSpacing(0)
         self.L_local.setContentsMargins(2, 2, 2, 2)
         self.G_local.setLayout(self.L_local)
@@ -847,7 +847,7 @@ class Settings(QDialog):
             dialog.setFileMode(QFileDialog.FileMode.DirectoryOnly)
             dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
 
-            if dialog.exec_() == QFileDialog.Accepted:
+            if dialog.exec() == QFileDialog.Accepted:
                 S.GLOBAL.setAudioRecordPath(dialog.selectedFiles()[0])
                 self.audio_record_path.setText(S.GLOBAL.audio_record_path)
 
@@ -894,7 +894,7 @@ class Navigator(QDialog):
         self.setWindowIcon(G.icon('List'))
 
         self.WL_title = QLabel()
-        self.WL_title.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+        self.WL_title.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self.L_main.addWidget(self.WL_title, 1)
 
     def addLine(self, start, end, start_title='', end_title=''):
@@ -1137,12 +1137,12 @@ class Exporter(QDialog):
         Opens a dialog to select the PDF filepath
         """
         dialog = QFileDialog(None, "Pick saved PDF's filepath", S.GLOBAL.default_path)
-        dialog.setFileMode(dialog.AnyFile)
+        dialog.setFileMode(dialog.FileMode.AnyFile)
         dialog.setDefaultSuffix("pdf")
         dialog.setNameFilter("PDF Files (*.pdf)")
-        dialog.setAcceptMode(dialog.AcceptSave)
+        dialog.setAcceptMode(dialog.AcceptMode.AcceptSave)
 
-        if dialog.exec_() == dialog.Accepted:
+        if dialog.exec() == dialog.AcceptMode.Accepted:
             filename = dialog.selectedFiles()
             self.WI_path.setText(filename[0])
             self.PDF_exporter.path = filename[0]
@@ -1393,7 +1393,7 @@ class Jumper(QDialog):
 class DateTimePickerDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent=parent)
-        self.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Minimum)
+        self.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Minimum)
         self.setModal(True)
         L_main = QVBoxLayout()
 
@@ -1421,7 +1421,7 @@ class DateTimePickerDialog(QDialog):
         if t:
             dialog.W_datetimePicker.setDateTime(QDateTime.fromSecsSinceEpoch(t))
 
-        result = dialog.exec_()
+        result = dialog.exec()
         date = dialog.dateTime()
 
         return date.toMSecsSinceEpoch() / 1000, result == QDialog.Accepted

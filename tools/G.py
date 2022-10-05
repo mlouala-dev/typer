@@ -15,10 +15,9 @@ from os.path import dirname, join, splitext
 from pathlib import Path
 from functools import wraps
 
-from PyQt5.QtGui import QPixmap, QFont, QIcon, QKeySequence
-from PyQt5.QtCore import Qt
-from PyQt5.QtSql import QSqlDatabase
-from PyQt5.QtWidgets import QAction, QShortcut
+from PyQt6.QtGui import QPixmap, QFont, QIcon, QKeySequence, QAction, QShortcut
+from PyQt6.QtCore import Qt
+from PyQt6.QtSql import QSqlDatabase
 
 
 # The application's core settings
@@ -148,10 +147,10 @@ def pixmap(name: str, size: int = 32) -> QPixmap:
     :param size: additionnal wanted size of ressource, default is 32px (max)
     """
     # getting the current ressource's path
-    res = QPixmap(f':/{name}')
+    res = QPixmap(f'typer:{name}')
 
     # and rescale
-    res = res.scaledToHeight(size, Qt.SmoothTransformation)
+    res = res.scaledToHeight(size, Qt.TransformationMode.SmoothTransformation)
 
     return res
 
@@ -162,7 +161,7 @@ def icon(name: str) -> QIcon:
     :param name: icon's basename
     """
     # getting the current ressource's path
-    return QIcon(f':/icons/{name}')
+    return QIcon(f'icons:{name}.png')
 
 
 def get_steps(length: int, maximum = 100):
@@ -264,7 +263,7 @@ class Shortcut(QAction):
         shortcut_trigger = QShortcut(QKeySequence(self._shortcut), parent)
 
         self.setShortcut(self._shortcut)
-        self.setShortcutContext(Qt.WindowShortcut)
+        self.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
 
         self.setToolTip(self.hint)
         self.setText(self.hint)
@@ -404,7 +403,7 @@ def time(func):
         s = tm.time()
         result = func(*args, **kwargs)
         e = tm.time() - s
-        logger.info(f'{e}ms for {function_info(func)}')
+        print(f'{e}ms for {function_info(func)}')
         return result
 
     return wrapper

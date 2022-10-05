@@ -3,13 +3,14 @@ import time
 from functools import partial
 from math import floor
 
-from PyQt5.QtWidgets import *
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
+from PyQt6.QtWidgets import *
+from PyQt6.QtGui import *
+from PyQt6.QtCore import *
 
 from tools.styles import Styles
 from tools import G, S
 from UI.Dialogs import TopicsDialog
+
 
 class SplashScreen(QWidget):
     """
@@ -17,9 +18,9 @@ class SplashScreen(QWidget):
     """
     def __init__(self, parent=None, title=''):
         super(SplashScreen, self).__init__(parent)
-        self.setWindowFlags(Qt.SplashScreen | Qt.FramelessWindowHint)
+        self.setWindowFlags(Qt.WindowType.SplashScreen | Qt.WindowType.FramelessWindowHint)
         bg = QLabel(self)
-        bg.setPixmap(QPixmap(":/splash_screen"))
+        bg.setPixmap(QPixmap("typer:splash_screen.jpg"))
         bg.setGeometry(0, 0, 700, 384)
 
         # a label displaying the current version / variant of the app
@@ -92,7 +93,7 @@ class TitleBar(QFrame):
         self.window_title.setStyleSheet('color:#2a82da;')
         self.window_title.setFont(G.get_font(1.3))
         self.window_title.setObjectName('WindowTitle')
-        self.window_title.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+        self.window_title.setAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
         self.window_title.setFixedHeight(30)
 
         self.min_button = QPushButton('\u268A')
@@ -172,9 +173,9 @@ class TitleBar(QFrame):
         if cursor hit the top of screen, maximize
         """
         # getting position relative to screen for multiscreen
-        y = QApplication.desktop().cursor().pos().y()
-        screen = QApplication.desktop().screenNumber(QApplication.desktop().cursor().pos())
-        delta = y - QApplication.desktop().screenGeometry(screen).y()
+        y = self.mapToGlobal(e.pos()).y()
+        screen = QApplication.screenAt(self.mapToGlobal(e.pos()))
+        delta = y - screen.geometry().y()
 
         if delta == 0:
             self.toggleMaximized()
@@ -260,7 +261,7 @@ class MainToolbar(Toolbar):
         # <3
         basmallah = QLabel('بسم الله الرحمان الرحيم')
         basmallah.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        basmallah.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        basmallah.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         basmallah.setFont(G.get_font())
 
         self.addWidget(basmallah)
@@ -428,7 +429,7 @@ class Summary(QTreeWidget):
             Create a new QTreeWidgetItem and attach it if a parent widget is provided
             """
             item = QTreeWidgetItem([label])
-            item.setData(0, Qt.UserRole, data)
+            item.setData(0, Qt.ItemDataRole.UserRole, data)
             item.setFont(0, font)
 
             # if a parent is provided, we parent to it, otherwise we parent to root
@@ -492,7 +493,7 @@ class Summary(QTreeWidget):
 
         for nb in notes:
             for child in notes[nb]['items']:
-                new(notes[nb]['closest'].data(0, Qt.UserRole), label='\u26A0 - %s' % child, parent=notes[nb]['closest'])
+                new(notes[nb]['closest'].data(0, Qt.ItemDataRole.UserRole), label='\u26A0 - %s' % child, parent=notes[nb]['closest'])
 
         # setting the view to expanded
 
@@ -510,14 +511,14 @@ class StatusBar(QStatusBar):
         def __init__(self, parent: QWidget = None):
             super(StatusBar.VolumeBar, self).__init__(parent)
             p = QPalette()
-            p.setColor(p.Highlight, QColor(0, 255, 0))
+            p.setColor(p.ColorRole.Highlight, QColor(0, 255, 0))
             self.setPalette(p)
 
     def __init__(self, parent: QWidget = None):
         super(StatusBar, self).__init__(parent)
         self.setFixedHeight(30)
         self.setContentsMargins(10, 0, 0, 2)
-        self.layout().setAlignment(Qt.AlignTop)
+        self.layout().setAlignment(Qt.AlignmentFlag.AlignTop)
 
         # UI stuffs
         self.page_label = QLabel(self)
@@ -531,12 +532,12 @@ class StatusBar(QStatusBar):
         self.record_status = QLabel("Recording (00:00) ...", parent=self)
 
         self.record_volume = StatusBar.VolumeBar(self)
-        self.record_volume.setOrientation(Qt.Vertical)
+        self.record_volume.setOrientation(Qt.Orientation.Vertical)
         self.record_volume.setFixedWidth(20)
         self.record_volume.setTextVisible(False)
 
         self.label = QLabel(self)
-        self.label.setAlignment(Qt.AlignRight)
+        self.label.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.label.setText("")
 
         self.connection_status_icon.hide()
@@ -552,17 +553,17 @@ class StatusBar(QStatusBar):
         self.processing_blink_state = True
         self.timer_id = 0
         self.processing_icon = QLabel(self)
-        self.processing_icon.setPixmap(G.pixmap(f"icons/Apple-Half", size=19))
+        self.processing_icon.setPixmap(G.pixmap(f"icons:Apple-Half.png", size=19))
         self.processing_icon.setToolTipDuration(1000)
         self.processing_icon.hide()
         self.not_saved_icon = QLabel(self)
-        self.not_saved_icon.setPixmap(G.pixmap("icons/Bullet-Red", size=21))
+        self.not_saved_icon.setPixmap(G.pixmap("icons:Bullet-Red.png", size=21))
         self.not_saved_icon.hide()
         self.saving_icon = QLabel(self)
-        self.saving_icon.setPixmap(G.pixmap("icons/Bullet-Orange", size=21))
+        self.saving_icon.setPixmap(G.pixmap("icons:Bullet-Orange.png", size=21))
         self.saving_icon.hide()
         self.saved_icon = QLabel(self)
-        self.saved_icon.setPixmap(G.pixmap("icons/Bullet-Green", size=21))
+        self.saved_icon.setPixmap(G.pixmap("icons:Bullet-Green.png", size=21))
 
         self.addPermanentWidget(self.processing_icon, 0)
         self.addPermanentWidget(self.page_label, 1)
@@ -620,7 +621,7 @@ class StatusBar(QStatusBar):
 
     def timerEvent(self, a0: QTimerEvent) -> None:
         self.processing_blink_state = not self.processing_blink_state
-        self.processing_icon.setPixmap(G.pixmap(f"icons/Apple{'' if self.processing_blink_state else '-Half'}", size=19))
+        self.processing_icon.setPixmap(G.pixmap(f"icons:Apple{'' if self.processing_blink_state else '-Half'}.png", size=19))
 
     def loadingState(self, state: int):
         if state <= 0:
@@ -684,7 +685,7 @@ class BreadCrumbs(QWidget):
 
             super().__init__('', parent)
             self.setContentsMargins(10, 3, 25, 1)
-            self.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+            self.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
             self.setMouseTracking(True)
 
         def mousePressEvent(self, e: QMouseEvent):
@@ -725,8 +726,8 @@ class BreadCrumbs(QWidget):
             on_line = palette.alternateBase() if not self.hover else palette.highlight()
             button_color = on_color if self.hover else default_bg
             qp = QPainter(self)
-            qp.setRenderHint(QPainter.Antialiasing)
-            qp.setPen(Qt.NoPen)
+            qp.setRenderHint(QPainter.RenderHint.Antialiasing)
+            qp.setPen(Qt.PenStyle.NoPen)
             qp.setBrush(button_color)
             if self.level == 1:
                 qp.drawRoundedRect(QRect(0, 0, self.width() // 2 + 15, self.height()), 15, 15)
@@ -744,7 +745,7 @@ class BreadCrumbs(QWidget):
                 QPoint(self.width() - 20, self.height() + 10),
                 QPoint(self.width(), self.height() // 2),
                 QPoint(self.width() - 20, -10)
-            ]), Qt.OddEvenFill)
+            ]), Qt.FillRule.OddEvenFill)
 
             qp.setPen(QPen(on_line, 3))
             qp.drawLines([QLine(
@@ -779,7 +780,7 @@ class BreadCrumbs(QWidget):
         layout.addWidget(self.l1, stretch=0)
         layout.addWidget(self.l2, stretch=0)
         layout.addWidget(self.l3, stretch=0)
-        layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         layout.setContentsMargins(10, 0, 0, 0)
         layout.setSpacing(0)
 
@@ -814,7 +815,7 @@ class BreadCrumbs(QWidget):
                 action.triggered.connect(partial(goto, int(bab.page) + 1))
                 menu.addAction(action)
 
-        menu.exec_(global_pos)
+        menu.exec(global_pos)
 
     @G.log
     def updatePage(self, page):

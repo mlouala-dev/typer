@@ -4,10 +4,10 @@ import win32api
 import sqlite3
 import re
 
-from PyQt5.QtSql import QSqlDatabase
-from PyQt5.QtWidgets import *
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
+from PyQt6.QtSql import QSqlDatabase
+from PyQt6.QtWidgets import *
+from PyQt6.QtGui import *
+from PyQt6.QtCore import *
 
 from UI.BasicElements import ListWidget, SearchField, LineLayout, AyatModelItem, MultiLineModelItem
 from tools import G, S
@@ -267,4 +267,4 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     editor = HadithSearch()
     editor.show()
-    app.exec_()
+    app.exec()

@@ -3,10 +3,10 @@ import math
 import win32api
 import re
 
-from PyQt5.QtSql import QSqlDatabase
-from PyQt5.QtWidgets import *
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
+from PyQt6.QtSql import QSqlDatabase
+from PyQt6.QtWidgets import *
+from PyQt6.QtGui import *
+from PyQt6.QtCore import *
 
 from tools.translitteration import arabic_hurufs, translitterate, get_arabic_numbers
 from UI.BasicElements import ListWidget, SearchField, AyatModelItem, NumberModelItem
@@ -68,7 +68,7 @@ class QuranQuote(QDialog):
         """
         # for local testing
         if __name__ == "__main__":
-            from PyQt5.QtSql import QSqlDatabase
+            from PyQt6.QtSql import QSqlDatabase
             connection = QSqlDatabase.addDatabase("QSQLITE")
             connection.setDatabaseName("../rsc/quran.db")
             db_rsc = QSqlDatabase.database()
@@ -76,7 +76,7 @@ class QuranQuote(QDialog):
         # otherwise we get it from parent
         self.db = db_rsc
 
-        q = self.db.exec_("SELECT * FROM surats")
+        q = self.db.exec("SELECT * FROM surats")
 
         # we get all surats infos
         while q.next():
@@ -91,7 +91,7 @@ class QuranQuote(QDialog):
             )
 
         # then the same for verses
-        q = self.db.exec_("SELECT * FROM quran ORDER BY ayat")
+        q = self.db.exec("SELECT * FROM quran ORDER BY ayat")
         while q.next():
             self.surats[q.value(0) - 1].ayat.append(q.value(2))
 
@@ -160,7 +160,7 @@ class QuranQuote(QDialog):
             :return: the surat's number
             """
             with G.SQLConnection('quran.db') as db:
-                q = db.exec_(f"SELECT * FROM surats WHERE Name LIKE '%{text}%'")
+                q = db.exec(f"SELECT * FROM surats WHERE Name LIKE '%{text}%'")
 
                 # getting the first result
                 q.next()
@@ -365,7 +365,7 @@ class QuranSearch(QDialog):
                 clean_txt = re.sub(f'([{"".join(arabic_hurufs)}])', r'\1[ًٌٍَُِّْ]{0,2}', clean_txt)
 
                 # searching in db
-                q = db.exec_('SELECT * FROM quran WHERE text REGEXP "%s" ORDER BY surat ASC' % clean_txt)
+                q = db.exec('SELECT * FROM quran WHERE text REGEXP "%s" ORDER BY surat ASC' % clean_txt)
                 self.result_view.clear()
                 self.result_view.show()
 
@@ -379,7 +379,7 @@ class QuranSearch(QDialog):
                     w = self.result_view.columnWidth(0)
 
                     # with the text's bounding box width we try to guess the number on lines
-                    nl = max(1, math.floor((fm.width(q.value('Text')) + 50) / w))
+                    nl = max(1, math.floor((fm.horizontalAdvance(q.value('Text')) + 50) / w))
 
                     # then we store all data in the QTreeWidgetItem
                     surat = q.value(1)
@@ -453,4 +453,4 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     editor = QuranSearch()
     editor.show()
-    app.exec_()
+    app.exec()

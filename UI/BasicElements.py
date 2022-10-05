@@ -2,9 +2,9 @@
 """
 Some very basic elements used by the UI
 """
-from PyQt5.QtCore import *
-from PyQt5.QtGui import QColor, QTextOption, QFont, QPainter, QKeyEvent, QFontMetrics, QMouseEvent
-from PyQt5.QtWidgets import *
+from PyQt6.QtCore import *
+from PyQt6.QtGui import QColor, QTextOption, QFont, QPainter, QKeyEvent, QFontMetrics, QMouseEvent
+from PyQt6.QtWidgets import *
 
 
 def get_item_color(row: int, state) -> QColor:
@@ -19,11 +19,11 @@ def get_item_color(row: int, state) -> QColor:
     bg = QColor(45, 45, 45) if row % 2 else QColor(32, 32, 32)
 
     # if mouse over
-    if state & QStyle.State_MouseOver:
+    if state & QStyle.StateFlag.State_MouseOver:
         bg = QColor(42, 130, 218)
 
     # if item selected
-    elif state & QStyle.State_Selected:
+    elif state & QStyle.StateFlag.State_Selected:
         bg = QColor(42, 81, 128)
 
     return bg
@@ -67,7 +67,7 @@ class MultiLineModelItem(AyatModelItem):
     """
     Same as before, for latin text
     """
-    color = Qt.white
+    color = Qt.GlobalColor.white
 
     to = QTextOption()
     to.setTextDirection(Qt.LayoutDirection.LeftToRight)
@@ -75,7 +75,7 @@ class MultiLineModelItem(AyatModelItem):
 
 
 class HighlightModelItem(QStyledItemDelegate):
-    color = Qt.white
+    color = Qt.GlobalColor.white
     highlight_color = QColor(115, 195, 255)
 
     def __init__(self, parent=None, font=QFont(), highlight=''):
@@ -107,11 +107,11 @@ class HighlightModelItem(QStyledItemDelegate):
 
             painter.setPen(self.highlight_color)
             fm = QFontMetrics(painter.font())
-            newrect.setX(newrect.x() + fm.width(f'{start}'))
+            newrect.setX(newrect.x() + fm.horizontalAdvance(f'{start}'))
             painter.drawText(newrect, highlight)
 
             painter.setPen(self.color)
-            newrect.setX(newrect.x() + fm.width(f'{highlight}'))
+            newrect.setX(newrect.x() + fm.horizontalAdvance(f'{highlight}'))
             painter.drawText(newrect, end)
 
         except ValueError:
@@ -130,7 +130,7 @@ class NumberModelItem(QStyledItemDelegate):
     font.setPixelSize(23)
     to = QTextOption()
     to.setTextDirection(Qt.LayoutDirection.RightToLeft)
-    to.setAlignment(Qt.AlignCenter | Qt.AlignHCenter)
+    to.setAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignHCenter)
 
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex):
         # getting the row alternate background color

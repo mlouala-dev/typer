@@ -2,8 +2,8 @@
 """
 The styles applied in the app
 """
-from PyQt5.QtGui import QTextBlockFormat, QTextCharFormat, QFont, QTextCursor, QTextBlock, QBrush, QColor
-from PyQt5.QtCore import Qt
+from PyQt6.QtGui import QTextBlockFormat, QTextCharFormat, QFont, QTextCursor, QTextBlock, QBrush, QColor
+from PyQt6.QtCore import Qt
 
 from tools import G
 
@@ -43,7 +43,7 @@ class TyperStyle:
         block: QTextBlockFormat
         textchar: QTextCharFormat
 
-        block.setAlignment(Qt.AlignJustify)
+        block.setAlignment(Qt.AlignmentFlag.AlignJustify)
         block.setTextIndent(10)
         block.setLineHeight(100.0, 1)
         block.setLeftMargin(10)
@@ -53,7 +53,7 @@ class TyperStyle:
         f.setPointSizeF(G.get_font().pointSizeF())
         f.setItalic(False)
         f.setBold(False)
-        f.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
+        # f.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
 
         textchar.setFont(f)
         textchar.setFontPointSize(f.pointSize())
@@ -82,7 +82,7 @@ class Header(TyperStyle):
     children = ['Title', 'SubTitle']
 
     def apply(self, block: QTextBlockFormat, textchar: QTextCharFormat):
-        block.setAlignment(Qt.AlignCenter)
+        block.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         f = textchar.font()
         f.setBold(True)
@@ -100,7 +100,7 @@ class Title(TyperStyle):
     children = ['Subtitle']
 
     def apply(self, block: QTextBlockFormat, textchar: QTextCharFormat):
-        block.setAlignment(Qt.AlignLeft)
+        block.setAlignment(Qt.AlignmentFlag.AlignLeft)
         block.setLineHeight(100.0, 1)
 
         f = textchar.font()
@@ -119,7 +119,7 @@ class Subtitle(TyperStyle):
     id = 3
 
     def apply(self, block: QTextBlockFormat, textchar: QTextCharFormat):
-        block.setAlignment(Qt.AlignLeft)
+        block.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
         f = textchar.font()
         f.setBold(True)
@@ -274,9 +274,9 @@ class Styles:
 
 # the keyboard's shortcut connections
 Styles_Shortcut = {
-    Qt.Key_twosuperior: Styles.Default,
-    Qt.Key_Ampersand: Styles.Header,
-    Qt.Key_Eacute: Styles.Title,
-    Qt.Key_QuoteDbl: Styles.Subtitle,
+    Qt.Key.Key_twosuperior: Styles.Default,
+    Qt.Key.Key_Ampersand: Styles.Header,
+    Qt.Key.Key_Eacute: Styles.Title,
+    Qt.Key.Key_QuoteDbl: Styles.Subtitle,
     39: Styles.Ayat
 }

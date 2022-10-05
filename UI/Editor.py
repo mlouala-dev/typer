@@ -7,9 +7,9 @@ from time import time, localtime, strftime
 from functools import partial
 from symspellpy import Verbosity
 
-from PyQt5.QtWidgets import *
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
+from PyQt6.QtWidgets import *
+from PyQt6.QtGui import *
+from PyQt6.QtCore import *
 
 from UI import QuranWorker
 from UI.Dialogs import Conjugate, DateTimePickerDialog
@@ -112,7 +112,7 @@ class Typer(QTextEdit):
 
         self.default_textFormat = QTextCharFormat()
         self.default_textFormat.setFont(self.default_font)
-        self.default_textFormat.setProperty(8167, [G.__font__])
+        # self.default_textFormat.setProperty(8167, [G.__font__])
         self.setCurrentCharFormat(self.default_textFormat)
 
         T.QOperator.ApplyDefault.Document(self.document(), self.default_font)
@@ -151,31 +151,31 @@ class Typer(QTextEdit):
         except AttributeError:
             text_cursor = self.textCursor()
         finally:
-            text_cursor.movePosition(operation, QTextCursor.KeepAnchor)
+            text_cursor.movePosition(operation, QTextCursor.MoveMode.KeepAnchor)
 
         return text_cursor.selectedText()
 
     @property
     def next_character(self) -> str:
         try:
-            return self.textOperation(self.textCursor(), operation=QTextCursor.NextCharacter)[0]
+            return self.textOperation(self.textCursor(), operation=QTextCursor.MoveOperation.NextCharacter)[0]
         except IndexError:
             return ''
 
     @property
     def previous_character(self) -> str:
         try:
-            return self.textOperation(self.textCursor(), operation=QTextCursor.PreviousCharacter)[0]
+            return self.textOperation(self.textCursor(), operation=QTextCursor.MoveOperation.PreviousCharacter)[0]
         except IndexError:
             return ''
 
     @property
     def next_word(self, *args) -> str:
-        return self.textOperation(*args, operation=QTextCursor.NextWord)
+        return self.textOperation(*args, operation=QTextCursor.MoveOperation.NextWord)
 
     @property
     def previous_word(self, *args) -> str:
-        return self.textOperation(*args, operation=QTextCursor.PreviousWord)
+        return self.textOperation(*args, operation=QTextCursor.MoveOperation.PreviousWord)
 
     def insertNote(self):
         """
@@ -235,7 +235,6 @@ class Typer(QTextEdit):
 
         tc.setBlockFormat(bf)
 
-    @G.debug
     def applyStyle(self, check_function, apply_function, color=None):
         """
         this little function applies a simple style to the selection
@@ -270,7 +269,6 @@ class Typer(QTextEdit):
         cf.setFont(f)
         tc.setCharFormat(cf)
 
-    @G.debug
     def toggleFormat(self, style: TyperStyle = None, block: QTextBlock = None):
         """
         Toggle a block format between the given one and the default one
@@ -682,12 +680,12 @@ class Typer(QTextEdit):
 
         self.anchor = self.anchorAt(e.pos())
         if self.anchor:
-            QApplication.setOverrideCursor(Qt.PointingHandCursor)
+            QApplication.setOverrideCursor(Qt.CursorShape.PointingHandCursor)
 
         # if alt modifier is on we directly display the word corrections
         if modifiers == Qt.KeyboardModifier.AltModifier:
             c = self.cursorForPosition(e.pos())
-            c.select(QTextCursor.WordUnderCursor)
+            c.select(QTextCursor.SelectionType.WordUnderCursor)
             text = c.selectedText()
 
             solution_menu = QMenu(f'Suggestions for {text}', self)
@@ -695,7 +693,7 @@ class Typer(QTextEdit):
             # appending all the suggestions for the given word
             self.buildSpellMenu(text, c, solution_menu)
 
-            solution_menu.exec_(self.mapToGlobal(e.pos()))
+            solution_menu.exec(self.mapToGlobal(e.pos()))
 
         # otherwise we pop the classic popupmenu
         else:
@@ -707,12 +705,11 @@ class Typer(QTextEdit):
         """
         if self.anchor:
             QDesktopServices.openUrl(QUrl(self.anchor))
-            QApplication.setOverrideCursor(Qt.ArrowCursor)
+            QApplication.setOverrideCursor(Qt.CursorShape.ArrowCursor)
             self.anchor = None
         else:
             super().mouseReleaseEvent(e)
 
-    @G.time
     def keyPressEvent(self, e: QKeyEvent) -> None:
         """
         The main function, handle every thing when a letter is typed
@@ -835,23 +832,23 @@ class Typer(QTextEdit):
             if T.TEXT.is_audio_tag(next_character):
                 super().keyPressEvent(e)
 
-        elif key == Qt.Key_Return:
+        elif key == Qt.Key.Key_Return:
             # insert time anchor before inserting new line
             if tc.block().length() > 2:
                 T.HTML.insertParagraphTime(self.textCursor(), metric=self.fontMetrics())
 
-        elif key == Qt.Key_Home and not int(modifiers):
+        elif key == Qt.Key.Key_Home and not int(modifiers):
             block = tc.block()
             if block.text().startswith(chr(T.TEXT.audio_char)):
-                tc.setPosition(block.position() + 1, tc.MoveAnchor)
+                tc.setPosition(block.position() + 1, tc.MoveMode.MoveAnchor)
                 self.setTextCursor(tc)
                 return
 
-        elif key == Qt.Key_Left and previous_character:
+        elif key == Qt.Key.Key_Left and previous_character:
             if T.TEXT.is_audio_tag(previous_character):
                 super().keyPressEvent(e)
 
-        elif key == Qt.Key_Right and next_character:
+        elif key == Qt.Key.Key_Right and next_character:
             if T.TEXT.is_audio_tag(next_character):
                 super().keyPressEvent(e)
 
@@ -1062,7 +1059,7 @@ class Typer(QTextEdit):
                 S.LOCAL.DICT.digest(tc.selectedText().replace("\u2029", ""))
 
             # forward to superclass
-            super(Typer, self).keyPressEvent(e)
+            self.insertHtml('<p><br/></p>')
 
             # light save settings
             S.LOCAL.saveVisualSettings()
@@ -1070,10 +1067,6 @@ class Typer(QTextEdit):
             # # apply the default style to the new paragraph
 
             # apply the default style to the new paragraph
-            tc = self.textCursor()
-            block = tc.blockFormat()
-            block.setIndent(indent)
-            tc.setBlockFormat(block)
 
             T.HTML.insertParagraphTime(self.textCursor(), metric=self.fontMetrics())
 
@@ -1088,7 +1081,7 @@ class Typer(QTextEdit):
 
             # getting two words before
             ptc = self.textCursor()
-            ptc.movePosition(QTextCursor.PreviousWord, QTextCursor.MoveMode.MoveAnchor, 2)
+            ptc.movePosition(QTextCursor.MoveOperation.PreviousWord, QTextCursor.MoveMode.MoveAnchor, 2)
             ptc.select(ptc.SelectionType.WordUnderCursor)
             # we check if next character exists to prevent useless autocompletion display
             previous_word = ptc.selectedText()
@@ -1178,7 +1171,7 @@ class Typer(QTextEdit):
             # convert the image as a bytearray to source
             ba = QByteArray()
             buffer = QBuffer(ba)
-            buffer.open(QIODevice.WriteOnly)
+            buffer.open(QIODevice.OpenModeFlag.WriteOnly)
             image.save(buffer, 'PNG')
             img_str = ba.toBase64().data()
 
@@ -1273,13 +1266,13 @@ class Typer(QTextEdit):
 
         # getting the word
         tc = self.cursorForPosition(pos)
-        tc.select(QTextCursor.WordUnderCursor)
+        tc.select(QTextCursor.SelectionType.WordUnderCursor)
         text = tc.selectedText()
         html_text = T.HTML.extractTextFragment(tc.selection().toHtml())
 
         # getting the block
         c_block = self.cursorForPosition(pos)
-        c_block.select(QTextCursor.BlockUnderCursor)
+        c_block.select(QTextCursor.SelectionType.BlockUnderCursor)
         block = c_block.block()
         html_block = T.HTML.extractTextFragment(c_block.selection().toHtml())
 
@@ -1343,10 +1336,10 @@ class Typer(QTextEdit):
                     None,
                     f"{G.__app__} - Remove audio file",
                     f"<b>Remove audio file</b> in record folder also ?\n<i>{path}</i>",
-                    QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel
                 )
 
-                if dialog == QMessageBox.Yes:
+                if dialog == QMessageBox.StandardButton.Yes:
                     try:
                         os.remove(path)
 
@@ -1360,9 +1353,9 @@ class Typer(QTextEdit):
                         )
 
                 # if the user says "No", we just remove the text from the document
-                if dialog != QMessageBox.Cancel:
+                if dialog != QMessageBox.StandardButton.Cancel:
                     c = self.cursorForPosition(cursor_pos)
-                    c.select(QTextCursor.WordUnderCursor)
+                    c.select(QTextCursor.SelectionType.WordUnderCursor)
                     c.removeSelectedText()
 
             M_main.insertSeparator(M_main.actions()[0])
@@ -1431,7 +1424,7 @@ class Typer(QTextEdit):
             M_main.insertAction(M_main.actions()[0], AS_audioRecord)
 
         # displaying the final popup menu
-        M_main.exec_(global_pos)
+        M_main.exec(global_pos)
 
     def clear(self):
         super().clear()
@@ -1456,8 +1449,8 @@ class TyperHighlighter(QSyntaxHighlighter):
 
     # defining some formats
     err_format = QTextCharFormat()
-    err_format.setUnderlineColor(Qt.red)
-    err_format.setUnderlineStyle(QTextCharFormat.SpellCheckUnderline)
+    err_format.setUnderlineColor(Qt.GlobalColor.red)
+    err_format.setUnderlineStyle(QTextCharFormat.UnderlineStyle.SpellCheckUnderline)
 
     audio_format = QTextCharFormat()
     audio_format.setForeground(QColor(255, 125, 35))
@@ -1471,7 +1464,6 @@ class TyperHighlighter(QSyntaxHighlighter):
         self.typer = parent
         super(TyperHighlighter, self).__init__(*args)
 
-    @G.time
     def highlightBlock(self, text):
         """
         Overridden QSyntaxHighlighter method to apply the highlight
@@ -1545,11 +1537,13 @@ class TyperAudioMap(QWidget):
     def addSolver(self, solver: dict):
         self.solved.clear()
         self.solved.update(solver)
+        print(solved)
         self.update()
 
     def getSolver(self, block_id: int):
         try:
             return self.solved[block_id]
+
         except KeyError:
             return -2
 
@@ -1559,7 +1553,7 @@ class TyperAudioMap(QWidget):
 
     def paintEvent(self, event):
         qp = QPainter(self)
-        qp.setPen(Qt.NoPen)
+        qp.setPen(Qt.PenStyle.NoPen)
         qp.translate(0, -self.scrollX)
 
         for i, bound in enumerate(self._map.values()):

@@ -10,10 +10,10 @@ import fitz
 import re
 import tempfile
 
-from PyQt5 import QtPrintSupport
-from PyQt5.QtWidgets import *
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
+from PyQt6 import QtPrintSupport
+from PyQt6.QtWidgets import *
+from PyQt6.QtGui import *
+from PyQt6.QtCore import *
 
 from tools import G, S
 
@@ -37,11 +37,11 @@ class Viewer(QWidget):
         self.pixmap = QPixmap()
 
         layout = QVBoxLayout(self)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         self.view = QLabel(self)
         self.view.setContentsMargins(0, 0, 0, 0)
-        self.view.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.view.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
 
         layout.addWidget(self.view, stretch=1)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -57,7 +57,7 @@ class Viewer(QWidget):
         """
         Overrides mousePressEvent to catch the middle and right click
         """
-        if e.button() in (Qt.MouseButton.MidButton, Qt.MouseButton.RightButton):
+        if e.button() in (Qt.MouseButton.MiddleButton, Qt.MouseButton.RightButton):
             menu = QMenu()
             actions = {}
 
@@ -66,7 +66,7 @@ class Viewer(QWidget):
                 actions[menu.addAction(title)] = page
 
             # and display it as a menu for fast jump
-            action = menu.exec_(self.mapToGlobal(e.pos()))
+            action = menu.exec(self.mapToGlobal(e.pos()))
 
             # if menu is clicked, we display the corresponding page
             if action in actions:
@@ -150,7 +150,7 @@ class Viewer(QWidget):
         self.makePixmap(page)
 
         # scaling the pixmap correctly
-        pixmap = self.pixmap.scaledToWidth(self.width() * 3, Qt.SmoothTransformation)
+        pixmap = self.pixmap.scaledToWidth(self.width() * 3, Qt.TransformationMode.SmoothTransformation)
 
         # setting it as a QLabel's Pixmap
         self.view.setPixmap(pixmap)
@@ -173,7 +173,7 @@ class Viewer(QWidget):
         page = page_data.get_pixmap(matrix=fitz.Matrix(ratio, ratio), dpi=300, alpha=False)
 
         # for invertPixel
-        image_format = QImage.Format_RGB888
+        image_format = QImage.Format.Format_RGB888
 
         # now we have our data we store it inside a QImage to convert as a QPixmap
         image_data = QImage(
@@ -215,7 +215,7 @@ class ViewerFrame(QWidget):
         viewer_frame_layout.setContentsMargins(0, 0, 0, 0)
         viewer_frame_layout.setSpacing(0)
         viewer_frame_layout.addWidget(topics_display, stretch=1)
-        viewer_frame_layout.setAlignment(Qt.AlignTop)
+        viewer_frame_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
     def forceResize(self):
         w, h = self.width(), int(self.width() / self.viewer.ratio)
@@ -277,16 +277,13 @@ class PDF_Exporter(QThread):
         self.margeDT = 7  # marge totale droite en mm
         self.margeBT = 10  # marge totale basse en mm
 
-        self.formatpapier = QtPrintSupport.QPrinter.A4
-        self.orientation = QtPrintSupport.QPrinter.Portrait
-
         self.police = G.__font__  # police de caractères pour l'impression
         self.taille = 21  # taille de la police pour l'impression
         self.font = QFont(self.police, self.taille)
 
         self.painter = QPainter()
-        self.painter.setPen(QPen(Qt.black))
-        self.res = QtPrintSupport.QPrinter.ScreenResolution
+        self.painter.setPen(QPen(Qt.GlobalColor.black))
+        # self.res = QtPrintSupport.QPrinter.ScreenResolution
         self.currentRect = QRectF(QRect(QPoint(0, 0), QSize(0, 0)))
 
         self.page = 0
@@ -474,8 +471,8 @@ class PDF_Exporter(QThread):
             self.currentRect.translate(0, self.currentRect.height())
             self.painter.restore()
 
-            texte = "Page %d" % numpage
-            self.painter.drawText(self.rect_b, Qt.AlignVCenter | Qt.AlignRight, texte)
+            texte = f"Page {numpage}"
+            self.painter.drawText(self.rect_b, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight, texte)
 
             self.painter.save()
 
@@ -988,14 +985,14 @@ class PDF_Exporter(QThread):
         Draws the top of the page
         """
         self.painter.setFont(self.font)
-        self.painter.drawText(self.rect_t, Qt.AlignTop | Qt.AlignCenter, f"Page {self.page} - {self.title}")
+        self.painter.drawText(self.rect_t, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignCenter, f"Page {self.page} - {self.title}")
 
     def paint_footer(self):
         """
         Draws the foot of the page
         """
         self.painter.setFont(self.font)
-        self.painter.drawText(self.rect_b, Qt.AlignVCenter | Qt.AlignCenter, f"Page {self.abs_page}")
+        self.painter.drawText(self.rect_b, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter, f"Page {self.abs_page}")
 
     def paint_quran(self, printer: QtPrintSupport.QPrinter):
         # applying change to QPainter
@@ -1214,7 +1211,7 @@ class PDF_Exporter(QThread):
         # some basic settings we apply to every document
         doc.setDefaultFont(QFont(self.font, printer))
         doc.setIndentWidth(self.mm2px(3))
-        doc.setDefaultTextOption(QTextOption(Qt.AlignmentFlag.AlignJustify))
+        doc.setDefaultTextOption(QTextOption(Qt.AlignmentFlag.AlignmentFlag.AlignJustify))
 
         return doc
 
@@ -1230,4 +1227,4 @@ if __name__ == "__main__":
     editor.show()
     editor.load_doc(r"C:\Users\mloua\Documents\Admin\ITMR_Online\Scripts\Typer\books\risaala.pdf")
     editor.load_page(editor.current_page)
-    app.exec_()
+    app.exec()

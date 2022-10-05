@@ -8,13 +8,13 @@ import html
 import re
 import time
 
-from PyQt5.QtWidgets import QWidget, QApplication
+from PyQt6.QtWidgets import QWidget, QApplication
 from symspellpy import SymSpell, Verbosity
 from string import ascii_letters, digits, whitespace
 from html.parser import HTMLParser
 
-from PyQt5.QtCore import QRunnable, pyqtSignal, QObject, Qt, QSizeF
-from PyQt5.QtGui import QTextDocument, QFont, QTextOption, QTextBlockFormat, QTextCursor, QFontMetrics, QTextBlock
+from PyQt6.QtCore import QRunnable, pyqtSignal, QObject, Qt, QSizeF
+from PyQt6.QtGui import QTextDocument, QFont, QTextOption, QTextBlockFormat, QTextCursor, QFontMetrics, QTextBlock
 from tools import G, S
 
 
@@ -264,7 +264,7 @@ class HtmlOperator(HTMLParser):
                  width="0" height="{int(metrics.height() - metrics.leading())}" />'''
 
     def insertParagraphTime(self, cursor: QTextCursor, t: int = 0, metric: QFontMetrics = None):
-        cursor.select(QTextCursor.BlockUnderCursor)
+        cursor.select(QTextCursor.SelectionType.BlockUnderCursor)
 
         if not self.hasParagraphTime(cursor.selection().toHtml()):
             cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock, QTextCursor.MoveMode.MoveAnchor)
@@ -339,7 +339,7 @@ class QOperator:
     class ApplyDefault:
         @staticmethod
         def BlockFormat(blockformat: QTextBlockFormat):
-            blockformat.setAlignment(Qt.AlignJustify)
+            blockformat.setAlignment(Qt.AlignmentFlag.AlignJustify)
             blockformat.setTextIndent(10)
             blockformat.setLineHeight(100.0, 1)
             blockformat.setLeftMargin(10)

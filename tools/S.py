@@ -10,12 +10,15 @@ import re
 from functools import partial
 from importlib.machinery import SourceFileLoader
 
-from PyQt5.QtWidgets import QApplication, QStyleFactory
-from PyQt5.QtGui import QPalette, QColor
-from PyQt5.QtCore import Qt, pyqtSignal, QObject, QThreadPool, QRunnable
+from PyQt6.QtWidgets import QApplication, QStyleFactory
+from PyQt6.QtGui import QPalette, QColor
+from PyQt6.QtCore import Qt, pyqtSignal, QObject, QThreadPool, QRunnable, QDir
 
 from tools import G, T, Audio
 from tools.translitteration import translitterate, re_ignore_hamza, clean_harakat
+
+QDir.addSearchPath('icons', G.rsc_path('images/icons'))
+QDir.addSearchPath('typer', G.rsc_path('images/typer'))
 
 
 class LIB:
@@ -31,8 +34,6 @@ class LIB:
 
         with open(files[name], 'wb') as f:
             f.write(data)
-
-    SourceFileLoader("ressources", files['ressources.py']).load_module()
 
 
 class _Pool(QThreadPool):
@@ -263,7 +264,7 @@ class GlobalSettings(_Settings):
         palette.setColor(QPalette.ColorRole.Button, darkColor)
         palette.setColor(QPalette.ColorRole.ButtonText, whiteText)
         palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, disabledColor)
-        palette.setColor(QPalette.ColorRole.BrightText, Qt.white)
+        palette.setColor(QPalette.ColorRole.BrightText, Qt.GlobalColor.white)
         palette.setColor(QPalette.ColorRole.Link, highlight)
 
         palette.setColor(QPalette.ColorRole.Highlight, highlight)

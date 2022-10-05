@@ -6,9 +6,9 @@ import time
 from functools import partial
 from shutil import copyfile
 
-from PyQt5.QtWidgets import *
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
+from PyQt6.QtWidgets import *
+from PyQt6.QtGui import *
+from PyQt6.QtCore import *
 
 from UI import QuranWorker, Editor
 from UI.HadithWorker import HadithSearch
@@ -16,9 +16,6 @@ from UI.Dialogs import Settings, Navigator, GlobalSearch, Exporter, Jumper
 from UI.Components import StatusBar, Summary, TitleBar, MainToolbar, SplashScreen, TextToolbar, TopicsBar, BreadCrumbs
 
 from tools import G, PDF, Audio, S, T
-
-QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
-QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
 # Exception catch for Qt
 
@@ -57,9 +54,9 @@ class TyperWIN(QMainWindow):
         _layout = QGridLayout(self)
 
         self.setFont(G.get_font())
-        self.setWindowFlags(Qt.FramelessWindowHint)
-        self.setWindowIcon(QIcon(":/ico"))
-        self.setFocusPolicy(Qt.StrongFocus)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setWindowIcon(QIcon("typer:ico.png"))
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
         _splash.progress(7, "Loading settings...")
         self._file = None
@@ -137,7 +134,7 @@ class TyperWIN(QMainWindow):
         self.window_title = TitleBar(self)
 
         _splash.progress(60, "Loading UI Main Layout...")
-        self.splitter = QSplitter(Qt.Horizontal)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.insertWidget(0, self.viewer_frame)
         self.splitter.addWidget(self.typer)
         self.splitter.addWidget(self.summary_view)
@@ -201,7 +198,7 @@ class TyperWIN(QMainWindow):
                 "Device not found",
                 f"""<b>Audio input device '{S.GLOBAL.audio_input_device}' not found</b>, settings reverted to default : 
                 '{G.audio_input_devices_names[0]}'""",
-                defaultButton=QMessageBox.Ok
+                defaultButton=QMessageBox.StandardButton.Ok
             )
 
             S.GLOBAL.audio_input_device = G.audio_input_devices_names[0]
@@ -279,7 +276,7 @@ class TyperWIN(QMainWindow):
             # open new file dialog
             dialog = self.defaultDialogContext('New Project', path=S.GLOBAL.default_path)
 
-            if dialog.exec_() == QFileDialog.Accepted:
+            if dialog.exec():
                 filename = dialog.selectedFiles()
                 filename = filename[0]
 
@@ -304,10 +301,10 @@ class TyperWIN(QMainWindow):
             # creating the dialog
             dialog = self.defaultDialogContext('Open a project',
                                                path=S.GLOBAL.default_path,
-                                               filemode=QFileDialog.ExistingFile,
+                                               filemode=QFileDialog.FileMode.ExistingFile,
                                                acceptmode=QFileDialog.AcceptMode.AcceptOpen)
 
-            if dialog.exec_() == QFileDialog.Accepted:
+            if dialog.exec():
                 filename = dialog.selectedFiles()
                 filename = filename[0]
 
@@ -366,7 +363,7 @@ class TyperWIN(QMainWindow):
         # querying new file's name
         dialog = self.defaultDialogContext('Save Project As...', path=os.path.dirname(self._file))
 
-        if dialog.exec_() == QFileDialog.Accepted:
+        if dialog.exec():
             new_file_path = dialog.selectedFiles()[0]
 
             # we'll simply clone the old file, and save everything to the new
@@ -453,7 +450,7 @@ class TyperWIN(QMainWindow):
 
             # we get the page where the ayat is in the Quran
             # FIXME: need adjustment, database in inaccurate
-            q = db.exec_(f"SELECT page FROM pages WHERE surat={s} AND verse>={v}")
+            q = db.exec(f"SELECT page FROM pages WHERE surat={s} AND verse>={v}")
             q.next()
             page = q.value(0) + 1
 
@@ -474,22 +471,22 @@ class TyperWIN(QMainWindow):
                 None,
                 "File's not saved",
                 "<b>File's not saved</b>, you need to save file first",
-                buttons=QMessageBox.Cancel,
-                defaultButton=QMessageBox.Ok
+                buttons=QMessageBox.StandardButton.Cancel,
+                defaultButton=QMessageBox.StandardButton.Ok
             )
 
-            if res == QMessageBox.Cancel:
+            if res == QMessageBox.StandardButton.Cancel:
                 return
 
             self.newProjectDialog()
 
         dialog = QFileDialog(None, "Open a reference's PDF", S.GLOBAL.default_path)
-        dialog.setFileMode(dialog.ExistingFile)
+        dialog.setFileMode(dialog.FileMode.ExistingFile)
         dialog.setDefaultSuffix("pdf")
         dialog.setNameFilter("PDF Files (*.pdf)")
-        dialog.setAcceptMode(dialog.AcceptOpen)
+        dialog.setAcceptMode(dialog.AcceptMode.AcceptOpen)
 
-        if dialog.exec_() == dialog.Accepted:
+        if dialog.exec():
             filename = dialog.selectedFiles()[0]
 
             S.LOCAL.digestPDF(filename)
@@ -548,14 +545,14 @@ class TyperWIN(QMainWindow):
                 None,
                 "Remove page",
                 "Page appears to be empty, remove from book ?",
-                buttons=QMessageBox.Cancel | QMessageBox.No | QMessageBox.Yes,
-                defaultButton=QMessageBox.Yes
+                buttons=QMessageBox.StandardButton.Cancel | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Yes,
+                defaultButton=QMessageBox.StandardButton.Yes
             )
 
-            if res == QMessageBox.Yes:
+            if res == QMessageBox.StandardButton.Yes:
                 S.LOCAL.BOOK.removePage(self.page_nb)
 
-            elif res == QMessageBox.Cancel:
+            elif res == QMessageBox.StandardButton.Cancel:
                 self.typer.enableAudioMap()
                 return
 
@@ -613,7 +610,7 @@ class TyperWIN(QMainWindow):
                     "Bad data",
                     """<b>Inconsistent data</b>, the file isn't connected to it's reference but more than one
                     page is filled, all data will be added to the first page.""",
-                    defaultButton=QMessageBox.Ok
+                    defaultButton=QMessageBox.StandardButton.Ok
                 )
 
         self.changePage(S.LOCAL.page)
@@ -732,12 +729,12 @@ class TyperWIN(QMainWindow):
                 None,
                 "Typer - changes not saved",
                 "<b>Changes not saved</b>, continue ?",
-                buttons=QMessageBox.Save | QMessageBox.No | QMessageBox.Cancel
+                buttons=QMessageBox.StandardButton.Save | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel
             )
 
             # now we can ask for save
-            if dialog in (QMessageBox.Save, QMessageBox.No):
-                if dialog == QMessageBox.Save:
+            if dialog in (QMessageBox.StandardButton.Save, QMessageBox.StandardButton.No):
+                if dialog == QMessageBox.StandardButton.Save:
                     self.saveProject()
 
                 return True
@@ -810,7 +807,7 @@ class TyperWIN(QMainWindow):
         dialog.setNameFilter(f"Digestable Files (*.{G.__ext__} *.txt);;Typer Files (*.{G.__ext__});;Text Files (*.txt)")
         dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
 
-        if dialog.exec_() == QFileDialog.Accepted:
+        if dialog.exec():
             filename = dialog.selectedFiles()
             filename = filename[0]
             self.updateStatus(0, 'Digesting')
@@ -876,12 +873,12 @@ class TyperWIN(QMainWindow):
         dialog.setNameFilter(f"HTML Files (*.html)")
         dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
 
-        if dialog.exec_() == QFileDialog.Accepted:
+        if dialog.exec():
             filename = dialog.selectedFiles()
             filename = filename[0]
             tc = self.typer.textCursor()
             bf = tc.blockFormat()
-            bf.setAlignment(Qt.AlignCenter)
+            bf.setAlignment(Qt.AlignmentFlag.AlignCenter)
             tc.setBlockFormat(bf)
             s = 100 / len(S.LOCAL.BOOK)
             p = 0
@@ -936,7 +933,7 @@ class TyperWIN(QMainWindow):
         Update the document and move to the wanted line
         """
         tc = QTextCursor(self.typer.document().findBlockByLineNumber(line))
-        tc.movePosition(tc.EndOfBlock)
+        tc.movePosition(tc.MoveOperation.EndOfBlock)
 
         # update textCursor
         self.typer.setTextCursor(tc)
@@ -960,7 +957,7 @@ class TyperWIN(QMainWindow):
     @staticmethod
     def defaultDialogContext(title='',
                              path=S.GLOBAL.default_path,
-                             filemode=QFileDialog.AnyFile,
+                             filemode=QFileDialog.FileMode.AnyFile,
                              acceptmode=QFileDialog.AcceptMode.AcceptSave) -> QFileDialog:
         """
         Returns a dialog with the default we use, file ext, file mode, etc..
@@ -1082,15 +1079,15 @@ class TyperWIN(QMainWindow):
                 None,
                 "File's not saved",
                 "<b>File's not saved</b>, would you like to save before closing ?",
-                buttons=QMessageBox.Cancel | QMessageBox.No | QMessageBox.Save,
-                defaultButton=QMessageBox.Save
+                buttons=QMessageBox.StandardButton.Cancel | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Save,
+                defaultButton=QMessageBox.StandardButton.Save
             )
 
-            if res == QMessageBox.Save:
+            if res == QMessageBox.StandardButton.Save:
                 self.saveProject()
 
             # if used wants to cancel we abort the save
-            elif res == QMessageBox.Cancel:
+            elif res == QMessageBox.StandardButton.Cancel:
                 e.ignore()
                 return
 
@@ -1120,15 +1117,30 @@ class TyperWIN(QMainWindow):
             os.unlink(file)
 
 
+class TApp(QApplication):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    # t = QElapsedTimer()
+    #
+    # def notify(self, receiver, event):
+    #     self.t.start()
+    #     ret = QApplication.notify(self, receiver, event)
+    #     if self.t.elapsed() > 10:
+    #         print(f"processing event type {event.type()} for object {receiver.objectName()} "
+    #               f"took {self.t.elapsed()}ms")
+    #     return ret
+
+
 if __name__ == "__main__":
     os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "0"
     os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
-    app = QApplication(sys.argv)
+    app = TApp(sys.argv)
 
-    desktop = QDesktopWidget()
+    desktop = app.primaryScreen()
 
-    G.MAX_SCREEN_SIZE.width = sum([desktop.screen(w).width() for w in range(desktop.screenCount())])
-    G.MAX_SCREEN_SIZE.height = sum([desktop.screen(h).height() for h in range(desktop.screenCount())])
+    G.MAX_SCREEN_SIZE.width = desktop.size().width()
+    G.MAX_SCREEN_SIZE.height = desktop.size().height()
 
     del desktop
 
@@ -1138,7 +1150,7 @@ if __name__ == "__main__":
     for font in G.__additional_fonts__:
 
         # checking if font is available
-        if font not in QFontDatabase().families():
+        if font not in QFontDatabase.families():
             G.warning(f'"{font}" font unavailable, loading from resource folder')
 
             # if not we load the ttf resource file
@@ -1149,4 +1161,4 @@ if __name__ == "__main__":
     win = TyperWIN()
     app.applicationStateChanged.connect(win.applicationStateChanged)
 
-    app.exec_()
+    app.exec()

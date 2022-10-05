@@ -11,7 +11,7 @@ from pydub import AudioSegment
 from time import localtime, strftime
 from id3parse import ID3, ID3TextFrame
 
-from PyQt5.QtCore import QThread, pyqtSignal, QRunnable
+from PyQt6.QtCore import QThread, pyqtSignal, QRunnable
 
 from tools import G, S
 
