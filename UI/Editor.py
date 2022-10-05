@@ -837,7 +837,7 @@ class Typer(QTextEdit):
             if tc.block().length() > 2:
                 T.HTML.insertParagraphTime(self.textCursor(), metric=self.fontMetrics())
 
-        elif key == Qt.Key.Key_Home and not int(modifiers):
+        elif key == Qt.Key.Key_Home and modifiers == Qt.KeyboardModifier.NoModifier:
             block = tc.block()
             if block.text().startswith(chr(T.TEXT.audio_char)):
                 tc.setPosition(block.position() + 1, tc.MoveMode.MoveAnchor)
@@ -1059,14 +1059,15 @@ class Typer(QTextEdit):
                 S.LOCAL.DICT.digest(tc.selectedText().replace("\u2029", ""))
 
             # forward to superclass
-            self.insertHtml('<p><br/></p>')
+            tc = self.textCursor()
+            block = tc.blockFormat()
+            block.setIndent(indent)
+            tc.insertBlock(block)
 
             # light save settings
             S.LOCAL.saveVisualSettings()
 
             # # apply the default style to the new paragraph
-
-            # apply the default style to the new paragraph
 
             T.HTML.insertParagraphTime(self.textCursor(), metric=self.fontMetrics())
 
@@ -1537,7 +1538,6 @@ class TyperAudioMap(QWidget):
     def addSolver(self, solver: dict):
         self.solved.clear()
         self.solved.update(solver)
-        print(solved)
         self.update()
 
     def getSolver(self, block_id: int):
