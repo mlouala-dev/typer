@@ -252,23 +252,22 @@ class HtmlOperator(HTMLParser):
         except IndexError:
             return 0
 
+    default_height = 20
+
     @staticmethod
-    def getParagraphTime(metrics: QFontMetrics = None, t: int = 0) -> str:
+    def getParagraphTime(t: int = 0) -> str:
         if not t:
             t = int(time.time())
 
-        if not metrics:
-            metrics = QFontMetrics(G.get_font())
-
         return f'''<img src="paragraph_time_{t}"
-                 width="0" height="{int(metrics.height() - metrics.leading())}" />'''
+                 width="0" height="{HTML.default_height}" />'''
 
     def insertParagraphTime(self, cursor: QTextCursor, t: int = 0, metric: QFontMetrics = None):
         cursor.select(QTextCursor.SelectionType.BlockUnderCursor)
 
         if not self.hasParagraphTime(cursor.selection().toHtml()):
             cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock, QTextCursor.MoveMode.MoveAnchor)
-            cursor.insertHtml(self.getParagraphTime(metrics=metric, t=t))
+            cursor.insertHtml(self.getParagraphTime(t=t))
 
     @staticmethod
     def extractTextFragment(t: str, wide=False) -> str:
@@ -366,7 +365,6 @@ class QOperator:
         def __init__(self, document: QTextDocument, callback_fn):
             self.callback_fn = callback_fn
             self.doc = document.clone()
-            self.doc.setHtml(document.toHtml())
             self.doc.size()
 
             super().__init__()

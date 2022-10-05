@@ -106,6 +106,9 @@ class Typer(QTextEdit):
 
         self.default_font = G.get_font()
         T.QOperator.ApplyDefault.Font(self.default_font)
+        metrics = QFontMetrics(self.default_font)
+        print(metrics.ascent())
+        T.HTML.default_height = metrics.ascent()
 
         self.setFont(self.default_font)
         self.setCurrentFont(self.default_font)
@@ -1047,7 +1050,7 @@ class Typer(QTextEdit):
             super(self._win.__class__, self._win).keyPressEvent(e)
 
         # once return is pressed
-        elif key == Qt.Key.Key_Return and tc.block().userData():
+        if key == Qt.Key.Key_Return and tc.block().userData():
             # we cleanup the previous block
             tc.select(tc.SelectionType.BlockUnderCursor)
             indent = tc.blockFormat().indent()

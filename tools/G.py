@@ -22,7 +22,7 @@ from PyQt6.QtSql import QSqlDatabase
 
 # The application's core settings
 __app__ = 'Typer'   # name
-__ver__ = 1.5       # version
+__ver__ = 1.6       # version
 __ext__ = '786'     # extension
 __debug_level__ = logging.ERROR
 
@@ -147,7 +147,7 @@ def pixmap(name: str, size: int = 32) -> QPixmap:
     :param size: additionnal wanted size of ressource, default is 32px (max)
     """
     # getting the current ressource's path
-    res = QPixmap(f'typer:{name}')
+    res = QPixmap(name)
 
     # and rescale
     res = res.scaledToHeight(size, Qt.TransformationMode.SmoothTransformation)
