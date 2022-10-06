@@ -118,16 +118,7 @@ class Typer(QTextEdit):
         self.setCurrentCharFormat(self.default_textFormat)
 
         T.QOperator.ApplyDefault.Document(self.document(), self.default_font)
-        self.document().setDefaultStyleSheet(f'''
-        p {{
-            margin-top:0px;
-            margin-bottom:0px;
-            margin-left:0px;
-            margin-right:0px;
-            font-family:'{G.__font__}';
-            font-size:{G.__font_size__}pt;
-        }}
-        ''')
+        self.document().setDefaultStyleSheet(T.QOperator.ApplyDefault.DocumentStyleSheet())
         self.document().setDocumentMargin(10)
         self.document().blockCountChanged.connect(self.contentChanged.emit)
         self.textCursor().setBlockFormat(self.default_blockFormat)
@@ -188,6 +179,17 @@ class Typer(QTextEdit):
     @property
     def previous_word(self, *args) -> str:
         return self.textOperation(*args, operation=QTextCursor.MoveOperation.PreviousWord)
+
+    def loadPage(self, page: int = 0):
+        try:
+            self.setHtml(S.LOCAL.BOOK[page].content)
+            tc = self.textCursor()
+            tc.setPosition(S.LOCAL.BOOK[page].cursor)
+            self.setTextCursor(tc)
+            self.ensureCursorVisible()
+
+        except KeyError:
+            pass
 
     def insertNote(self):
         """
@@ -430,28 +432,36 @@ class Typer(QTextEdit):
         tc = self.textCursor()
         tc.select(tc.SelectionType.BlockUnderCursor)
         # if block has no length
-        is_empty_block = not len(tc.selectedText())
-
+        is_empty_block = not len(tc.selectedText().
+                                 replace(chr(T.TextOperator.audio_char), '').
+                                 replace(chr(T.TextOperator.para_char), ''))
         tc = self.textCursor()
         tc.beginEditBlock()
 
         if is_empty_block:
-            if isinstance(obj, S.LocalSettings.BookMap.Kitab):
-                self.insertPlainText(obj.name)
-                self.toggleFormat(Styles.Kitab)
+            if isinstance(obj, S.LocalSettings.BookMap.Hadith):
+                tc.movePosition(tc.MoveOperation.StartOfBlock, tc.MoveMode.MoveAnchor)
+                tc.movePosition(tc.MoveOperation.EndOfBlock, tc.MoveMode.KeepAnchor)
+                self.insertHtml(obj.toHtml())
 
-            elif isinstance(obj, S.LocalSettings.BookMap.Bab):
-                self.insertPlainText(obj.name)
-                self.toggleFormat(Styles.Bab)
+            else:
+                tc.insertBlock()
 
-            elif isinstance(obj, S.LocalSettings.BookMap.Hadith):
-                self.insertHtml(f'<h3><center>{obj.toHtml()}</center></h3>')
+                if isinstance(obj, S.LocalSettings.BookMap.Kitab):
+                    self.insertPlainText(obj.name)
+                    self.toggleFormat(Styles.Kitab)
 
-            T.HTML.insertParagraphTime(tc)
-            tc.insertBlock()
+                elif isinstance(obj, S.LocalSettings.BookMap.Bab):
+                    self.insertPlainText(obj.name)
+                    self.toggleFormat(Styles.Bab)
+
+                T.HTML.insertParagraphTime(tc)
+
+            self.insertHtml(f'''<p align="justify" style="-qt-paragraph-type:empty; font-family:'{G.__la_font__}'; font-size:{G.__font_size__}pt;"><br /></p>''')
 
         else:
             reset_style = '<span style=""> </span>'
+
             if isinstance(obj, S.LocalSettings.BookMap.Kitab):
                 self.insertHtml(f'<span style="color:#267dff; font-weight:600;">كتاب {obj.name}</span>{reset_style}')
 
@@ -541,7 +551,7 @@ class Typer(QTextEdit):
         self.W_audioMap.show()
         self.document().blockCountChanged.connect(self.graphAudioMap)
         self.document().blockCountChanged.connect(self.solveAudioMap)
-        self.document().documentLayout().documentSizeChanged.connect(self.graphAudioMap)
+        # self.document().documentLayout().documentSizeChanged.connect(self.graphAudioMap)
         self.verticalScrollBar().valueChanged.connect(self.W_audioMap.update)
         self.graphAudioMap()
         self.solveAudioMap()
@@ -555,7 +565,7 @@ class Typer(QTextEdit):
         try:
             self.document().blockCountChanged.disconnect(self.graphAudioMap)
             self.document().blockCountChanged.disconnect(self.solveAudioMap)
-            self.document().documentLayout().documentSizeChanged.disconnect(self.graphAudioMap)
+            # self.document().documentLayout().documentSizeChanged.disconnect(self.graphAudioMap)
             self.verticalScrollBar().valueChanged.disconnect(self.W_audioMap.update)
 
         except TypeError:
@@ -754,7 +764,7 @@ class Typer(QTextEdit):
             # for the other case we need images... until we implement the ThanaaWaMadh font
             else:
                 # adding it as a HTML special font
-                tc.insertHtml(f'''<span style="font-family:'ThanaaWaMadh';">{self.ThanaaWaMadh[lowered_text]}</span><span style=" font-family:'{G.__font__}'; font-size:normal;">{current_text}</span>''')
+                tc.insertHtml(f'''<span style="font-family:'ThanaaWaMadh';">{self.ThanaaWaMadh[lowered_text]}</span><span style=" font-family:'{G.__la_font__}'; font-size:normal;">{current_text}</span>''')
 
             # setting word to null
             self.word = ""
@@ -957,6 +967,8 @@ class Typer(QTextEdit):
             # otherwise we just consider it a normal command
             else:
                 super(Typer, self).keyPressEvent(e)
+                
+            return
 
         # the alt modifier is used to apply some fast styles
         elif modifiers == Qt.KeyboardModifier.AltModifier:
@@ -999,7 +1011,7 @@ class Typer(QTextEdit):
                 res, cnt = '', 0
                 # every line patching pattern
                 for line in html.split('\n'):
-                    line_res = self.re_textblock.sub(fr'\1\2 <span style=" font-family:{G.__font__}; font-size:15pt; font-weight:600; color:#267dff;">{cnt})</span> \5\6<', line, count=1)
+                    line_res = self.re_textblock.sub(fr'\1\2 <span style=" font-family:{G.__la_font__}; font-size:15pt; font-weight:600; color:#267dff;">{cnt})</span> \5\6<', line, count=1)
                     res += line_res
                     # ignoring the empty paragraphs
                     if '-qt-paragraph-type:empty;' not in line:
@@ -1021,7 +1033,7 @@ class Typer(QTextEdit):
 
                 res = ''
                 for line in html.split('\n'):
-                    line_res = self.re_textblock.sub(fr'\1\2 <span style=" font-family:\'{G.__font__}\'; font-size:15pt; font-weight:600; color:#267dff;">%s</span> \5\6<' % u'\u2022', line, count=1)
+                    line_res = self.re_textblock.sub(fr'\1\2 <span style=" font-family:\'{G.__la_font__}\'; font-size:15pt; font-weight:600; color:#267dff;">%s</span> \5\6<' % u'\u2022', line, count=1)
                     res += line_res
 
                 tc.insertHtml(res)
@@ -1036,6 +1048,8 @@ class Typer(QTextEdit):
 
             else:
                 super(Typer, self).keyPressEvent(e)
+
+            return
 
         # same for Control modifier... forward to parent
         elif modifiers == Qt.KeyboardModifier.ControlModifier and key in (Qt.Key.Key_G, Qt.Key.Key_S):
@@ -1111,7 +1125,7 @@ class Typer(QTextEdit):
                 if self.word in self.prophet_match:
                     candidate = f'{self.word} ﷺ'
                 elif self.word == 'Allah':
-                    candidate = f'{self.word}ﷻ '
+                    candidate = f'{self.word} ﷻ'
 
             # if there is a candidate, we draw the autocomplete_label
             # we also require that the next character is a new word character (' ' or ", etc...)
@@ -1393,9 +1407,10 @@ class Typer(QTextEdit):
             M_main.insertAction(M_main.actions()[0], AS_audioRecord)
 
         else:
-            # if the block's flagged as incorrect
-            if block.userData().state == G.State_Correction:
+            checked = T.SPELL.word_check(text)
 
+            # if the block's flagged as incorrect
+            if block.userData().state == G.State_Correction and not checked:
                 # we add suggestions for the given word
                 M_suggestions = QMenu(f'Suggestions for "{text}"', M_main)
                 cnt = self.buildSpellMenu(text, tc, M_suggestions)
@@ -1410,7 +1425,7 @@ class Typer(QTextEdit):
                 if cnt >= 1:
                     M_main.insertMenu(M_main.actions()[0], M_suggestions)
 
-            else:
+            if checked:
                 # adding synonyms suggestions
                 M_synonyms = QMenu(f'Synonyms for "{text}"', M_main)
                 cnt = self.buildSynMenu(text, tc, M_synonyms)
@@ -1450,6 +1465,29 @@ class Typer(QTextEdit):
         self.solveAudioMap()
 
     def wheelEvent(self, e: QWheelEvent) -> None:
+        if e.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            temp = S.LOCAL.BOOK.Page(
+                T.Regex.complete_page_filter(self.toHtml()),
+                self.textCursor().position()
+            )
+
+            if e.angleDelta().y() > 0:
+                G.__font_size__ += 1
+            else:
+                G.__font_size__ -= 1
+
+            T.Regex.update()
+            self.document().setDefaultStyleSheet(T.QOperator.ApplyDefault.DocumentStyleSheet())
+            self.setHtml(temp.content)
+
+            tc = self.textCursor()
+            tc.setPosition(temp.cursor)
+            self.setTextCursor(tc)
+            self.ensureCursorVisible()
+
+            S.GLOBAL.font_size = G.__font_size__
+            S.GLOBAL.saveSetting('font_size')
+
         super().wheelEvent(e)
         self.W_audioMap.update()
 

@@ -23,16 +23,19 @@ class Regex:
     paragraph_time = re.compile(r'src="paragraph_time_(.*?)"')
     highlight_split = re.compile(r'[ \-\.\,:;!?\"\'\(\)\[\]\n￼«»]')
     ignoretoken = re.compile(r'\d|^[A-Z]|ﷺ|ﷻ|[\u0621-\u064a\ufb50-\ufdff\ufe70-\ufefc]')
-    filter_text_style = re.compile(rf' ?font-family:(\'{G.__font__}\',?)+;| ?font-size:{re.escape(str(G.__font_size__))}pt;')
+    filter_text_style = re.compile(rf' ?font-family:\'{G.__la_font__}\',\'{G.__ar_font__}\';| ?font-family:\'{G.__la_font__}\';| ?font-family:\'{G.__ar_font__}\';| ?font-size:{G.__font_size__}pt;')
     filter_text_margin = re.compile(r' ?margin-.*?:\d+px;| ?line-height:100%;')
     filter_ptime_height = re.compile(r'(<img src="paragraph_time_.*?".*?height=)".*?"(.*?>)')
+
+    @staticmethod
+    def update():
+        Regex.filter_text_style = re.compile(rf' ?font-family:\'{G.__la_font__}\',\'{G.__ar_font__}\';| ?font-family:\'{G.__la_font__}\';| ?font-family:\'{G.__ar_font__}\';| ?font-size:{G.__font_size__}pt;')
 
     @staticmethod
     def complete_page_filter(content: str):
         content = Regex.filter_text_style.sub('', content)
         content = Regex.filter_text_margin.sub('', content)
         content = Regex.filter_ptime_height.sub(rf'\1"{HTML.default_height}"\2', content)
-        content = content.replace(" font-family:&quot;'Microsoft Uighur'&quot;; font-size:15pt;", '')
         content = content.replace(' style=""', '')
 
         return content
@@ -183,7 +186,7 @@ class HtmlOperator(HTMLParser):
             self.tags = {}
 
         def addTag(self, key, text):
-            text = re.sub(f" +?font-family:\"?'{G.__font__}'\"?;", '', text)
+            text = re.sub(f" +?font-family:\"?'{G.__la_font__}'\"?;", '', text)
             if len(text.strip()):
                 self.tags[key] = text
 
@@ -307,6 +310,7 @@ class TextOperator:
     Core operations over TEXT
     """
     audio_char = 65532
+    para_char = 8233
     re_exit_keys = re.compile(f'[{re.escape("".join(Keys.Exits.values()))}]')
     seq_exit_keys = set(Keys.Exits.values()).union(set(digits)).union(set(whitespace))
 
@@ -373,6 +377,17 @@ class QOperator:
             font.setItalic(False)
             font.setBold(False)
             font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
+
+        @staticmethod
+        def DocumentStyleSheet() -> str:
+            return f'''p {{
+                margin-top:0px;
+                margin-bottom:0px;
+                margin-left:0px;
+                margin-right:0px;
+                font-family:'{G.__la_font__}','{G.__ar_font__}';
+                font-size:{G.__font_size__}pt;
+            }}'''
 
     class graphBlockMap(QRunnable):
         name = 'graphBlockMap'

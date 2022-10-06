@@ -295,10 +295,14 @@ class GlobalSettings(_Settings):
         'audio_input_device': G.audio_input_devices_names[0],
         'audio_record_path': G.user_path('Music/.typer_records'),
         'audio_sample_rate': 16000,
-        'minimum_word_length': 2
+        'minimum_word_length': 2,
+        'arabic_font_family': 'Arial',
+        'latin_font_family': 'Arial',
+        'font_size': 14
     }
 
     step = pyqtSignal(int, str)
+    loaded = pyqtSignal()
 
     def __init__(self):
         self.QURAN = GlobalSettings.Quran()
@@ -314,11 +318,17 @@ class GlobalSettings(_Settings):
         self.default_path = self.defaults['default_path']
         self.auto_load = self.defaults['auto_load']
         self.update_default_path = self.defaults['update_default_path']
+
         self.audio_input_device = self.defaults['audio_input_device']
         self.audio_record_path = self.defaults['audio_record_path']
         self.audio_sample_rate = self.defaults['audio_sample_rate']
         self.audio_record_epoch = 0
+
         self.minimum_word_length = self.defaults['minimum_word_length']
+
+        self.arabic_font_family = self.defaults['arabic_font_family']
+        self.latin_font_family = self.defaults['latin_font_family']
+        self.font_size = self.defaults['font_size']
 
         self.AUDIOMAP = Audio.AudioMap
 
@@ -371,6 +381,16 @@ class GlobalSettings(_Settings):
 
         self.minimum_word_length = int(settings['minimum_word_length'])
 
+        self.arabic_font_family = settings['arabic_font_family']
+        self.latin_font_family = settings['latin_font_family']
+        G.__ar_font__ = self.arabic_font_family
+        G.__la_font__ = self.latin_font_family
+
+        self.font_size = int(settings['font_size'])
+        G.__font_size__ = self.font_size
+
+        self.loaded.emit()
+
     def saveSetting(self, setting):
         """
         Since the file is opened by multiple instance, we open and close it when needed
@@ -422,7 +442,7 @@ class LocalSettings(_Settings):
 
             @content.setter
             def content(self, new_content):
-                self._content = new_content
+                self._content = T.Regex.complete_page_filter(new_content)
 
             @property
             def head(self):
@@ -459,7 +479,7 @@ class LocalSettings(_Settings):
             return {a: b.content for a, b in self._book.items()}
 
         def savePage(self, page: int):
-            clean_page = html.escape(T.Regex.complete_page_filter(self[page].content))
+            clean_page = html.escape(self[page].content)
 
             try:
                 self._cursor.execute('INSERT INTO book ("page", "text", "cursor") VALUES (?, ?, ?)',

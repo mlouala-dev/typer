@@ -170,6 +170,7 @@ class TyperWIN(QMainWindow):
         self.setBaseSize(600, 800)
 
         _splash.progress(75, "Loading global settings...")
+        S.GLOBAL.loaded.connect(self.loadedSettings)
         S.GLOBAL.loadSettings()
         S.GLOBAL.step.connect(self.statusbar.updateStatus)
         S.LOCAL.step.connect(self.statusbar.updateStatus)
@@ -344,9 +345,7 @@ class TyperWIN(QMainWindow):
         if self.page_nb in S.LOCAL.BOOK:
             self.typer.clear()
 
-            self.typer.setHtml(S.LOCAL.BOOK[self.page_nb].content)
-            self.typer.textCursor().setPosition(S.LOCAL.BOOK[self.page_nb].cursor)
-            self.typer.ensureCursorVisible()
+            self.typer.loadPage(self.page_nb)
 
             # rebuild the summary (F2)
             # self.summary_view.build(self.typer.document())
@@ -567,15 +566,7 @@ class TyperWIN(QMainWindow):
         self.typer.clear()
 
         # load the current page if exists
-        try:
-            self.typer.setHtml(S.LOCAL.BOOK[page].content)
-            tc = self.typer.textCursor()
-            tc.setPosition(S.LOCAL.BOOK[page].cursor)
-            self.typer.setTextCursor(tc)
-            self.typer.ensureCursorVisible()
-
-        except KeyError:
-            pass
+        self.typer.loadPage(page)
 
         self.statusbar.updatePage(self.page_nb)
         self.breadcrumbs.updatePage(self.page_nb)
@@ -645,6 +636,14 @@ class TyperWIN(QMainWindow):
         S.LOCAL.viewer = self.viewer_frame.isVisible()
 
         S.LOCAL.saveVisualSettings()
+
+    def loadedSettings(self):
+        self.statusbar.updateStatus(100, 'Core settings loaded')
+        self.window_title.W_title.setFont(G.get_font(1.3))
+        self.setFont(G.get_font())
+        T.Regex.update()
+        self.typer.document().setDefaultStyleSheet(T.QOperator.ApplyDefault.DocumentStyleSheet())
+        self.update()
 
     # OTHER
 
@@ -1152,7 +1151,6 @@ if __name__ == "__main__":
         # checking if font is available
         if font not in QFontDatabase.families():
             G.warning(f'"{font}" font unavailable, loading from resource folder')
-
             # if not we load the ttf resource file
             QFontDatabase.addApplicationFont(G.rsc(f'{font}.ttf'))
 

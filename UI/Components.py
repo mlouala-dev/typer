@@ -89,12 +89,12 @@ class TitleBar(QFrame):
         ico.setPixmap(G.pixmap('ico', size=25))
         ico.setFixedSize(28, 28)
 
-        self.window_title = QLabel("Window's title")
-        self.window_title.setStyleSheet('color:#2a82da;')
-        self.window_title.setFont(G.get_font(1.3))
-        self.window_title.setObjectName('WindowTitle')
-        self.window_title.setAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
-        self.window_title.setFixedHeight(30)
+        self.W_title = QLabel("Window's title")
+        self.W_title.setStyleSheet('color:#2a82da;')
+        self.W_title.setFont(G.get_font(1.3))
+        self.W_title.setObjectName('WindowTitle')
+        self.W_title.setAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
+        self.W_title.setFixedHeight(30)
 
         self.min_button = QPushButton('\u268A')
         self.min_button.setStyleSheet("QPushButton{border:0;}QPushButton:hover{background:#2a82da;border:0;}")
@@ -104,7 +104,7 @@ class TitleBar(QFrame):
         self.close_button.setStyleSheet("QPushButton{border:0;}QPushButton:hover{background:red;border:0;}")
 
         layout.addWidget(ico, 0)
-        layout.addWidget(self.window_title, 1)
+        layout.addWidget(self.W_title, 1)
         for b in (self.min_button, self.max_button, self.close_button):
             b.setFixedWidth(50)
             layout.addWidget(b, 0)
@@ -190,7 +190,7 @@ class TitleBar(QFrame):
         """
         Reimplement setTitle
         """
-        self.window_title.setText(title)
+        self.W_title.setText(title)
 
 
 class Toolbar(QToolBar):

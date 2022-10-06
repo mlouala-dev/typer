@@ -240,7 +240,7 @@ class PDF_Exporter(QThread):
     new_surat_no_css = "font-size:16pt; color:#999; font-weight:600;"
     old_surat_no_css = "font-size:15pt; color:#ccc; font-weight:200;"
     ayat_no_css = f"font-size:11pt; color:#9622d3; font-weight:600;"
-    line_space = f"font-family:'{G.__font__}';line-height:70%;"
+    line_space = f"font-family:'{G.__la_font__}';line-height:70%;"
     surat_cell_css = f"{line_space}"
     ayat_cell_css = f"""{line_space}; padding-right:10px; padding-left:10px; border-right-style:solid;
     border-right-width:2px; border-right-color:#9622d3;"""
@@ -277,7 +277,7 @@ class PDF_Exporter(QThread):
         self.margeDT = 7  # marge totale droite en mm
         self.margeBT = 10  # marge totale basse en mm
 
-        self.police = G.__font__  # police de caractères pour l'impression
+        self.police = G.__la_font__  # police de caractères pour l'impression
         self.taille = 21  # taille de la police pour l'impression
         self.font = QFont(self.police, self.taille)
 
@@ -944,7 +944,7 @@ class PDF_Exporter(QThread):
             translation = translation.replace('line-height:80%;', 'line-height:75%;')
             translation = translation.replace('line-height:100%;', '')
             translation = re.sub(r'(<p.*?style=".*?margin-top:0px;.*?">)(.*?)</p>',
-                                 fr"""\1<span style=" font-family:'{G.__font__}'; font-size:15pt; color:#267dff; font-weight:600;">\2</span></p>""", translation)
+                                 fr"""\1<span style=" font-family:'{G.__la_font__}'; font-size:15pt; color:#267dff; font-weight:600;">\2</span></p>""", translation)
             translation = translation.replace('<hr />', '')
 
             final = ''

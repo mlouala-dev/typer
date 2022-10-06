@@ -676,6 +676,23 @@ class Settings(QDialog):
         )
         self.minimum_word_length.valueChanged.connect(partial(self.updateGlobalSettings, 'minimum_word_length'))
 
+        self.font_families = QFontDatabase.families()
+        self.arabic_font_family, = self.addOption(
+            'Arabic Font',
+            self.L_global,
+            QComboBox()
+        )
+        self.arabic_font_family.addItems(self.font_families)
+        self.arabic_font_family.currentIndexChanged.connect(partial(self.updateGlobalSettings, 'arabic_font_family'))
+
+        self.latin_font_family, = self.addOption(
+            'Latin Font',
+            self.L_global,
+            QComboBox()
+        )
+        self.latin_font_family.addItems(self.font_families)
+        self.latin_font_family.currentIndexChanged.connect(partial(self.updateGlobalSettings, 'latin_font_family'))
+
         self.audio_record_path, self.audio_record_path_browse = self.addOption(
             'Audio Record Path',
             self.L_global,
@@ -815,6 +832,14 @@ class Settings(QDialog):
             S.GLOBAL.minimum_word_length = state
             S.LOCAL.DICT = S.LOCAL.Dict(S.LOCAL.db, S.LOCAL.cursor)
 
+        elif domain == 'arabic_font_family':
+            S.GLOBAL.arabic_font_family = self.arabic_font_family.itemText(state)
+            self._win.loadedSettings()
+
+        elif domain == 'latin_font_family':
+            S.GLOBAL.latin_font_family = self.latin_font_family.itemText(state)
+            self._win.loadedSettings()
+
         elif domain == 'toolbar':
             S.GLOBAL.toolbar = state
             self._win.toolbar.setVisible(state)
@@ -858,6 +883,8 @@ class Settings(QDialog):
         self.theme.setCurrentIndex(list(S.GLOBAL.themes.keys()).index(S.GLOBAL.theme))
         self.toolbar.setChecked(S.GLOBAL.toolbar)
         self.text_toolbar.setChecked(S.GLOBAL.text_toolbar)
+        self.arabic_font_family.setCurrentIndex(self.font_families.index(S.GLOBAL.arabic_font_family))
+        self.latin_font_family.setCurrentIndex(self.font_families.index(S.GLOBAL.latin_font_family))
         self.audio_record_path.setText(S.GLOBAL.audio_record_path)
         self.audio_devices.setCurrentIndex(G.audio_input_devices_names.index(S.GLOBAL.audio_input_device))
         self.audio_sample_rate.setCurrentIndex(self.sample_rates.index(S.GLOBAL.audio_sample_rate))

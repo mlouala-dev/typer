@@ -27,12 +27,13 @@ __ext__ = '786'     # extension
 __debug_level__ = logging.ERROR
 
 # the font(s) used by the app
-__font__ = 'Microsoft Uighur'
+__la_font__ = 'Arial'
+__ar_font__ = 'Arial'
 def get_font_size(size: float = 1.2):
-    return int(size * 12 * 10) / 10.0
-__font_size__ = get_font_size()
+    return int(int(size * 12 * 10) / 10.0)
+__font_size__ = 12
 __additional_fonts__ = ['Microsoft Uighur Bold', 'AGA Arabesque', 'ThanaaWaMadh']
-__additional_fonts__.insert(0, __font__)
+__additional_fonts__.insert(0, __la_font__)
 
 # the file extension of the app
 
@@ -47,7 +48,7 @@ def get_font(size: float = 1.2, *args, **kwargs) -> QFont:
     :param kwargs: every keyword named argument
     :return: the complete QFont object
     """
-    font = QFont(__font__, *args, **kwargs)
+    font = QFont(__la_font__, *args, **kwargs)
     font.setPointSizeF(get_font_size(size))
 
     # we force the antialias
