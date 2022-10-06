@@ -194,6 +194,9 @@ class ListWidget(QTreeWidget):
         # we need that for the MouseOver option used by some models
         self.setMouseTracking(True)
 
+        self.applyModels(models)
+
+    def applyModels(self, models=()):
         # adding each model in the list, for each columns
         for i, model in enumerate(models):
             model.setParent(self)

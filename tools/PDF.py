@@ -227,6 +227,16 @@ class ViewerFrame(QWidget):
         e.ignore()
         self.resize(QSize(w, h))
 
+    def closeEvent(self, e: QCloseEvent):
+        S.LOCAL.viewer = False
+        S.LOCAL.saveSetting('viewer')
+        super().closeEvent(e)
+
+    def showEvent(self, e: QShowEvent):
+        S.LOCAL.viewer = False
+        S.LOCAL.saveSetting('viewer')
+        super().showEvent(e)
+
 
 class PDF_Exporter(QThread):
     """

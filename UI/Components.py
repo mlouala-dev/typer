@@ -20,13 +20,13 @@ class SplashScreen(QWidget):
         super(SplashScreen, self).__init__(parent)
         self.setWindowFlags(Qt.WindowType.SplashScreen | Qt.WindowType.FramelessWindowHint)
         bg = QLabel(self)
-        bg.setPixmap(QPixmap("typer:splash_screen.jpg"))
-        bg.setGeometry(0, 0, 700, 384)
+        pix = G.pixmap("typer:splash_screen.jpg", 350)
+        bg.setPixmap(pix)
+        bg.setGeometry(0, 0, pix.width(), pix.height())
 
         # a label displaying the current version / variant of the app
         # we force parent since we set the geometry manually
         self.title = QLabel(title, parent=self)
-        self.title.setFont(G.get_font(2.4, italic=True))
         self.title.setGeometry(260, 30, 500, 30)
         self.title.setStyleSheet("color:#ccc;")
 
@@ -41,10 +41,20 @@ background: qlineargradient(x1: 0, y1: 0.5, x2: 1, y2: 0.5, stop: 0 #0054AA, sto
 }""")
 
         self.message = QLabel("Initializing...", parent=self)
-        self.message.setFont(G.get_font(1.9))
-        self.message.setGeometry(20, 340, 700, 30)
+        self.message.setGeometry(20, 300, 700, 30)
         self.message.setStyleSheet("color:black;")
-        self.setFixedSize(700, 390)
+
+        self.propagateFont()
+        self.setGeometry(
+            QApplication.primaryScreen().size().width() // 2 - pix.width() // 2,
+            QApplication.primaryScreen().size().height() // 2 - pix.height() // 2,
+            pix.width(),
+            pix.height()
+        )
+
+    def propagateFont(self):
+        self.title.setFont(G.get_font(2.4, italic=True))
+        self.message.setFont(G.get_font(1.9))
 
     def progress(self, v=0, msg=""):
         """
@@ -91,7 +101,6 @@ class TitleBar(QFrame):
 
         self.W_title = QLabel("Window's title")
         self.W_title.setStyleSheet('color:#2a82da;')
-        self.W_title.setFont(G.get_font(1.3))
         self.W_title.setObjectName('WindowTitle')
         self.W_title.setAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
         self.W_title.setFixedHeight(30)
@@ -117,6 +126,10 @@ class TitleBar(QFrame):
         # USER DEFINED
         self.start = QPoint(0, 0)
         self.pressing = False
+        self.propagateFont()
+
+    def propagateFont(self):
+        self.W_title.setFont(G.get_font(1.3))
 
     def setMaximized(self, state=True):
         # loading a style tuple
@@ -865,7 +878,6 @@ class TopicsBar(QWidget):
 
         topic_layout = QHBoxLayout()
         self.topic_overview = QLabel("")
-        self.topic_overview.setFont(G.get_font())
 
         self.topic_edit = QPushButton("...")
         self.topic_edit.setFixedWidth(45)
@@ -882,6 +894,11 @@ class TopicsBar(QWidget):
         topic_layout.setSpacing(0)
 
         self.setLayout(topic_layout)
+        self.propagateFont()
+
+    def propagateFont(self):
+        self.topic_overview.setFont(G.get_font())
+        self.setFont(G.get_font())
 
     def changePage(self, page=0):
         # we update the panel's label with a list of all the topics
@@ -894,3 +911,25 @@ class TopicsBar(QWidget):
 
         # defining the current page
         self.current_page = page
+
+
+class AudioPlayer(QWidget):
+    def __init__(self):
+        layout = QHBoxLayout()
+
+        self.B_play = QPushButton(G.icon('Setting-Tools'), "")
+        self.B_play.setFixedWidth(30)
+        layout.addWidget(self.B_play)
+        self.W_timeline = QProgressBar()
+        self.timeline = QTimeLine()
+        self.timeline.setFrameRange(0, 100)
+        self.timeline.frameChanged.connect(self.W_timeline.setValue)
+        layout.addWidget(self.W_timeline)
+        self.WL_time = QLabel('10:15:20')
+        self.WL_time.setFixedWidth(100)
+        layout.addWidget(self.WL_time)
+        self.W_volume = QSlider(Qt.Orientation.Horizontal)
+        self.W_volume.setFixedWidth(100)
+        layout.addWidget(self.W_volume)
+
+        self.setLayout(layout)

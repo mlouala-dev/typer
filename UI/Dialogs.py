@@ -249,7 +249,6 @@ class GlobalSearch(QDialog):
         self.setFixedSize(800, 600)
         self.setWindowTitle("Find & Replace")
         self.setWindowIcon(G.icon("Google-Custom-Search"))
-        self.setFont(G.get_font())
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         widgets_layout = QVBoxLayout(self)
@@ -272,9 +271,7 @@ class GlobalSearch(QDialog):
         widgets_layout.addLayout(LineLayout(self, self.regex_check, self.word_check, self.case_check,
                                             self.harakat_check, self.page_search_check, self.code_search_check))
 
-        ayat_model_ar = HighlightModelItem(font=G.get_font(1.4))
-        num_model = NumberModelItem()
-        self.result_list = ListWidget(self, models=(ayat_model_ar, num_model))
+        self.result_list = ListWidget(self)
         self.result_list.setColumnCount(2)
         self.result_list.setColumnWidth(0, self.width() - 100)
         self.result_list.setColumnWidth(1, 100)
@@ -297,6 +294,14 @@ class GlobalSearch(QDialog):
         self.progress.setTextVisible(False)
         main_layout.addLayout(widgets_layout, 1)
         main_layout.addWidget(self.progress, 0)
+
+        self.propagateFont()
+
+    def propagateFont(self):
+        self.setFont(G.get_font())
+        ayat_model_ar = HighlightModelItem(font=G.get_font(1.4))
+        num_model = NumberModelItem()
+        self.result_list.applyModels((ayat_model_ar, num_model))
 
     def get_page(self, page: str) -> str:
         """
@@ -912,7 +917,6 @@ class Navigator(QDialog):
 
         # UI stuffs
         self.setFixedSize(550, 600)
-        self.setFont(G.get_font())
         self.L_main = QVBoxLayout()
         self.setContentsMargins(0, 0, 0, 0)
         self.setLayout(self.L_main)
@@ -923,6 +927,11 @@ class Navigator(QDialog):
         self.WL_title = QLabel()
         self.WL_title.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self.L_main.addWidget(self.WL_title, 1)
+
+        self.propagateFont()
+
+    def propagateFont(self):
+        self.setFont(G.get_font())
 
     def addLine(self, start, end, start_title='', end_title=''):
         """
@@ -1061,7 +1070,6 @@ class Exporter(QDialog):
         # getting an instance of the PDF Exporter
         self.PDF_exporter = PDF_Exporter()
         self.PDF_exporter.finished.connect(self.post_treatment)
-        self.setFont(parent.font())
 
         # the widget's settings, where we store book's datas, etc
         self.settings = {
@@ -1118,6 +1126,11 @@ class Exporter(QDialog):
         self.L_main.setStretchFactor(self.W_log, 1)
         self.L_main.addLayout(LineLayout(self, self.WC_openAtFinish))
         self.L_main.addLayout(LineLayout(self, self.B_cancel, self.B_export))
+
+        self.propagateFont()
+
+    def propagateFont(self):
+        self.setFont(G.get_font())
 
     def export(self):
         """
@@ -1376,14 +1389,18 @@ class Jumper(QDialog):
         self.WI_searchField = SearchField(self)
         self.WI_searchField.keyPressed.connect(self.preview)
 
-        self.WI_searchField.setFont(G.get_font(2))
         self.WL_result = QLabel(self)
-        self.WL_result.setFont(G.get_font(2))
 
         self.L_main = QVBoxLayout(self)
         self.L_main.addWidget(self.WI_searchField)
         self.L_main.addWidget(self.WL_result)
         self.L_main.setSpacing(0)
+
+        self.propagateFont()
+
+    def propagateFont(self):
+        self.WI_searchField.setFont(G.get_font(2))
+        self.WL_result.setFont(G.get_font(2))
 
     def preview(self):
         self.WL_result.setText(S.LOCAL.BOOKMAP.getTextResult(self.WI_searchField.text()))

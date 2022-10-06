@@ -44,11 +44,8 @@ class QuranQuote(QDialog):
 
         self.search_field = SearchField(self)
         self.search_field.keyPressed.connect(self.preview)
-        self.search_field.setFont(G.get_font(2))
         self.result_title = QLabel(self)
-        self.result_title.setFont(G.get_font(2))
         self.result_ayat = QLabel(self)
-        self.result_ayat.setFont(G.get_font(1.6))
 
         self.main_layout = QVBoxLayout(self)
         self.main_layout.addWidget(self.search_field)
@@ -56,8 +53,12 @@ class QuranQuote(QDialog):
         self.main_layout.addWidget(self.result_ayat)
         self.main_layout.setSpacing(0)
 
-        if __name__ == "__main__":
-            self.init_db()
+        self.propagateFont()
+
+    def propagateFont(self):
+        self.search_field.setFont(G.get_font(2))
+        self.result_title.setFont(G.get_font(2))
+        self.result_ayat.setFont(G.get_font(1.6))
 
     def init_db(self, db_rsc: QSqlDatabase = None):
         """
@@ -282,7 +283,6 @@ class QuranSearch(QDialog):
         self.setWindowTitle('Search in Quran')
         self.setWindowIcon(G.icon('Book'))
 
-        self.setFont(G.get_font(1.4))
         self._win = parent
 
         # UI stuff
@@ -290,7 +290,6 @@ class QuranSearch(QDialog):
 
         self.search_field = SearchField(self)
         self.search_field.keyPressed.connect(self.preview)
-        self.search_field.setFont(G.get_font(2))
 
         self.header_layout = QHBoxLayout(self)
         self.header_layout.addWidget(self.search_field)
@@ -304,11 +303,7 @@ class QuranSearch(QDialog):
         self.result_label = QLabel(self)
         self.main_layout.addWidget(self.result_label)
 
-        # defining the model of the cells
-        # working font : KFGQPC Uthman Taha Naskh', pointSize=13
-        ayat_model_ar = AyatModelItem(font=G.get_font(2))
-        num_model = NumberModelItem()
-        self.result_view = ListWidget(self, models=(ayat_model_ar, num_model, num_model))
+        self.result_view = ListWidget(self)
         self.result_view.setHeaderLabels(['text', 'verse(s)', 'surat'])
         self.result_view.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         self.result_view.setContentsMargins(3, 3, 3, 3)
@@ -320,6 +315,16 @@ class QuranSearch(QDialog):
         self.result_view.setColumnWidth(0, 650)
         self.result_view.setColumnWidth(1, 25)
         self.result_view.setColumnWidth(2, 25)
+
+        self.propagateFont()
+
+    def propagateFont(self):
+        self.setFont(G.get_font(1.4))
+        self.search_field.setFont(G.get_font(2))
+
+        ayat_model_ar = AyatModelItem(font=G.get_font(2))
+        num_model = NumberModelItem()
+        self.result_view.applyModels((ayat_model_ar, num_model, num_model))
 
     def itemClicked(self, item: QTreeWidgetItem, column: int):
         """

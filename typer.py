@@ -52,8 +52,8 @@ class TyperWIN(QMainWindow):
         _splash = SplashScreen(self, title=f'{self._variant} v{self._version}')
         _splash.show()
         _layout = QGridLayout(self)
+        self.font_propagate = [_splash.propagateFont]
 
-        self.setFont(G.get_font())
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setWindowIcon(QIcon("typer:ico.png"))
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -70,6 +70,8 @@ class TyperWIN(QMainWindow):
         self.summary_view = Summary(self)
         G.SHORTCUT['bookmark'].register(self, partial(self.toggleWidgetDisplay, self.summary_view))
         self.typer = Editor.Typer(self)
+        self.font_propagate.append(self.typer.initFormatting)
+
         G.SHORTCUT['bold'].register(self)
         G.SHORTCUT['italic'].register(self)
         G.SHORTCUT['underline'].register(self)
@@ -84,6 +86,8 @@ class TyperWIN(QMainWindow):
 
         self.viewer = PDF.Viewer(self)
         self.topic_display = TopicsBar(self)
+        self.font_propagate.append(self.topic_display.propagateFont)
+
         self.viewer_frame = PDF.ViewerFrame(self.viewer, self.topic_display)
         G.SHORTCUT['viewer'].register(self, partial(self.toggleWidgetDisplay, self.viewer_frame))
 
@@ -97,8 +101,17 @@ class TyperWIN(QMainWindow):
         _splash.progress(50, "Loading QuranSearch...")
         self.quran_search = QuranWorker.QuranSearch(self)
         G.SHORTCUT['quran_search'].register(self, self.quran_search.show)
+
+        self.font_propagate.extend([
+            self.hadith_dialog.propagateFont,
+            self.quran_quote.propagateFont,
+            self.quran_search.propagateFont
+        ])
+
         self.find_dialog = GlobalSearch(self)
         G.SHORTCUT['find'].register(self, self.find_dialog.show)
+        self.font_propagate.append(self.find_dialog.propagateFont)
+
         self.settings_dialog = Settings(self, self.typer)
         G.SHORTCUT['settings'].register(self, self.settings_dialog.show)
 
@@ -108,6 +121,11 @@ class TyperWIN(QMainWindow):
         self.exporter = Exporter(self)
         self.jumper = Jumper(self)
         G.SHORTCUT['book_jumper'].register(self, self.jumper.show)
+        self.font_propagate.extend([
+            self.navigator.propagateFont,
+            self.exporter.propagateFont,
+            self.jumper.propagateFont
+        ])
 
         self.viewer_frame.hide()
         self.summary_view.hide()
@@ -132,6 +150,7 @@ class TyperWIN(QMainWindow):
 
         _splash.progress(55, "Loading UI Window Title...")
         self.window_title = TitleBar(self)
+        self.font_propagate.append(self.window_title.propagateFont)
 
         _splash.progress(60, "Loading UI Main Layout...")
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -637,12 +656,18 @@ class TyperWIN(QMainWindow):
 
         S.LOCAL.saveVisualSettings()
 
-    def refreshUI(self):
-        self.window_title.W_title.setFont(G.get_font(1.3))
+    def propagateFont(self):
         self.setFont(G.get_font())
+        for fn in self.font_propagate:
+            try:
+                fn()
+            except RuntimeError:
+                pass
+
+    def refreshUI(self):
         T.Regex.update()
         self.typer.document().setDefaultStyleSheet(T.QOperator.ApplyDefault.DocumentStyleSheet())
-        self.typer.initFormatting()
+        self.propagateFont()
         self.update()
 
     # OTHER

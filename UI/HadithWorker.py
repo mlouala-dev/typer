@@ -143,7 +143,6 @@ class HadithSearch(QDialog):
 
         self.search_field = SearchField(self)
         self.search_field.keyPressed.connect(self.preview)
-        self.search_field.setFont(G.get_font(2))
 
         self.search = QPushButton("Search")
         self.search.clicked.connect(self.preview)
@@ -155,9 +154,7 @@ class HadithSearch(QDialog):
 
         self.arabic_font = G.get_font(1.5)
         self.translation_font = G.get_font(1.3)
-        ayat_model_ar = AyatModelItem(font=self.arabic_font)
-        ayat_model_fr = MultiLineModelItem(font=self.translation_font)
-        self.result_view = ListWidget(self, models=(ayat_model_ar, ayat_model_fr))
+        self.result_view = ListWidget(self)
         self.result_view.setHeaderLabels(['hadith', 'hadith_arabic'])
         self.result_view.setContentsMargins(3, 3, 3, 3)
         self.result_view.itemClicked.connect(self.itemClicked)
@@ -187,6 +184,17 @@ class HadithSearch(QDialog):
             worker = self.Worker(self.updateHadith, start=prev, end=i)
             S.POOL.start(worker)
             prev = i
+
+        self.propagateFont()
+
+    def propagateFont(self):
+        self.search_field.setFont(G.get_font(2))
+
+        self.arabic_font = G.get_font(1.5)
+        self.translation_font = G.get_font(1.3)
+        ayat_model_ar = AyatModelItem(font=self.arabic_font)
+        ayat_model_fr = MultiLineModelItem(font=self.translation_font)
+        self.result_view.applyModels((ayat_model_ar, ayat_model_fr))
 
     def itemClicked(self, item: QTreeWidgetItem, column: int):
         hadith: Hadith
