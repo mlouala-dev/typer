@@ -170,7 +170,7 @@ class TyperWIN(QMainWindow):
         self.setBaseSize(600, 800)
 
         _splash.progress(75, "Loading global settings...")
-        S.GLOBAL.loaded.connect(self.loadedSettings)
+        S.GLOBAL.loaded.connect(self.refreshUI)
         S.GLOBAL.loadSettings()
         S.GLOBAL.step.connect(self.statusbar.updateStatus)
         S.LOCAL.step.connect(self.statusbar.updateStatus)
@@ -637,12 +637,12 @@ class TyperWIN(QMainWindow):
 
         S.LOCAL.saveVisualSettings()
 
-    def loadedSettings(self):
-        self.statusbar.updateStatus(100, 'Core settings loaded')
+    def refreshUI(self):
         self.window_title.W_title.setFont(G.get_font(1.3))
         self.setFont(G.get_font())
         T.Regex.update()
         self.typer.document().setDefaultStyleSheet(T.QOperator.ApplyDefault.DocumentStyleSheet())
+        self.typer.initFormatting()
         self.update()
 
     # OTHER

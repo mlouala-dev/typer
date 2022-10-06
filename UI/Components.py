@@ -689,7 +689,7 @@ class BreadCrumbs(QWidget):
             self.setMouseTracking(True)
 
         def mousePressEvent(self, e: QMouseEvent):
-            if e.button() == 1:
+            if e.button() == Qt.MouseButton.LeftButton:
                 self.clicked.emit(e, self.level, self.n)
 
         def enterEvent(self, e):
@@ -761,8 +761,6 @@ class BreadCrumbs(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFont(G.get_font())
-        self.setFixedHeight(40)
         self.setContentsMargins(0, 5, 0, 3)
         layout = QHBoxLayout()
         self.setMouseTracking(True)
@@ -781,7 +779,7 @@ class BreadCrumbs(QWidget):
         layout.addWidget(self.l2, stretch=0)
         layout.addWidget(self.l3, stretch=0)
         layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-        layout.setContentsMargins(10, 0, 0, 0)
+        layout.setContentsMargins(10, 3, 0, 0)
         layout.setSpacing(0)
 
         self.setLayout(layout)

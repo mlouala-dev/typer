@@ -64,7 +64,6 @@ class Typer(QTextEdit):
         # autocomplete label
         self.WL_autoComplete = QLabel(self)
         self.WL_autoComplete.hide()
-        self.WL_autoComplete.setFont(G.get_font())
         self.WL_autoComplete.setStyleSheet("""
         QLabel {
             color: #2a82da;
@@ -102,26 +101,11 @@ class Typer(QTextEdit):
         self.translitterate_mode = False
 
         self.default_blockFormat = QTextBlockFormat()
-        T.QOperator.ApplyDefault.BlockFormat(self.default_blockFormat)
-
         self.default_font = G.get_font()
-        T.QOperator.ApplyDefault.Font(self.default_font)
-        metrics = QFontMetrics(self.default_font)
-        T.HTML.default_height = metrics.ascent()
-
-        self.setFont(self.default_font)
-        self.setCurrentFont(self.default_font)
-
         self.default_textFormat = QTextCharFormat()
-        self.default_textFormat.setFont(self.default_font)
-        # self.default_textFormat.setProperty(8167, [G.__font__])
-        self.setCurrentCharFormat(self.default_textFormat)
+        self.initFormatting()
 
-        T.QOperator.ApplyDefault.Document(self.document(), self.default_font)
-        self.document().setDefaultStyleSheet(T.QOperator.ApplyDefault.DocumentStyleSheet())
-        self.document().setDocumentMargin(10)
         self.document().blockCountChanged.connect(self.contentChanged.emit)
-        self.textCursor().setBlockFormat(self.default_blockFormat)
 
         # applying a simple syntax highlighter
         self.W_syntaxHighlighter = TyperHighlighter(self, self.document())
@@ -190,6 +174,29 @@ class Typer(QTextEdit):
 
         except KeyError:
             pass
+
+    def initFormatting(self):
+        self.default_blockFormat = QTextBlockFormat()
+        T.QOperator.ApplyDefault.BlockFormat(self.default_blockFormat)
+
+        self.default_font = G.get_font()
+        self.WL_autoComplete.setFont(self.default_font)
+        T.QOperator.ApplyDefault.Font(self.default_font)
+        metrics = QFontMetrics(self.default_font)
+        T.HTML.default_height = metrics.ascent()
+
+        self.setFont(self.default_font)
+        self.setCurrentFont(self.default_font)
+
+        self.default_textFormat = QTextCharFormat()
+        self.default_textFormat.setFont(self.default_font)
+        # self.default_textFormat.setProperty(8167, [G.__font__])
+        self.setCurrentCharFormat(self.default_textFormat)
+
+        T.QOperator.ApplyDefault.Document(self.document(), self.default_font)
+        self.document().setDefaultStyleSheet(T.QOperator.ApplyDefault.DocumentStyleSheet())
+        self.document().setDocumentMargin(10)
+        self.textCursor().setBlockFormat(self.default_blockFormat)
 
     def insertNote(self):
         """

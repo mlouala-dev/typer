@@ -834,11 +834,11 @@ class Settings(QDialog):
 
         elif domain == 'arabic_font_family':
             S.GLOBAL.arabic_font_family = self.arabic_font_family.itemText(state)
-            self._win.loadedSettings()
+            self._win.refreshUI()
 
         elif domain == 'latin_font_family':
             S.GLOBAL.latin_font_family = self.latin_font_family.itemText(state)
-            self._win.loadedSettings()
+            self._win.refreshUI()
 
         elif domain == 'toolbar':
             S.GLOBAL.toolbar = state
