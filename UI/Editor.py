@@ -906,49 +906,8 @@ class Typer(QTextEdit):
             if T.TEXT.is_audio_tag(next_character):
                 super().keyPressEvent(e)
 
-        # this means we enter the translitterate mode, this is equivalent to type on Alt+Gr
-        if key == Qt.Key.Key_Space and modifiers == Qt.KeyboardModifier.ControlModifier:
-            tc = self.textCursor()
-
-            # selection has length
-            if tc.position() != tc.anchor():
-                txt = tc.selectedText()
-                tc.removeSelectedText()
-
-                # then we directly translitterate it
-                tc.insertText(translitteration.translitterate(txt))
-
-            # if there is no selection
-            else:
-                # revert state
-                self.translitterate_mode = not self.translitterate_mode
-
-                if self.translitterate_mode:
-                    # recording the current position for upcoming translitteration
-                    self.translitteration_bound = tc.position()
-
-                    # adding a special character to indicate we're in translitteration mode
-                    # TODO: we could indicate differently, maybe with a border, or a text color ?
-                    self.insertHtml(u"<span style='font-weight:bold;'>\u262a</span>")
-
-                # otherwise we just add a character to force the style to return to format
-                else:
-                    self.insertHtml("<span style='font-weight:normal;'>'</span>")
-
-                    # selecting all the text, from the first special character to the end
-                    tc.setPosition(tc.position(), tc.MoveMode.MoveAnchor)
-                    tc.movePosition(tc.MoveOperation.Left, tc.MoveMode.KeepAnchor,
-                                    tc.position() - self.translitteration_bound)
-                    txt = tc.selectedText()[1:-1]
-
-                    tc.removeSelectedText()
-
-                    if len(txt):
-                        # translitterate what's between the head and tail characters
-                        tc.insertText(translitteration.translitterate(txt))
-
         # handling some special shortcuts
-        elif (modifiers & Qt.KeyboardModifier.ControlModifier) and (modifiers & Qt.KeyboardModifier.ShiftModifier):
+        if (modifiers & Qt.KeyboardModifier.ControlModifier) and (modifiers & Qt.KeyboardModifier.ShiftModifier):
 
             # to copy the HTML code of the selection
             if key == Qt.Key.Key_C:
@@ -1181,6 +1140,50 @@ class Typer(QTextEdit):
         # if there is a character we update the changed state
         if len(current_text):
             self.contentEdited.emit()
+
+    def keyReleaseEvent(self, e: QKeyEvent) -> None:
+        # this means we enter the translitterate mode, this is equivalent to type on Alt+Gr
+        if e.key() == Qt.Key.Key_Control and e.modifiers() == Qt.KeyboardModifier.AltModifier:
+            tc = self.textCursor()
+
+            # selection has length
+            if tc.position() != tc.anchor():
+                txt = tc.selectedText()
+                tc.removeSelectedText()
+
+                # then we directly translitterate it
+                tc.insertText(translitteration.translitterate(txt))
+
+            # if there is no selection
+            else:
+                # revert state
+                self.translitterate_mode = not self.translitterate_mode
+
+                if self.translitterate_mode:
+                    # recording the current position for upcoming translitteration
+                    self.translitteration_bound = tc.position()
+
+                    # adding a special character to indicate we're in translitteration mode
+                    # TODO: we could indicate differently, maybe with a border, or a text color ?
+                    self.insertHtml(u"<span style='font-weight:bold;'>\u262a</span>")
+
+                # otherwise we just add a character to force the style to return to format
+                else:
+                    self.insertHtml("<span style='font-weight:normal;'>'</span>")
+
+                    # selecting all the text, from the first special character to the end
+                    tc.setPosition(tc.position(), tc.MoveMode.MoveAnchor)
+                    tc.movePosition(tc.MoveOperation.Left, tc.MoveMode.KeepAnchor,
+                                    tc.position() - self.translitteration_bound)
+                    txt = tc.selectedText()[1:-1]
+
+                    tc.removeSelectedText()
+
+                    if len(txt):
+                        # translitterate what's between the head and tail characters
+                        tc.insertText(translitteration.translitterate(txt))
+        else:
+            super().keyReleaseEvent(e)
 
     def canInsertFromMimeData(self, source):
         """
