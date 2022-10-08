@@ -1445,7 +1445,7 @@ class DateTimePickerDialog(QDialog):
         self.W_datetimePicker.setCalendarPopup(True)
         self.W_datetimePicker.setDateTime(QDateTime.currentDateTime())
 
-        W_buttonBox = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        W_buttonBox = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
 
         W_buttonBox.accepted.connect(self.accept)
         W_buttonBox.rejected.connect(self.reject)
@@ -1468,4 +1468,4 @@ class DateTimePickerDialog(QDialog):
         result = dialog.exec()
         date = dialog.dateTime()
 
-        return date.toMSecsSinceEpoch() / 1000, result == QDialog.Accepted
+        return date.toMSecsSinceEpoch() / 1000, result

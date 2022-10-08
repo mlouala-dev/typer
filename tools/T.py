@@ -36,6 +36,7 @@ class Regex:
         content = Regex.filter_text_style.sub('', content)
         content = Regex.filter_text_margin.sub('', content)
         content = Regex.filter_ptime_height.sub(rf'\1"{HTML.default_height}"\2', content)
+        content = content.replace(" font-family:&quot;'Microsoft Uighur'&quot;; font-size:15pt;", '')
         content = content.replace(' style=""', '')
 
         return content
