@@ -50,8 +50,10 @@ class Letter:
 
 L = Letter([], letter='l')
 Alif = Letter([], letter="'")
+I = Letter([], letter="'", accent='i')
 Li = Letter([], letter='l', accent='i')
 La = Letter([], letter='l', accent='a')
+Laa = Letter([], letter='l', accent='aa')
 Aa = Letter([], letter="'", accent='aa')
 
 
@@ -356,7 +358,11 @@ def translitterate(text: str, no_harakat=False) -> str:
                 if i >= 1 and PRE.letter != " " and char_last:
                     final += "ة"
 
-            if PRE.previous.previous == Alif and PRE.previous == L and PRE == La and letter == 'h':
+            if PRE.previous.previous == Alif and PRE.previous == L and PRE == Laa:
+                final = final[:-5]
+                final += "إلّا "
+
+            elif PRE.previous.previous == Alif and PRE.previous == L and PRE == La and letter == 'h':
                 final = final[:-6] if accent != "" else final[:-5]
                 final += "الله"
 
@@ -380,4 +386,4 @@ def translitterate(text: str, no_harakat=False) -> str:
 
 
 if __name__ == "__main__":
-    print(translitterate('''laa ilaah illaa allah'''))
+    print(translitterate('''laa ilah illaa allah'''))
