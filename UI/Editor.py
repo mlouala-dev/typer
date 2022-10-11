@@ -980,6 +980,7 @@ class Typer(QTextEdit):
 
                 style = QTextListFormat()
                 style.setStyle(QTextListFormat.Style.ListDisc if key == Qt.Key.Key_B else QTextListFormat.Style.ListDecimal)
+                style.setNumberSuffix(')')
 
                 previous = self.textCursor()
                 previous.movePosition(previous.MoveOperation.PreviousBlock, tc.MoveMode.MoveAnchor)
@@ -991,17 +992,21 @@ class Typer(QTextEdit):
                     #     previous_list.add(tc.block())
                     # elif (tc.block().blockFormat().indent() + 1) < previous_list.format().indent():
                     #     print(previous_list)
+
                     if tc.block().blockFormat().indent() >= previous_list.format().indent():
                         if previous_list.format().style() == QTextListFormat.Style.ListDecimal:
                             root_numbering = previous.block().textList().blockList().index(previous.block()) + 1
                             style.setNumberPrefix(f'{root_numbering}.')
                             style.setStyle(QTextListFormat.Style.ListUpperAlpha)
+
                         elif previous_list.format().style() == QTextListFormat.Style.ListDisc:
                             style.setStyle(QTextListFormat.Style.ListSquare)
+
                 # if previous_list:
                 #     if (tc.block().blockFormat().indent() + 1) != previous_list.format().indent():
                 #         list = tc.createList(style)
                 # else:
+
                 list = tc.createList(style)
 
                 return
