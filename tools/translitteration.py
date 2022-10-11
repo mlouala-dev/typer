@@ -350,6 +350,8 @@ def translitterate(text: str, no_harakat=False) -> str:
                     final += "ى"
                 else:
                     final += "ا"
+        elif accent != '':
+            final += accent
 
         # final tries for some exceptions
         try:
@@ -386,4 +388,4 @@ def translitterate(text: str, no_harakat=False) -> str:
 
 
 if __name__ == "__main__":
-    print(translitterate('''laa ilah illaa allah'''))
+    print(translitterate('''aquulu ... idhaa jaa' naSr allahi wa alfatH !! laa ilah illaa allah ! a laa ta"lamuun ?!'''))
