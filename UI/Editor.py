@@ -968,41 +968,42 @@ class Typer(QTextEdit):
 
             # add numerotation
             # TODO: could be largely improved, customized numerotation, automatic determination of sub numering, etc
-            elif key == Qt.Key.Key_N:
+            elif key in (Qt.Key.Key_B, Qt.Key.Key_N):
                 tc = self.textCursor()
+                b1, b2 = tc.selectionStart(), tc.selectionEnd()
+                s, e = min(b1, b2), max(b1, b2)
+                tc.setPosition(s, tc.MoveMode.MoveAnchor)
 
-                # we get the current selection as html
-                html = T.HTML.extractTextFragment(tc.selection().toHtml(), wide=True)
+                tc.movePosition(tc.MoveOperation.StartOfBlock, tc.MoveMode.MoveAnchor)
+                tc.setPosition(e, tc.MoveMode.KeepAnchor)
+                tc.movePosition(tc.MoveOperation.EndOfBlock, tc.MoveMode.KeepAnchor)
 
-                res, cnt = '', 0
-                # every line patching pattern
-                for line in html.split('\n'):
-                    line_res = self.re_textblock.sub(fr'\1\2 <span style=" font-family:{G.__la_font__}; font-size:15pt; font-weight:600; color:#267dff;">{cnt})</span> \5\6<', line, count=1)
-                    res += line_res
-                    # ignoring the empty paragraphs
-                    if '-qt-paragraph-type:empty;' not in line:
-                        cnt += 1
+                style = QTextListFormat()
+                style.setStyle(QTextListFormat.Style.ListDisc if key == Qt.Key.Key_B else QTextListFormat.Style.ListDecimal)
 
-                # updating the selection
-                tc.insertHtml(res)
+                previous = self.textCursor()
+                previous.movePosition(previous.MoveOperation.PreviousBlock, tc.MoveMode.MoveAnchor)
+                previous_list = previous.currentList()
 
-                # since we're done with change, leaving
-                return
+                if previous_list:
+                    # TODO: implement advanced list management
+                    # if (tc.block().blockFormat().indent() + 1) == previous_list.format().indent():
+                    #     previous_list.add(tc.block())
+                    # elif (tc.block().blockFormat().indent() + 1) < previous_list.format().indent():
+                    #     print(previous_list)
+                    if tc.block().blockFormat().indent() >= previous_list.format().indent():
+                        if previous_list.format().style() == QTextListFormat.Style.ListDecimal:
+                            root_numbering = previous.block().textList().blockList().index(previous.block()) + 1
+                            style.setNumberPrefix(f'{root_numbering}.')
+                            style.setStyle(QTextListFormat.Style.ListUpperAlpha)
+                        elif previous_list.format().style() == QTextListFormat.Style.ListDisc:
+                            style.setStyle(QTextListFormat.Style.ListSquare)
+                # if previous_list:
+                #     if (tc.block().blockFormat().indent() + 1) != previous_list.format().indent():
+                #         list = tc.createList(style)
+                # else:
+                list = tc.createList(style)
 
-            # add bullets
-            # TODO: CHANGE TO the OL / UL tags when the HTML parser is done in sha Allah
-            elif key == Qt.Key.Key_B:
-                tc = self.textCursor()
-
-                # getting the current selection as html
-                html = T.HTML.extractTextFragment(tc.selection().toHtml(), wide=True)
-
-                res = ''
-                for line in html.split('\n'):
-                    line_res = self.re_textblock.sub(fr'\1\2 <span style=" font-family:\'{G.__la_font__}\'; font-size:15pt; font-weight:600; color:#267dff;">%s</span> \5\6<' % u'\u2022', line, count=1)
-                    res += line_res
-
-                tc.insertHtml(res)
                 return
 
             # if we call some of the existing shortcuts... forward to parent
@@ -1248,7 +1249,7 @@ class Typer(QTextEdit):
 
         def add_page_content():
             res = re.findall(
-                r'(۞)|<span style=\"[\w\d;:\., #\'\-]*font-size:30pt;[\w\d;:\., #\'\-]*\">(.*?)</span>|\[<span style=\"[\w\d;:\., #\'\-]*font-size:14.4pt;[\w\d;:\., #\'\-]*\">(.*?)</span>]|<span style=\"[\w\d;:\., #\'\-]*font-size:14.4pt;[\w\d;:\., #\'\-]*\"> ?\[(.*?)] ?</span>|<span style=\"[\w\d;:\., #\'\-]*color:#267dff;[\w\d;:\., #\'\-]*\">(.*?)</span>|<span style=\" font-family:\'Microsoft Uighur\';\"> ?\[(.*?)] ?</span>',
+                r'(۞)|<span style=\"[\w\d;:\., #\'\-]*font-size:30pt;[\w\d;:\., #\'\-]*\">(.*?)</span>|\[<span style=\"[\w\d;:\., #\'\-]*font-size:14.4pt;[\w\d;:\., #\'\-]*\">(.*?)</span>]|<span style=\"[\w\d;:\., #\'\-]*font-size:14.4pt;[\w\d;:\., #\'\-]*\"> ?\[(.*?)] ?</span>|<span style=\"[\w\d;:\., #\'\-]*color:#267dff;[\w\d;:\., #\'\-]*\">(.*?)</span>|<span> ?\[(.*?)] ?</span>',
                 self.toHtml(), flags=re.MULTILINE)
 
             ayat = S.GLOBAL.QURAN.pages[S.LOCAL.page - 1].ayats[0].num

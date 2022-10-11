@@ -24,7 +24,7 @@ class Regex:
     highlight_split = re.compile(r'[ \-\.\,:;!?\"\'\(\)\[\]\n￼«»]')
     ignoretoken = re.compile(r'\d|^[A-Z]|ﷺ|ﷻ|[\u0621-\u064a\ufb50-\ufdff\ufe70-\ufefc]')
     filter_text_style = re.compile(rf' ?font-family:\'{G.__la_font__}\',\'{G.__ar_font__}\';| ?font-family:\'{G.__la_font__}\';| ?font-family:\'{G.__ar_font__}\';| ?font-size:{G.__font_size__}pt;')
-    filter_text_margin = re.compile(r' ?margin-.*?:\d+px;| ?line-height:100%;')
+    filter_text_margin = re.compile(r' ?margin-.*?:\d+px;| ?line-height:100%;| text-indent:\d+px;')
     filter_ptime_height = re.compile(r'(<img src="paragraph_time_.*?".*?height=)".*?"(.*?>)')
 
     @staticmethod
@@ -381,13 +381,14 @@ class QOperator:
 
         @staticmethod
         def DocumentStyleSheet() -> str:
-            return f'''p {{
+            return f'''p, li, ul, ol {{
                 margin-top:0px;
                 margin-bottom:0px;
                 margin-left:0px;
                 margin-right:0px;
                 font-family:'{G.__la_font__}','{G.__ar_font__}';
                 font-size:{G.__font_size__}pt;
+                text-indent: 10px;
             }}'''
 
     class graphBlockMap(QRunnable):
