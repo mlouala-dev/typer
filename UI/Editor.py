@@ -994,12 +994,12 @@ class Typer(QTextEdit):
                     #     print(previous_list)
 
                     if tc.block().blockFormat().indent() >= previous_list.format().indent():
-                        if previous_list.format().style() == QTextListFormat.Style.ListDecimal:
+                        if previous_list.format().style() == QTextListFormat.Style.ListDecimal and key == Qt.Key.Key_N:
                             root_numbering = previous.block().textList().blockList().index(previous.block()) + 1
                             style.setNumberPrefix(f'{root_numbering}.')
                             style.setStyle(QTextListFormat.Style.ListUpperAlpha)
 
-                        elif previous_list.format().style() == QTextListFormat.Style.ListDisc:
+                        elif previous_list.format().style() == QTextListFormat.Style.ListDisc and key == Qt.Key.Key_B:
                             style.setStyle(QTextListFormat.Style.ListSquare)
 
                 # if previous_list:
