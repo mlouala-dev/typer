@@ -876,7 +876,7 @@ class Settings(QDialog):
                     "Too big sample rate",
                     f"""<b>Sample rate {sample_rate} for the device '{S.GLOBAL.audio_input_device}' too big</b>, 
                     reversing to 16k...""",
-                    defaultButton=QMessageBox.Ok
+                    defaultButton=QMessageBox.StandardButton.Ok
                 )
                 sample_rate = 16000
 
@@ -1496,8 +1496,6 @@ class LexiconView(QDialog):
         def mouseDoubleClickEvent(self, e: QMouseEvent) -> None:
             tc = self.cursorForPosition(e.pos())
             tc.select(QTextCursor.SelectionType.WordUnderCursor)
-            print(tc.selection().toHtml())
-            print(tc.selectedText())
             self._parent.search(tc.selectedText())
 
     class History(list):
@@ -1520,10 +1518,8 @@ class LexiconView(QDialog):
                 self.pop(i)
             self.append(value)
             self.cursor = len(self) - 1
-            print(self)
 
         def current(self):
-            print(self.cursor, self)
             return self[self.cursor]
 
     def __init__(self, parent):
@@ -1537,12 +1533,34 @@ class LexiconView(QDialog):
         L_main = QVBoxLayout()
         self.history = self.History()
         self.W_search = ArabicField()
+        self.completer = QCompleter()
+        self.W_search.setCompleter(self.completer)
         self.W_search.returnPressed.connect(self.search)
+        self.C_by_root = QCheckBox()
+        self.C_by_root.setText('By Root')
+
+        def update_string_list(state):
+            model = QStringListModel()
+            if state:
+                model.setStringList([a for a in S.GLOBAL.LEXICON.by_root.keys()])
+            else:
+                model.setStringList([a for a in S.GLOBAL.LEXICON.by_bareword.keys()])
+            self.completer.setModel(model)
+
+        self.C_by_root.stateChanged.connect(update_string_list)
         self.W_highlight = ArabicField()
         self.W_highlight.textChanged.connect(self.highlight)
         self.W_view = self.View(self)
         self.W_syntaxHighlighter = self.Highlighter(self.W_view.document())
-        L_main.addLayout(LineLayout(None, 'search :', self.W_search, 'sub-highlight', self.W_highlight))
+
+        L_main.addLayout(LineLayout(
+            None,
+            'Search :',
+            self.W_search,
+            self.C_by_root,
+            'Sub-highlight',
+            self.W_highlight,
+        ))
         L_main.addWidget(self.W_view)
         self.setLayout(L_main)
 
@@ -1552,12 +1570,24 @@ class LexiconView(QDialog):
         needle = self.W_search.text() if needle == '' else needle
         if len(needle):
             self.W_syntaxHighlighter.needle = needle
-            res = S.GLOBAL.LEXICON.find(needle)
-            print(len(res))
-            if len(res):
-                if not silent:
-                    self.history.add_squash(needle)
-                self.W_view.setHtml(res)
+
+            if self.C_by_root.isChecked():
+                res = S.GLOBAL.LEXICON.find_by_root(needle)
+            else:
+                res = S.GLOBAL.LEXICON.find(needle)
+
+            if not res:
+                QMessageBox.critical(
+                    None,
+                    "Can't find root",
+                    f"""'{needle}' not found, check search settings""",
+                    defaultButton=QMessageBox.StandardButton.Ok
+                )
+            else:
+                if len(res):
+                    if not silent:
+                        self.history.add_squash(needle)
+                    self.W_view.setHtml(res)
 
     def mousePressEvent(self, e: QMouseEvent) -> None:
         if e.button() == Qt.MouseButton.XButton2:
@@ -1611,6 +1641,9 @@ class LexiconView(QDialog):
 
     def show(self) -> None:
         self.W_search.setFocus()
+        model = QStringListModel()
+        model.setStringList([a for a in S.GLOBAL.LEXICON.by_bareword.keys()])
+        self.completer.setModel(model)
         super(LexiconView, self).show()
 
     def propagateFont(self):

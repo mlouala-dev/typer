@@ -389,9 +389,10 @@ class GlobalSettings(_Settings):
                 self.start = start
                 self.end = end
 
-                self.entries_by_name = {}
-                self.entries_by_bareword = {}
-                self.entries_by_id = {}
+                self.by_name = {}
+                self.by_root = {}
+                self.by_bareword = {}
+                self.by_id = {}
 
             def run(self):
                 db = sqlite3.connect(G.rsc_path(f'lexicon_{GLOBAL.lang}.db'))
@@ -400,32 +401,36 @@ class GlobalSettings(_Settings):
 
                 for nid, root, word, bword, xml in res:
                     bword = T.Regex.arabic_hamzas.sub('ا', bword).replace('آ', 'ا')
-                    if bword == 'ترك':
-                        print(bword, word)
                     new_entry = GlobalSettings.Lexicon.Entry(nid, root, word, bword)
                     new_entry.feed(xml)
-                    if word in self.entries_by_name:
-                        self.entries_by_name[word].append(nid)
+                    if word in self.by_name:
+                        self.by_name[word].append(nid)
                     else:
-                        self.entries_by_name[word] = [nid]
-                    if bword in self.entries_by_bareword:
-                        self.entries_by_bareword[bword].append(nid)
+                        self.by_name[word] = [nid]
+                    if root in self.by_root:
+                        self.by_root[root].append(nid)
                     else:
-                        self.entries_by_bareword[bword] = [nid]
-                    self.entries_by_id[nid] = new_entry
+                        self.by_root[root] = [nid]
+                    if bword in self.by_bareword:
+                        self.by_bareword[bword].append(nid)
+                    else:
+                        self.by_bareword[bword] = [nid]
+                    self.by_id[nid] = new_entry
 
                 self.callback_fn(
-                    self.entries_by_name,
-                    self.entries_by_bareword,
-                    self.entries_by_id
+                    self.by_name,
+                    self.by_bareword,
+                    self.by_root,
+                    self.by_id
                 )
 
                 self.done(self.name)
 
         def __init__(self):
-            self.entries_by_name = {}
-            self.entries_by_bareword = {}
-            self.entries_by_id = {}
+            self.by_name = {}
+            self.by_bareword = {}
+            self.by_root = {}
+            self.by_id = {}
 
             db = sqlite3.connect(G.rsc_path(f'lexicon_{GLOBAL.lang}.db'))
             cursor = db.cursor()
@@ -437,67 +442,68 @@ class GlobalSettings(_Settings):
             for i in range(0, l, chunk):
                 POOL.start(self.Worker(i, i + chunk, self.loadEntries))
 
-        def loadEntries(self, by_name: dict, by_bareword, by_id):
-            self.entries_by_name.update(by_name)
-            self.entries_by_bareword.update(by_bareword)
-            self.entries_by_id.update(by_id)
+        def loadEntries(self, by_name: dict, by_bareword, by_root, by_id):
+            self.by_name.update(by_name)
+            self.by_bareword.update(by_bareword)
+            self.by_root.update(by_root)
+            self.by_id.update(by_id)
 
             self.loading = False
 
         def bare_search(self, needle):
             try:
-                return self.entries_by_bareword[T.Regex.arabic_harakat.sub('', needle)]
+                return self.by_bareword[T.Regex.arabic_harakat.sub('', needle)]
             except KeyError:
                 pass
 
         def search(self, needle):
             try:
-                return self.entries_by_name[needle]
+                return self.by_name[needle]
             except KeyError:
                 pass
 
         def wide_search(self, needle):
             res = []
-            for p in [self.search(e) for e in filter(lambda x: needle in x, self.entries_by_name)]:
+            for p in [self.search(e) for e in filter(lambda x: needle in x, self.by_name)]:
                 for r in p:
                     res.append(r)
             return res
 
         def wide_bare_search(self, needle):
             res = []
-            for p in [self.bare_search(e) for e in filter(lambda x: needle in x, self.entries_by_bareword)]:
+            for p in [self.bare_search(e) for e in filter(lambda x: needle in x, self.by_bareword)]:
                 for r in p:
                     res.append(r)
             return res
 
         def get_results(self, result_id: list):
-            return '\n<hr/>\n'.join(map(str, map(self.entries_by_id.get, result_id)))
+            return '\n<hr/>\n'.join(map(str, map(self.by_id.get, result_id)))
 
         def find(self, needle):
             if T.Regex.arabic_harakat.findall(needle):
-                print('performing search')
                 res = self.search(needle)
             else:
                 res = None
             if not res:
-                print('search failed, performing bare search')
                 res = self.bare_search(needle)
 
             if not res and len(T.Regex.arabic_harakat.sub('', needle)) > 4:
-                print('bare search failed, removing alif lam')
                 sub_needle = T.Regex.arabic_harakat.sub('', needle)
                 sub_needle = T.Regex.arabic_aliflam.sub('', sub_needle)
+                sub_needle = T.Regex.arabic_hamzas.sub('ا', sub_needle)
                 res = self.bare_search(sub_needle)
 
             if not res:
-                print('wide search')
                 res = self.wide_search(needle)
 
             if not len(res):
-                print('wide_bare search')
                 res = self.wide_bare_search(needle)
-            print(res)
             return self.get_results(res)
+
+        def find_by_root(self, needle):
+            needle = T.Regex.arabic_harakat.sub('', needle)
+            if needle in self.by_root:
+                return self.get_results(self.by_root[needle])
 
     themes = {
         'dark': Dark(),
