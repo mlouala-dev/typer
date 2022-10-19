@@ -1500,6 +1500,32 @@ class LexiconView(QDialog):
             print(tc.selectedText())
             self._parent.search(tc.selectedText())
 
+    class History(list):
+        def __init__(self):
+            super().__init__()
+            self.cursor = 0
+
+        def move(self, direction=1):
+            temp_cursor = self.cursor + direction
+            self.cursor = max(0, min(temp_cursor, len(self) - 1))
+
+        def next(self):
+            self.move(1)
+
+        def previous(self):
+            self.move(-1)
+
+        def add_squash(self, value: str):
+            for i in range(len(self)-1, self.cursor, -1):
+                self.pop(i)
+            self.append(value)
+            self.cursor = len(self) - 1
+            print(self)
+
+        def current(self):
+            print(self.cursor, self)
+            return self[self.cursor]
+
     def __init__(self, parent):
         super().__init__(parent)
         self.setWindowTitle(G.SHORTCUT['lexicon'].hint)
@@ -1509,6 +1535,7 @@ class LexiconView(QDialog):
         self.setMinimumHeight(700)
 
         L_main = QVBoxLayout()
+        self.history = self.History()
         self.W_search = ArabicField()
         self.W_search.returnPressed.connect(self.search)
         self.W_highlight = ArabicField()
@@ -1521,14 +1548,27 @@ class LexiconView(QDialog):
 
         self.setDocumentStyleSheet()
 
-    def search(self, needle=''):
+    def search(self, needle='', silent=False):
         needle = self.W_search.text() if needle == '' else needle
         if len(needle):
             self.W_syntaxHighlighter.needle = needle
             res = S.GLOBAL.LEXICON.find(needle)
             print(len(res))
             if len(res):
+                if not silent:
+                    self.history.add_squash(needle)
                 self.W_view.setHtml(res)
+
+    def mousePressEvent(self, e: QMouseEvent) -> None:
+        if e.button() == Qt.MouseButton.XButton2:
+            self.history.next()
+            self.W_search.setText(self.history.current())
+            self.search(self.history.current(), silent=True)
+        elif e.button() == Qt.MouseButton.XButton1:
+            self.history.previous()
+            self.W_search.setText(self.history.current())
+            self.search(self.history.current(), silent=True)
+        super().mousePressEvent(e)
 
     def highlight(self, needle=''):
         if len(needle):

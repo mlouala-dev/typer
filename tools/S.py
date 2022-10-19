@@ -400,6 +400,8 @@ class GlobalSettings(_Settings):
 
                 for nid, root, word, bword, xml in res:
                     bword = T.Regex.arabic_hamzas.sub('ا', bword).replace('آ', 'ا')
+                    if bword == 'ترك':
+                        print(bword, word)
                     new_entry = GlobalSettings.Lexicon.Entry(nid, root, word, bword)
                     new_entry.feed(xml)
                     if word in self.entries_by_name:
@@ -473,23 +475,28 @@ class GlobalSettings(_Settings):
 
         def find(self, needle):
             if T.Regex.arabic_harakat.findall(needle):
+                print('performing search')
                 res = self.search(needle)
             else:
                 res = None
             if not res:
+                print('search failed, performing bare search')
                 res = self.bare_search(needle)
 
             if not res and len(T.Regex.arabic_harakat.sub('', needle)) > 4:
+                print('bare search failed, removing alif lam')
                 sub_needle = T.Regex.arabic_harakat.sub('', needle)
                 sub_needle = T.Regex.arabic_aliflam.sub('', sub_needle)
                 res = self.bare_search(sub_needle)
 
             if not res:
+                print('wide search')
                 res = self.wide_search(needle)
 
             if not len(res):
+                print('wide_bare search')
                 res = self.wide_bare_search(needle)
-
+            print(res)
             return self.get_results(res)
 
     themes = {
