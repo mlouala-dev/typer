@@ -4,8 +4,8 @@ This lib converts a latin translitteration to arabic
 TODO: multiple translitteration settings, even user defined ?
 TODO: trim space after "wa"
 """
-import re
 from tools.G import appdata_path
+import re
 
 
 class Letter:
@@ -72,6 +72,7 @@ matching = {
     'q': "ق", 's': "س", 'S': "ص", 'D': "ض", 'd': "د", 'f': "ف", 'j': "ج", 'h': "ه", 'H': "ح", 'l': "ل", 'm': "م",
     'w': "و", 'b': "ب", 'n': "ن", 'y': "ي", "''": "ع", '"': "ع", "'": "ا", "": "ا", " ": " ", "x": "ة"
 }
+arabic_harakat = re.compile(r"[ًٌٍَُِْ~ّ]")
 
 # for sheddah after alif lam
 huruf_shamsya = frozenset(["z", "r", "t", "s", "sh", "n", "d", "dh"])
@@ -88,10 +89,6 @@ harakaat = {
 }
 
 
-re_clean_al = re.compile(r"^ال")
-re_clean_harakat = re.compile(r"[ًٌٍَُِ~ّ]")
-re_ignore_hamza = re.compile(r'[أإآ]')
-
 # we try to get out dictionary containing all words with a madd at the end and wrote with ى
 try:
     with open(appdata_path('dict_alif_maqsuur.txt'), mode="r", encoding="utf-8") as my_file:
@@ -106,7 +103,7 @@ finally:
 
 
 def clean_harakat(text: str) -> str:
-    return re_clean_harakat.sub('', text)
+    return arabic_harakat.sub('', text)
 
 
 def explode_arabic(text: str) -> [Letter]:

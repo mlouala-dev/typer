@@ -9,7 +9,7 @@ from PyQt6.QtGui import *
 from PyQt6.QtCore import *
 
 from tools.translitteration import arabic_hurufs, translitterate, get_arabic_numbers
-from UI.BasicElements import ListWidget, SearchField, AyatModelItem, NumberModelItem
+from UI.BasicElements import ListWidget, SearchField, AyatModelItem, NumberModelItem, ArabicField
 from tools import G
 
 
@@ -288,7 +288,7 @@ class QuranSearch(QDialog):
         # UI stuff
         self.main_layout = QVBoxLayout(self)
 
-        self.search_field = SearchField(self)
+        self.search_field = ArabicField(self)
         self.search_field.keyPressed.connect(self.preview)
 
         self.header_layout = QHBoxLayout(self)
@@ -422,25 +422,13 @@ class QuranSearch(QDialog):
         self.result_label.setText('')
         self.result_view.clear()
 
-        # revert the keyboard layout
-        win32api.LoadKeyboardLayout('0000040c', 1)
         super(QuranSearch, self).closeEvent(a0)
-
-    def hideEvent(self, *args, **kwargs):
-        """
-        In case of hiding we also revert the keyboard's layout
-        """
-        win32api.LoadKeyboardLayout('0000040c', 1)
-        super(QuranSearch, self).hideEvent(*args, **kwargs)
 
     def show(self):
         """
         When dialog pops up we automatically change the keyboard to AR Saudia
         :return:
         """
-        # setting the keyboard layout
-        win32api.LoadKeyboardLayout('00000401', 1)
-
         super(QuranSearch, self).show()
 
         # setting autofocus after showing the dialog

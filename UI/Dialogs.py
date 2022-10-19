@@ -1,9 +1,9 @@
 # بسم الله الرحمان الرحيم
 import copy
-import win32api
 import re
 import html
 import sqlite3
+import win32api
 from logging import CRITICAL, ERROR, WARNING, INFO, DEBUG, NOTSET
 from functools import partial
 
@@ -12,9 +12,10 @@ from PyQt6.QtGui import *
 from PyQt6.QtWidgets import *
 
 from UI.BasicElements import LineLayout, ListWidget, HighlightModelItem, NumberModelItem, SearchField, \
-    MultiLineModelItem
+    MultiLineModelItem, ArabicField
 from tools import G, S, T
 from tools.PDF import PDF_Exporter
+from tools.translitteration import arabic_hurufs
 
 
 class TopicsDialog(QDialog):
@@ -247,8 +248,8 @@ class GlobalSearch(QDialog):
         super(GlobalSearch, self).__init__(parent)
 
         self.setFixedSize(800, 600)
-        self.setWindowTitle("Find & Replace")
-        self.setWindowIcon(G.icon("Google-Custom-Search"))
+        self.setWindowTitle(G.SHORTCUT['find'].hint)
+        self.setWindowIcon(G.icon(G.SHORTCUT['find'].icon_name))
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         widgets_layout = QVBoxLayout(self)
@@ -376,7 +377,14 @@ class GlobalSearch(QDialog):
         """
         results = list()
         new_book = {}
-        total, perc = 0, 100.0 / len(self._book)
+        total = 0
+
+        try:
+            perc = 100.0 / len(self._book)
+
+        except ZeroDivisionError:
+            perc = 100.0
+
         search_options = QTextDocument.FindFlags(0)
 
         # applies the flag to the QTextDocument
@@ -388,7 +396,7 @@ class GlobalSearch(QDialog):
                 search_options |= flag
 
         # preparing the search needle
-        search_needle = QRegExp(needle) if self.regex_check.isChecked() else needle
+        search_needle = QRegularExpression(needle) if self.regex_check.isChecked() else needle
 
         # for every page in the current domain of research
         for page in self.get_search_field():
@@ -651,6 +659,10 @@ class Settings(QDialog):
 
     def __init__(self, parent=None, typer=None):
         super(Settings, self).__init__(parent)
+
+        self.setWindowTitle(G.SHORTCUT['settings'].hint)
+        self.setWindowIcon(G.icon(G.SHORTCUT['settings'].icon_name))
+
         self._win = parent
         self._typer = typer
         self._doc = self._typer.document()
@@ -921,8 +933,8 @@ class Navigator(QDialog):
         self.setContentsMargins(0, 0, 0, 0)
         self.setLayout(self.L_main)
 
-        self.setWindowTitle('TyperNavigator')
-        self.setWindowIcon(G.icon('List'))
+        self.setWindowTitle(G.SHORTCUT['navigator'].hint)
+        self.setWindowIcon(G.icon(G.SHORTCUT['navigator'].icon_name))
 
         self.WL_title = QLabel()
         self.WL_title.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
@@ -1083,8 +1095,8 @@ class Exporter(QDialog):
         self.setContentsMargins(0, 0, 0, 0)
         self.setLayout(self.L_main)
 
-        self.setWindowTitle('TyperExport')
-        self.setWindowIcon(G.icon("File-Extension-Pdf"))
+        self.setWindowTitle(G.SHORTCUT['pdf'].hint)
+        self.setWindowIcon(G.icon(G.SHORTCUT['pdf'].icon_name))
 
         self.WI_path = QLineEdit()
         if self.settings['previous_export']:
@@ -1382,8 +1394,8 @@ class Jumper(QDialog):
     def __init__(self, parent):
         # UI
         super(Jumper, self).__init__(parent)
-        self.setWindowTitle('Source Book Jumper')
-        self.setWindowIcon(G.icon('Book-Spelling'))
+        self.setWindowTitle(G.SHORTCUT['book_jumper'].hint)
+        self.setWindowIcon(G.icon(G.SHORTCUT['book_jumper'].icon_name))
 
         self.setFixedWidth(400)
         self.WI_searchField = SearchField(self)
@@ -1469,3 +1481,168 @@ class DateTimePickerDialog(QDialog):
         date = dialog.dateTime()
 
         return date.toMSecsSinceEpoch() / 1000, result
+
+
+class LexiconView(QDialog):
+    class View(QTextEdit):
+        def __init__(self, parent=None):
+            self._parent = parent
+            super().__init__()
+
+            for child in self.children():
+                if child.metaObject().className() == 'QWidgetTextControl':
+                    child.setProperty('openExternalLinks', True)
+
+        def mouseDoubleClickEvent(self, e: QMouseEvent) -> None:
+            tc = self.cursorForPosition(e.pos())
+            tc.select(QTextCursor.SelectionType.WordUnderCursor)
+            print(tc.selection().toHtml())
+            print(tc.selectedText())
+            self._parent.search(tc.selectedText())
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setWindowTitle(G.SHORTCUT['lexicon'].hint)
+        self.setWindowIcon(G.icon(G.SHORTCUT['lexicon'].icon_name))
+
+        self.setMinimumWidth(700)
+        self.setMinimumHeight(700)
+
+        L_main = QVBoxLayout()
+        self.W_search = ArabicField()
+        self.W_search.returnPressed.connect(self.search)
+        self.W_highlight = ArabicField()
+        self.W_highlight.textChanged.connect(self.highlight)
+        self.W_view = self.View(self)
+        self.W_syntaxHighlighter = self.Highlighter(self.W_view.document())
+        L_main.addLayout(LineLayout(None, 'search :', self.W_search, 'sub-highlight', self.W_highlight))
+        L_main.addWidget(self.W_view)
+        self.setLayout(L_main)
+
+        self.setDocumentStyleSheet()
+
+    def search(self, needle=''):
+        needle = self.W_search.text() if needle == '' else needle
+        if len(needle):
+            self.W_syntaxHighlighter.needle = needle
+            res = S.GLOBAL.LEXICON.find(needle)
+            print(len(res))
+            if len(res):
+                self.W_view.setHtml(res)
+
+    def highlight(self, needle=''):
+        if len(needle):
+            self.W_syntaxHighlighter.highlight_needle = needle
+            self.W_syntaxHighlighter.rehighlight()
+
+    def setDocumentStyleSheet(self):
+        self.W_view.document().setDefaultStyleSheet(f'''
+        body {{
+            margin-left:5px;
+            margin-top:5px;
+            margin-right:5px;
+            margin-bottom:5px;
+        }}
+        cite {{ 
+            font-weight:600;
+            font-size:30px;
+            font-style: normal;
+        }}
+        i {{
+            color:{self.palette().highlight().color().name()};
+        }}
+        samp, tt, code {{
+            font-family:'{S.GLOBAL.latin_font_family}'; 
+            font-size:{S.GLOBAL.font_size + 5}px;
+            font-style: normal;
+        }}
+        samp {{ 
+            font-size:{S.GLOBAL.font_size}px;
+            font-style: italic;
+        }}
+        tt {{
+            color:{self.palette().shadow().color().name()};
+        }}
+        code {{
+            font-weight: 600;
+            color:#
+        }}
+        ''')
+
+    def show(self) -> None:
+        self.W_search.setFocus()
+        super(LexiconView, self).show()
+
+    def propagateFont(self):
+        self.setFont(G.get_font())
+        self.W_search.setFont(self.font())
+
+        self.setDocumentStyleSheet()
+
+    class Highlighter(QSyntaxHighlighter):
+        """
+        A simple Highlighter
+        """
+        # defining some formats
+        highlight = QTextCharFormat()
+        highlight.setFontWeight(600)
+        highlight.setForeground(QBrush(QColor(68, 156, 205)))
+
+        subhighlight = QTextCharFormat()
+        subhighlight.setBackground(S.GLOBAL.themes[S.GLOBAL.theme].palette.highlight())
+        subhighlight.setForeground(S.GLOBAL.themes[S.GLOBAL.theme].palette.brightText())
+
+        def __init__(self, *args):
+            self.re_needle = re.compile('^$')
+            self.re_sub = re.compile('^$')
+            super().__init__(*args)
+
+        @property
+        def needle(self):
+            pass
+
+        @needle.setter
+        def needle(self, value):
+            formatted_needle = T.Regex.arabic_harakat.sub('', value)
+            formatted_needle = re.sub(f'([{"".join(arabic_hurufs)}])', r'\1[ًٌٍَُِّْ]{0,2}', formatted_needle)
+            self.re_needle = re.compile(formatted_needle)
+
+        @property
+        def highlight_needle(self):
+            pass
+
+        @highlight_needle.setter
+        def highlight_needle(self, value):
+            formatted_needle = T.Regex.arabic_harakat.sub('', value)
+            formatted_needle = re.sub(f'([{"".join(arabic_hurufs)}])', r'\1[ًٌٍَُِّْ]{0,2}', formatted_needle)
+            self.re_sub = re.compile(formatted_needle)
+
+        def highlightBlock(self, text):
+            """
+            Overridden QSyntaxHighlighter method to apply the highlight
+            """
+            if not T.SPELL.loaded:
+                return
+
+            def tokenize(body_text: str) -> (int, str):
+                """
+                this tokenize the text with a rule
+                :param body_text: the whole text we want to tokenize
+                :return: yield the index of the word and the word itself
+                """
+                index = 0
+                # TODO: this split regex should be an re.unescape(''.join(G.escape...) ???
+                for word_match in T.Regex.highlight_split.split(body_text):
+                    yield index, word_match
+
+                    # increments the current text's index
+                    index += len(word_match) + 1
+
+            for idx, word in tokenize(text):
+                if len(self.re_needle.findall(word)):
+                    self.setFormat(idx, len(word), self.highlight)
+
+                if len(self.re_sub.findall(word)):
+                    self.setFormat(idx, len(word), self.subhighlight)
+
+                pass

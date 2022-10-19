@@ -12,7 +12,7 @@ from PyQt6.QtCore import *
 
 from UI import QuranWorker, Editor
 from UI.HadithWorker import HadithSearch
-from UI.Dialogs import Settings, Navigator, GlobalSearch, Exporter, Jumper
+from UI.Dialogs import Settings, Navigator, GlobalSearch, Exporter, Jumper, LexiconView
 from UI.Components import StatusBar, Summary, TitleBar, MainToolbar, SplashScreen, TextToolbar, TopicsBar, BreadCrumbs
 
 from tools import G, PDF, Audio, S, T
@@ -115,14 +115,17 @@ class TyperWIN(QMainWindow):
         self.settings_dialog = Settings(self, self.typer)
         G.SHORTCUT['settings'].register(self, self.settings_dialog.show)
 
-        _splash.progress(53, "Loading Navigator...")
+        _splash.progress(53, "Loading Additional Dialogs...")
         self.navigator = Navigator(self)
         G.SHORTCUT['navigator'].register(self, self.navigatorDialog)
+        self.lexicon = LexiconView(self)
+        G.SHORTCUT['lexicon'].register(self, self.lexiconDialog)
         self.exporter = Exporter(self)
         self.jumper = Jumper(self)
         G.SHORTCUT['book_jumper'].register(self, self.jumper.show)
         self.font_propagate.extend([
             self.navigator.propagateFont,
+            self.lexicon.propagateFont,
             self.exporter.propagateFont,
             self.jumper.propagateFont
         ])
@@ -924,6 +927,21 @@ class TyperWIN(QMainWindow):
         self.navigator = Navigator(self)
         self.navigator.buildMap()
         self.navigator.show()
+
+    def lexiconDialog(self):
+        if S.GLOBAL.LEXICON.loading:
+            QMessageBox.critical(
+                None,
+                "Lexicon not loaded yet",
+                "Please try again later",
+                defaultButton=QMessageBox.StandardButton.Ok
+            )
+        else:
+            sel = self.typer.textCursor().selectedText()
+            if len(sel):
+                print(S.GLOBAL.LEXICON.find(sel))
+                self.lexicon.W_view.setHtml(S.GLOBAL.LEXICON.find(sel))
+            self.lexicon.show()
 
     def QuranDialog(self):
         """

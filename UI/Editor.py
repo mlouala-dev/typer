@@ -936,9 +936,12 @@ class Typer(QTextEdit):
                 
             return
 
+        elif (modifiers & Qt.KeyboardModifier.ControlModifier) and (modifiers & Qt.KeyboardModifier.AltModifier):
+            super(self._win.__class__, self._win).keyPressEvent(e)
+
         # the alt modifier is used to apply some fast styles
         elif modifiers == Qt.KeyboardModifier.AltModifier:
-
+            print(T.Regex.complete_page_filter(self.toHtml()))
             # the main title shortcut
             if key in Styles_Shortcut:  # Alt+1
 
@@ -972,8 +975,8 @@ class Typer(QTextEdit):
                 tc = self.textCursor()
                 b1, b2 = tc.selectionStart(), tc.selectionEnd()
                 s, e = min(b1, b2), max(b1, b2)
-                tc.setPosition(s, tc.MoveMode.MoveAnchor)
 
+                tc.setPosition(s, tc.MoveMode.MoveAnchor)
                 tc.movePosition(tc.MoveOperation.StartOfBlock, tc.MoveMode.MoveAnchor)
                 tc.setPosition(e, tc.MoveMode.KeepAnchor)
                 tc.movePosition(tc.MoveOperation.EndOfBlock, tc.MoveMode.KeepAnchor)
@@ -1001,7 +1004,6 @@ class Typer(QTextEdit):
 
                         elif previous_list.format().style() == QTextListFormat.Style.ListDisc and key == Qt.Key.Key_B:
                             style.setStyle(QTextListFormat.Style.ListSquare)
-
                 # if previous_list:
                 #     if (tc.block().blockFormat().indent() + 1) != previous_list.format().indent():
                 #         list = tc.createList(style)

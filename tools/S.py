@@ -8,14 +8,14 @@ import tempfile
 import os
 import re
 from functools import partial
-from importlib.machinery import SourceFileLoader
+from html.parser import HTMLParser
 
 from PyQt6.QtWidgets import QApplication, QStyleFactory
 from PyQt6.QtGui import QPalette, QColor
 from PyQt6.QtCore import Qt, pyqtSignal, QObject, QThreadPool, QRunnable, QDir
 
 from tools import G, T, Audio
-from tools.translitteration import translitterate, re_ignore_hamza, clean_harakat
+from tools.translitteration import translitterate, clean_harakat
 
 QDir.addSearchPath('icons', G.rsc_path('images/icons'))
 QDir.addSearchPath('typer', G.rsc_path('images/typer'))
@@ -279,12 +279,226 @@ class GlobalSettings(_Settings):
         palette.setColor(QPalette.ColorRole.HighlightedText, QColor(42, 130, 218))
         pass
 
+    class Lexicon:
+        loading = True
+        match_parenthesis = re.compile('(\(.*?\))')
+
+        class EntryContent:
+            indent = {
+                '': 0,
+                'a': 1,
+                'b': 2
+            }
+
+            def __init__(self, type: str = '', num: str = '', content: str = ''):
+                self.type = type.lower()
+                self.num = num
+                self._content = content
+
+            @property
+            def content(self):
+                return f'''<p align="justify" dir="ltr" style="-qt-block-indent:{self.indent[self.type]}; text-indent:3px;">
+                {self._content.strip()}
+                </p>'''
+
+            @content.setter
+            def content(self, value: str):
+                self._content = value
+
+            def add_content(self, value: str):
+                self._content += value
+
+        class Entry(HTMLParser):
+            needle = -1
+            ignore = None
+
+            def __init__(self, nid: str, root: str, word: str, bword: str):
+                super().__init__()
+
+                self.nodeid = nid
+                self.root = root
+                self.word = word
+                self.bareword = bword
+
+                self.contents = [
+                    GlobalSettings.Lexicon.EntryContent()
+                ]
+
+            def add_content(self, value):
+                nice_value = value.replace('\n', '')
+                nice_value = T.Regex.space_pattern.sub(' ', nice_value)
+                self.contents[-1].add_content(nice_value)
+
+            def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+                if self.ignore:
+                    return
+
+                attrs = {a: b for a, b in attrs}
+                if tag == 'sense':
+                    self.contents.append(GlobalSettings.Lexicon.EntryContent(attrs['type'], attrs['n']))
+                elif tag == 'hi' and attrs['rend'] == 'ital':
+                    self.add_content('<i>')
+                elif tag == 'ref':
+                    self.add_content(f'<a href="{attrs["cref"]}">{attrs["target"]}</a> ')
+                elif tag == 'itype':
+                    self.add_content('<code>')
+                elif tag == 'orth' and not 'orig' in attrs:
+                    self.ignore = tag
+                elif tag == 'orth':
+                    self.add_content('<cite>')
+                elif tag == 'assumedtropical':
+                    self.add_content('<samp>')
+                elif tag == 'tropical':
+                    self.add_content('<samp>')
+                # else:
+                #     print(tag, attrs)
+
+            def handle_endtag(self, tag: str) -> None:
+                if self.ignore and self.ignore == tag:
+                    self.ignore = None
+                    return
+
+                if tag == 'hi':
+                    self.add_content('</i>')
+                elif tag == 'itype':
+                    self.add_content('</code>')
+                elif tag == 'orth':
+                    self.add_content('</cite>')
+                elif tag == 'assumedtropical':
+                    self.add_content('</samp>')
+                elif tag == 'tropical':
+                    self.add_content('</samp>')
+
+            def handle_data(self, data: str) -> None:
+                if not self.ignore:
+                    self.add_content(GlobalSettings.Lexicon.match_parenthesis.sub(r'<tt>\1</tt>', data))
+
+            def __str__(self):
+                res = ''
+                for r in [T.Regex.space_pattern.sub(" ", c.content) for c in self.contents]:
+                    res += f'<p align="justify" dir="ltr">{r}</p>'
+                return res
+
+        class Worker(QRunnable):
+            name = 'Lexicon'
+
+            def __init__(self, start: int, end: int, callback_fn):
+                super().__init__()
+
+                self.callback_fn = callback_fn
+                self.start = start
+                self.end = end
+
+                self.entries_by_name = {}
+                self.entries_by_bareword = {}
+                self.entries_by_id = {}
+
+            def run(self):
+                db = sqlite3.connect(G.rsc_path(f'lexicon_{GLOBAL.lang}.db'))
+                res = db.cursor().execute('SELECT nodeid, root, word, bareword, xml FROM entry WHERE id BETWEEN ? AND ?', (self.start, self.end)).fetchall()
+                db.close()
+
+                for nid, root, word, bword, xml in res:
+                    bword = T.Regex.arabic_hamzas.sub('ا', bword).replace('آ', 'ا')
+                    new_entry = GlobalSettings.Lexicon.Entry(nid, root, word, bword)
+                    new_entry.feed(xml)
+                    if word in self.entries_by_name:
+                        self.entries_by_name[word].append(nid)
+                    else:
+                        self.entries_by_name[word] = [nid]
+                    if bword in self.entries_by_bareword:
+                        self.entries_by_bareword[bword].append(nid)
+                    else:
+                        self.entries_by_bareword[bword] = [nid]
+                    self.entries_by_id[nid] = new_entry
+
+                self.callback_fn(
+                    self.entries_by_name,
+                    self.entries_by_bareword,
+                    self.entries_by_id
+                )
+
+                self.done(self.name)
+
+        def __init__(self):
+            self.entries_by_name = {}
+            self.entries_by_bareword = {}
+            self.entries_by_id = {}
+
+            db = sqlite3.connect(G.rsc_path(f'lexicon_{GLOBAL.lang}.db'))
+            cursor = db.cursor()
+            l = cursor.execute('SELECT COUNT(*) FROM entry').fetchone()[0]
+            db.close()
+
+            chunk = l // POOL.maxThreadCount()
+
+            for i in range(0, l, chunk):
+                POOL.start(self.Worker(i, i + chunk, self.loadEntries))
+
+        def loadEntries(self, by_name: dict, by_bareword, by_id):
+            self.entries_by_name.update(by_name)
+            self.entries_by_bareword.update(by_bareword)
+            self.entries_by_id.update(by_id)
+
+            self.loading = False
+
+        def bare_search(self, needle):
+            try:
+                return self.entries_by_bareword[T.Regex.arabic_harakat.sub('', needle)]
+            except KeyError:
+                pass
+
+        def search(self, needle):
+            try:
+                return self.entries_by_name[needle]
+            except KeyError:
+                pass
+
+        def wide_search(self, needle):
+            res = []
+            for p in [self.search(e) for e in filter(lambda x: needle in x, self.entries_by_name)]:
+                for r in p:
+                    res.append(r)
+            return res
+
+        def wide_bare_search(self, needle):
+            res = []
+            for p in [self.bare_search(e) for e in filter(lambda x: needle in x, self.entries_by_bareword)]:
+                for r in p:
+                    res.append(r)
+            return res
+
+        def get_results(self, result_id: list):
+            return '\n<hr/>\n'.join(map(str, map(self.entries_by_id.get, result_id)))
+
+        def find(self, needle):
+            if T.Regex.arabic_harakat.findall(needle):
+                res = self.search(needle)
+            else:
+                res = None
+            if not res:
+                res = self.bare_search(needle)
+
+            if not res and len(T.Regex.arabic_harakat.sub('', needle)) > 4:
+                sub_needle = T.Regex.arabic_harakat.sub('', needle)
+                sub_needle = T.Regex.arabic_aliflam.sub('', sub_needle)
+                res = self.bare_search(sub_needle)
+
+            if not res:
+                res = self.wide_search(needle)
+
+            if not len(res):
+                res = self.wide_bare_search(needle)
+
+            return self.get_results(res)
+
     themes = {
         'dark': Dark(),
         'light': Light()
     }
 
     defaults = {
+        'lang': 'en',
         'theme': 'light',
         'toolbar': True,
         'text_toolbar': False,
@@ -306,11 +520,13 @@ class GlobalSettings(_Settings):
 
     def __init__(self):
         self.QURAN = GlobalSettings.Quran()
+        self.LEXICON = None
 
         super().__init__()
         self.filename = G.appdata_path('config.db')
         self.create_db_link()
 
+        self.lang = self.defaults['lang']
         self.theme = self.defaults['theme']
         self.toolbar = self.defaults['toolbar']
         self.text_toolbar = self.defaults['text_toolbar']
@@ -362,6 +578,9 @@ class GlobalSettings(_Settings):
         self.db.close()
 
         self.setTheme(settings['theme'])
+
+        self.lang = settings['lang']
+        self.LEXICON = GlobalSettings.Lexicon()
 
         self.default_path = settings['default_path']
 
@@ -704,7 +923,7 @@ class LocalSettings(_Settings):
 
         def findKitab(self, needle: str) -> Kitab:
             for index, kitab in self.kutub.items():
-                if needle in re_ignore_hamza.sub('ا', kitab.name):
+                if needle in T.Regex.arabic_hamzas.sub('ا', kitab.name):
                     return kitab
 
         def findBab(self, needle: str, scope: int = None) -> Bab:
@@ -714,7 +933,7 @@ class LocalSettings(_Settings):
                 scoped = self.abwab
 
             for bab in scoped:
-                if needle in re_ignore_hamza.sub('ا', bab.name):
+                if needle in T.Regex.arabic_hamzas.sub('ا', bab.name):
                     return bab
 
         def findScopedBab(self, needle: int | str, scope: int = None) -> Bab | Hadith:

@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
 from PyQt6.QtCore import *
 
-from UI.BasicElements import ListWidget, SearchField, LineLayout, AyatModelItem, MultiLineModelItem
+from UI.BasicElements import ListWidget, ArabicField, LineLayout, AyatModelItem, MultiLineModelItem
 from tools import G, S
 from tools.translitteration import arabic_hurufs, clean_harakat
 
@@ -28,9 +28,9 @@ class Hadith:
         self.grade_trad = ''
 
     def addTranslation(self, hadith: str = '', rawi: str = '', grade: str = ''):
-        self.hadith_trad = self.cleanTranslation(hadith)
-        self.rawi_trad = self.cleanTranslation(rawi)
-        self.grade_trad = grade
+        self.hadith_trad = self.cleanTranslation(hadith) if hadith else ''
+        self.rawi_trad = self.cleanTranslation(rawi) if rawi else ''
+        self.grade_trad = grade if grade else ''
 
     def clean(self, text: str):
         hadith = text.replace("’", "'")
@@ -51,7 +51,7 @@ class Hadith:
         return self.hadith, f'رواه {self.rawi}', self.grade
 
     def _translation(self):
-        return self.hadith_trad, f'Rapporté par {self.rawi_trad}', self.grade_trad
+        return self.hadith_trad, f'Rapporté par {self.rawi_trad}' if len(self.rawi_trad) else '', self.grade_trad
 
     @staticmethod
     def formatPlainText(h, r, g):
@@ -112,8 +112,7 @@ class HadithSearch(QDialog):
             db = sqlite3.connect(G.rsc_path('hadith.db'))
             cursor = db.cursor()
 
-            req = cursor.execute(f''' SELECT ar.id, hadith, grade, rawi, hadith_fr, grade_fr, rawi_fr
-            FROM ar INNER JOIN fr ON ar.id = fr.id WHERE ar.id BETWEEN ? AND ?''', self.bounds).fetchall()
+            req = cursor.execute(f'SELECT * FROM hadiths WHERE id BETWEEN ? AND ?', self.bounds).fetchall()
             db.close()
 
             for i, hadith, grade, rawi, hadith_fr, grade_fr, rawi_fr in req:
@@ -141,7 +140,7 @@ class HadithSearch(QDialog):
         self.setLayout(main_layout)
         self.sub_layout = QVBoxLayout(self)
 
-        self.search_field = SearchField(self)
+        self.search_field = ArabicField(self)
         self.search_field.keyPressed.connect(self.preview)
 
         self.search = QPushButton("Search")
@@ -175,7 +174,7 @@ class HadithSearch(QDialog):
 
         db = sqlite3.connect(G.rsc_path('hadith.db'))
         cursor = db.cursor()
-        cnt = cursor.execute('SELECT COUNT(id) FROM ar').fetchone()[0]
+        cnt = cursor.execute('SELECT COUNT(id) FROM hadiths').fetchone()[0]
         db.close()
 
         prev, step = 0, cnt // S.POOL.maxThreadCount()
@@ -231,8 +230,8 @@ class HadithSearch(QDialog):
                     hadith_fr = hadith.toTranslatedPlainText()
                     item = QTreeWidgetItem(self.result_view, [hadith_ar, hadith_fr])
 
-                    h_ar = math.floor(.8 * fm_ar.width(hadith_ar) / self.result_view.columnWidth(0))
-                    h_fr = math.ceil(.8 * fm_fr.width(hadith_fr) / self.result_view.columnWidth(1))
+                    h_ar = math.floor(.8 * fm_ar.horizontalAdvance(hadith_ar) / self.result_view.columnWidth(0))
+                    h_fr = math.ceil(.8 * fm_fr.horizontalAdvance(hadith_fr) / self.result_view.columnWidth(1))
 
                     item.setData(1, Qt.ItemDataRole.UserRole, hid)
                     item.setSizeHint(0, QSize(self.result_view.columnWidth(0), h_ar * fm_ar.height()))
@@ -249,17 +248,12 @@ class HadithSearch(QDialog):
         self.search_field.setText('')
         self.result_label.setText('')
         self.result_view.clear()
-        win32api.LoadKeyboardLayout('0000040c', 1)
-        super(HadithSearch, self).closeEvent(a0)
 
-    def hideEvent(self, *args, **kwargs):
-        win32api.LoadKeyboardLayout('0000040c', 1)
-        super(HadithSearch, self).hideEvent(*args, **kwargs)
+        super(HadithSearch, self).closeEvent(a0)
 
     def show(self):
         super(HadithSearch, self).show()
         self.search_field.setFocus()
-        win32api.LoadKeyboardLayout('00000401', 1)
 
 
 if __name__ == "__main__":

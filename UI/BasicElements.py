@@ -2,8 +2,10 @@
 """
 Some very basic elements used by the UI
 """
+import win32api
+
 from PyQt6.QtCore import *
-from PyQt6.QtGui import QColor, QTextOption, QFont, QPainter, QKeyEvent, QFontMetrics, QMouseEvent
+from PyQt6.QtGui import QColor, QTextOption, QFont, QPainter, QKeyEvent, QFontMetrics, QFocusEvent
 from PyQt6.QtWidgets import *
 
 
@@ -210,10 +212,10 @@ class SearchField(QLineEdit):
     keyPressed = pyqtSignal(QKeyEvent)
 
     def __init__(self, parent=None):
-        super(SearchField, self).__init__(parent)
+        super().__init__(parent)
 
     def keyPressEvent(self, e: QKeyEvent) -> None:
-        super(SearchField, self).keyPressEvent(e)
+        super().keyPressEvent(e)
         self.keyPressed.emit(e)
 
 
@@ -260,3 +262,16 @@ class RadioGroupBox(QGroupBox):
         :return: index of the currently selected QRadioButton
         """
         return self.items.index(self.selection())
+
+
+class ArabicField(SearchField):
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def focusInEvent(self, a0: QFocusEvent) -> None:
+        win32api.LoadKeyboardLayout('00000401', 1)
+        super().focusInEvent(a0)
+
+    def focusOutEvent(self, a0: QFocusEvent) -> None:
+        win32api.LoadKeyboardLayout('0000040c', 1)
+        super().focusOutEvent(a0)

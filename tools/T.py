@@ -3,18 +3,15 @@
 Some handful text operations especially on HTML code
 NOT IMPLEMENTED YET
 """
-import copy
-import html
 import re
 import time
 
-from PyQt6.QtWidgets import QWidget, QApplication
 from symspellpy import SymSpell, Verbosity
 from string import ascii_letters, digits, whitespace
 from html.parser import HTMLParser
 
-from PyQt6.QtCore import QRunnable, pyqtSignal, QObject, Qt, QSizeF
-from PyQt6.QtGui import QTextDocument, QFont, QTextOption, QTextBlockFormat, QTextCursor, QFontMetrics, QTextBlock
+from PyQt6.QtCore import QRunnable, pyqtSignal, QObject, Qt
+from PyQt6.QtGui import QTextDocument, QFont, QTextOption, QTextBlockFormat, QTextCursor, QFontMetrics
 from tools import G, S
 
 
@@ -24,8 +21,12 @@ class Regex:
     highlight_split = re.compile(r'[ \-\.\,:;!?\"\'\(\)\[\]\n￼«»]')
     ignoretoken = re.compile(r'\d|^[A-Z]|ﷺ|ﷻ|[\u0621-\u064a\ufb50-\ufdff\ufe70-\ufefc]')
     filter_text_style = re.compile(rf' ?font-family:\'{G.__la_font__}\',\'{G.__ar_font__}\';| ?font-family:\'{G.__la_font__}\';| ?font-family:\'{G.__ar_font__}\';| ?font-size:{G.__font_size__}pt;')
-    filter_text_margin = re.compile(r' ?margin-.*?:\d+px;| ?line-height:100%;| text-indent:\d+px;')
+    filter_text_margin = re.compile(r' ?margin-\w+:\d+px;| ?line-height:100%;| text-indent:\d+px;')
     filter_ptime_height = re.compile(r'(<img src="paragraph_time_.*?".*?height=)".*?"(.*?>)')
+    space_pattern = re.compile(r'\s{2,}')
+    arabic_aliflam = re.compile(r"^ال")
+    arabic_harakat = re.compile(r"[ًٌٍَُِْ~ّ]")
+    arabic_hamzas = re.compile(r'[أإآ]')
 
     @staticmethod
     def update():
