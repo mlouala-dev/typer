@@ -1489,7 +1489,7 @@ class DateTimePickerDialog(QDialog):
         return date.toMSecsSinceEpoch() / 1000, result
 
 
-class LexiconView(QDialog):
+class LexiconView(QWidget):
     class View(QTextEdit):
         def __init__(self, parent=None):
             self._parent = parent
@@ -1529,7 +1529,7 @@ class LexiconView(QDialog):
             return self[self.cursor]
 
     def __init__(self, parent):
-        super().__init__(parent)
+        super().__init__()
         self.setWindowTitle(G.SHORTCUT['lexicon'].hint)
         self.setWindowIcon(G.icon(G.SHORTCUT['lexicon'].icon_name))
 

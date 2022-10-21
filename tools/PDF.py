@@ -233,7 +233,7 @@ class ViewerFrame(QWidget):
         super().closeEvent(e)
 
     def showEvent(self, e: QShowEvent):
-        S.LOCAL.viewer = False
+        S.LOCAL.viewer = True
         S.LOCAL.saveSetting('viewer')
         super().showEvent(e)
 

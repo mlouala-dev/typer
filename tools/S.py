@@ -522,6 +522,7 @@ class GlobalSettings(_Settings):
             needle = T.Regex.arabic_harakat.sub('', needle)
             if needle in self.by_root:
                 return self.get_results(self.by_root[needle])
+            return None, None
 
     themes = {
         'dark': Dark(),
