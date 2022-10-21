@@ -86,7 +86,10 @@ class TyperWIN(QMainWindow):
 
         self.viewer = PDF.Viewer(self)
         self.topic_display = TopicsBar(self)
-        self.font_propagate.append(self.topic_display.propagateFont)
+        self.font_propagate.extend([
+            self.topic_display.propagateFont,
+            self.topic_display.topic_dialog.propagateFont
+        ])
 
         self.viewer_frame = PDF.ViewerFrame(self.viewer, self.topic_display)
         G.SHORTCUT['viewer'].register(self, partial(self.toggleWidgetDisplay, self.viewer_frame))
