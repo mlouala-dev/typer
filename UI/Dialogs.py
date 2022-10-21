@@ -48,7 +48,7 @@ class TopicsDialog(QDialog):
         self.original_topics = set()
 
         # UI
-        self.setFont(G.get_font())
+        self.propagateFont()
         self.fm = QFontMetrics(self.font())
 
         self.pointer_rect = QRect(0, 30, 1, 1)
@@ -79,6 +79,11 @@ class TopicsDialog(QDialog):
         self.cancel = QPushButton('Cancel')
         self.cancel.pressed.connect(self.cancelForm)
         main_layout.addLayout(LineLayout(self, self.ok, self.cancel))
+
+    def propagateFont(self):
+        self.setFont(G.get_font())
+        self.model = MultiLineModelItem(font=G.get_font(1.4))
+        self.topic_list.applyModels([self.model])
 
     def validForm(self):
         """
