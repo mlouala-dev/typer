@@ -48,7 +48,6 @@ class TopicsDialog(QDialog):
         self.original_topics = set()
 
         # UI
-        self.propagateFont()
         self.fm = QFontMetrics(self.font())
 
         self.pointer_rect = QRect(0, 30, 1, 1)
@@ -79,6 +78,8 @@ class TopicsDialog(QDialog):
         self.cancel = QPushButton('Cancel')
         self.cancel.pressed.connect(self.cancelForm)
         main_layout.addLayout(LineLayout(self, self.ok, self.cancel))
+
+        self.propagateFont()
 
     def propagateFont(self):
         self.setFont(G.get_font())
@@ -1555,6 +1556,12 @@ class LexiconView(QDialog):
         self.C_by_root.stateChanged.connect(update_string_list)
         self.W_highlight = ArabicField()
         self.W_highlight.textChanged.connect(self.highlight)
+
+        self.WL_root = QLabel()
+        self.B_root = QPushButton('Go To Root')
+        self.B_root.keyPressEvent = None
+        self.B_root.clicked.connect(self.goToRoot)
+
         self.W_view = self.View(self)
         self.W_syntaxHighlighter = self.Highlighter(self.W_view.document())
 
@@ -1565,6 +1572,9 @@ class LexiconView(QDialog):
             self.C_by_root,
             'Sub-highlight',
             self.W_highlight,
+            'Root : ',
+            self.WL_root,
+            self.B_root
         ))
         L_main.addWidget(self.W_view)
         self.setLayout(L_main)
@@ -1577,9 +1587,9 @@ class LexiconView(QDialog):
             self.W_syntaxHighlighter.needle = needle
 
             if self.C_by_root.isChecked():
-                res = S.GLOBAL.LEXICON.find_by_root(needle)
+                res, root = S.GLOBAL.LEXICON.find_by_root(needle)
             else:
-                res = S.GLOBAL.LEXICON.find(needle)
+                res, root = S.GLOBAL.LEXICON.find(needle)
 
             if not res:
                 QMessageBox.critical(
@@ -1593,6 +1603,17 @@ class LexiconView(QDialog):
                     if not silent:
                         self.history.add_squash(needle)
                     self.W_view.setHtml(res)
+                    self.WL_root.setText(root)
+
+    def goToRoot(self):
+        if self.W_search.hasFocus():
+            return
+        state = self.C_by_root.isChecked()
+        self.C_by_root.setChecked(True)
+
+        self.search(self.WL_root.text())
+
+        self.C_by_root.setChecked(state)
 
     def mousePressEvent(self, e: QMouseEvent) -> None:
         if e.button() == Qt.MouseButton.XButton2:
@@ -1617,16 +1638,21 @@ class LexiconView(QDialog):
             margin-top:5px;
             margin-right:5px;
             margin-bottom:5px;
+            text-indent:5px;
         }}
         cite {{ 
             font-weight:600;
             font-size:30px;
             font-style: normal;
         }}
-        i {{
-            color:{self.palette().highlight().color().name()};
+        em {{
+            color:#56cb6c;
+            font-weight:600;
         }}
-        samp, tt, code {{
+        em.sub {{
+            color:#169b4c;
+        }}
+        samp, tt, code, dfn {{
             font-family:'{S.GLOBAL.latin_font_family}'; 
             font-size:{S.GLOBAL.font_size + 5}px;
             font-style: normal;
@@ -1638,9 +1664,13 @@ class LexiconView(QDialog):
         tt {{
             color:{self.palette().shadow().color().name()};
         }}
+        dfn {{
+            color:{self.palette().highlight().color().name()};
+        }}
         code {{
+            font-size:30px;
             font-weight: 600;
-            color:#
+            color:#267dff;
         }}
         ''')
 

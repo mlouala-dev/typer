@@ -282,6 +282,7 @@ class GlobalSettings(_Settings):
     class Lexicon:
         loading = True
         match_parenthesis = re.compile('(\(.*?\))')
+        match_square_brackets = re.compile(r'(\[.*?])')
 
         class EntryContent:
             indent = {
@@ -295,10 +296,20 @@ class GlobalSettings(_Settings):
                 self.num = num
                 self._content = content
 
+            def post_treatment(self):
+                content = ''
+                splitted_content = GlobalSettings.Lexicon.match_square_brackets.split(self._content)
+                for part in splitted_content:
+                    if part.startswith('['):
+                        part = f'<i>{part}</i>'
+                        part = part.replace('<em>', '<em class="sub">')
+                    content += part
+                return content.strip()
+
             @property
             def content(self):
-                return f'''<p align="justify" dir="ltr" style="-qt-block-indent:{self.indent[self.type]}; text-indent:3px;">
-                {self._content.strip()}
+                return f'''<p align="justify" dir="ltr" style="margin-left:{pow(self.indent[self.type], 2) * 7}px;margin-right:10px;">
+                {self.post_treatment()}
                 </p>'''
 
             @content.setter
@@ -337,9 +348,11 @@ class GlobalSettings(_Settings):
                 if tag == 'sense':
                     self.contents.append(GlobalSettings.Lexicon.EntryContent(attrs['type'], attrs['n']))
                 elif tag == 'hi' and attrs['rend'] == 'ital':
-                    self.add_content('<i>')
+                    self.add_content('<em>')
                 elif tag == 'ref':
                     self.add_content(f'<a href="{attrs["cref"]}">{attrs["target"]}</a> ')
+                elif tag == 'foreign' and attrs['lang'] == 'ar':
+                    self.add_content(f'<dfn>')
                 elif tag == 'itype':
                     self.add_content('<code>')
                 elif tag == 'orth' and not 'orig' in attrs:
@@ -359,7 +372,9 @@ class GlobalSettings(_Settings):
                     return
 
                 if tag == 'hi':
-                    self.add_content('</i>')
+                    self.add_content('</em>')
+                elif tag == 'foreign':
+                    self.add_content('</dfn>')
                 elif tag == 'itype':
                     self.add_content('</code>')
                 elif tag == 'orth':
@@ -477,7 +492,10 @@ class GlobalSettings(_Settings):
             return res
 
         def get_results(self, result_id: list):
-            return '\n<hr/>\n'.join(map(str, map(self.by_id.get, result_id)))
+            if len(result_id):
+                return '\n<hr/>\n'.join(map(str, map(self.by_id.get, result_id))), self.by_id.get(result_id[0]).root
+            else:
+                return None, None
 
         def find(self, needle):
             if T.Regex.arabic_harakat.findall(needle):
