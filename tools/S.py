@@ -189,7 +189,8 @@ class GlobalSettings(_Settings):
             self.pages = {}
 
             i = 1
-            for name, arabic, revelation, place in self.cursor.execute('SELECT Name, Arabic, Revelation, Place FROM surats').fetchall():
+            for name, arabic, revelation, place in self.cursor.execute(
+                    'SELECT Name, Arabic, Revelation, Place FROM surats').fetchall():
                 self.surats[i] = self.Surat(i, name, arabic, revelation, place)
                 i += 1
 
@@ -281,8 +282,6 @@ class GlobalSettings(_Settings):
         pass
 
     class Lexicon:
-        loading = True
-        database_locked = False
         match_parenthesis = re.compile('(\(.*?\))')
         match_square_brackets = re.compile(r'(\[.*?])')
 
@@ -396,111 +395,90 @@ class GlobalSettings(_Settings):
                     res += f'<p align="justify" dir="ltr">{r}</p>'
                 return res
 
-        class Worker(QRunnable):
-            name = 'Lexicon'
-
-            def __init__(self, start: int, end: int, callback_fn):
-                super().__init__()
-
-                self.callback_fn = callback_fn
-                self.start = start
-                self.end = end
-
-                self.by_name = {}
-                self.by_root = {}
-                self.by_bareword = {}
-                self.by_id = {}
-
-            def run(self):
-                db = sqlite3.connect(G.rsc_path(f'lexicon_{GLOBAL.lang}.db'))
-                res = db.cursor().execute('SELECT nodeid, root, word, bareword, xml FROM entry WHERE id BETWEEN ? AND ?', (self.start, self.end)).fetchall()
-                db.close()
-
-                for nid, root, word, bword, xml in res:
-                    bword = T.Arabic.reformat_hamza(bword).replace('آ', 'ا')
-                    new_entry = GlobalSettings.Lexicon.Entry(nid, root, word, bword)
-                    new_entry.feed(xml)
-                    if word in self.by_name:
-                        self.by_name[word].append(nid)
-                    else:
-                        self.by_name[word] = [nid]
-                    if root in self.by_root:
-                        self.by_root[root].append(nid)
-                    else:
-                        self.by_root[root] = [nid]
-                    if bword in self.by_bareword:
-                        self.by_bareword[bword].append(nid)
-                    else:
-                        self.by_bareword[bword] = [nid]
-                    self.by_id[nid] = new_entry
-
-                self.callback_fn(
-                    self.by_name,
-                    self.by_bareword,
-                    self.by_root,
-                    self.by_id
-                )
-
-                self.done(self.name)
+        # class Worker(QRunnable):
+        #     name = 'Lexicon'
+        #
+        #     def __init__(self, start: int, end: int, callback_fn):
+        #         super().__init__()
+        #
+        #         self.callback_fn = callback_fn
+        #         self.start = start
+        #         self.end = end
+        #
+        #         self.by_name = {}
+        #         self.by_root = {}
+        #         self.by_bareword = {}
+        #         self.by_id = {}
+        #
+        #     def run(self):
+        #         db = sqlite3.connect(G.rsc_path(f'lexicon_{GLOBAL.lang}.db'))
+        #         res = db.cursor().execute('SELECT * FROM entry WHERE id BETWEEN ? AND ?', (self.start, self.end)).fetchall()
+        #         db.close()
+        #
+        #         for i, nid, root, word, bword, xml in res:
+        #             bword = T.Arabic.reformat_hamza(bword).replace('آ', 'ا')
+        #             new_entry = GlobalSettings.Lexicon.Entry(nid, root, word, bword)
+        #             new_entry.feed(xml)
+        #             if word in self.by_name:
+        #                 self.by_name[word].append(nid)
+        #             else:
+        #                 self.by_name[word] = [nid]
+        #             if root in self.by_root:
+        #                 self.by_root[root].append(nid)
+        #             else:
+        #                 self.by_root[root] = [nid]
+        #             if bword in self.by_bareword:
+        #                 self.by_bareword[bword].append(nid)
+        #             else:
+        #                 self.by_bareword[bword] = [nid]
+        #             self.by_id[nid] = new_entry
+        #
+        #         self.callback_fn(
+        #             self.by_name,
+        #             self.by_bareword,
+        #             self.by_root,
+        #             self.by_id
+        #         )
+        #
+        #         self.done(self.name)
 
         def __init__(self):
-            self.by_name = {}
-            self.by_bareword = {}
-            self.by_root = {}
-            self.by_id = {}
+            self.db = sqlite3.connect(G.rsc_path(f'lexicon_{GLOBAL.lang}.db'))
+            self.cursor = self.db.cursor()
 
-            db = sqlite3.connect(G.rsc_path(f'lexicon_{GLOBAL.lang}.db'))
-            cursor = db.cursor()
-            l = cursor.execute('SELECT COUNT(*) FROM entry').fetchone()[0]
+            self.barewords = self.fetchall_results('SELECT bareword FROM entry')
+            self.roots = self.fetchall_results('SELECT DISTINCT root FROM entry')
 
-            chunk = (l // 128)
-
-            for i in range(0, l, chunk):
-                POOL.start(self.Worker(i, i + chunk, self.loadEntries), priority=5)
-
-        def loadEntries(self, by_name: dict, by_bareword, by_root, by_id):
-            self.by_name.update(by_name)
-            self.by_bareword.update(by_bareword)
-            self.by_root.update(by_root)
-            self.by_id.update(by_id)
-
-            self.loading = False
+        def fetchall_results(self, *args):
+            res = []
+            for p in self.cursor.execute(*args).fetchall():
+                res.extend(p)
+            return res
 
         def bare_search(self, needle):
-            try:
-                return self.by_bareword[T.Arabic.clean_harakats(needle)]
-            except KeyError:
-                pass
+            return self.fetchall_results('SELECT nodeid FROM entry WHERE bareword=?', (needle,))
 
         def search(self, needle):
-            try:
-                return self.by_name[needle]
-            except KeyError:
-                pass
+            return self.fetchall_results('SELECT nodeid FROM entry WHERE word=?', (needle,))
 
         def wide_search(self, needle):
-            res = []
-            for p in [self.search(e) for e in filter(lambda x: needle in x, self.by_name)]:
-                for r in p:
-                    res.append(r)
-            return res
+            return self.fetchall_results(f'SELECT nodeid FROM entry WHERE word LIKE "%{needle}%"')
 
         def wide_bare_search(self, needle):
-            res = []
-            for p in [self.bare_search(e) for e in filter(lambda x: needle in x, self.by_bareword)]:
-                for r in p:
-                    res.append(r)
-            return res
-
-        # def deep_search(self, needle):
-        #     clean_txt = re.sub(f'([{"".join(arabic_hurufs)}])', r'\1[ًٌٍَُِّْ]{0,2}', clean_txt)
-        #
-        #     # searching in db
-        #     q = db.exec('SELECT * FROM quran WHERE text REGEXP "%s" ORDER BY surat ASC' % clean_txt)
+            return self.fetchall_results(f'SELECT nodeid FROM entry WHERE bareword LIKE "%{needle}%"')
 
         def get_results(self, result_id: list):
             if len(result_id):
-                return '\n<hr/>\n'.join(map(str, map(self.by_id.get, result_id))), self.by_id.get(result_id[0]).root
+                res = []
+                for node_id in result_id:
+                    nid, root, word, bword, xml = \
+                    self.cursor.execute('SELECT nodeid, root, word, bareword, xml FROM entry WHERE nodeid=?',
+                                        (node_id,)).fetchall()[0]
+                    bword = T.Arabic.reformat_hamza(bword)
+                    new_entry = GlobalSettings.Lexicon.Entry(nid, root, word, bword)
+                    new_entry.feed(xml)
+                    res.append(str(new_entry))
+                return '\n<hr/>\n'.join(res), root
             else:
                 return None, None
 
@@ -527,9 +505,21 @@ class GlobalSettings(_Settings):
 
         def find_by_root(self, needle):
             needle = T.Arabic.clean_harakats(needle)
+
             if needle in self.by_root:
                 return self.get_results(self.by_root[needle])
             return None, None
+
+        def find_deep(self, needle):
+            pat = re.compile(T.Arabic.wide_arabic_pattern(needle))
+
+            def matched(value):
+                return pat.search(value) is not None
+
+            self.db.create_function('REGEXP', 1, matched)
+
+            res = self.fetchall_results('SELECT nodeid FROM entry WHERE REGEXP(xml)')
+            return self.get_results(res)
 
     themes = {
         'dark': Dark(),
@@ -753,7 +743,7 @@ class LocalSettings(_Settings):
         def removePage(self, page: int):
             self._book.pop(page)
             self.unsetModified(page)
-            self._cursor.execute('DELETE FROM book WHERE page=?', (page, ))
+            self._cursor.execute('DELETE FROM book WHERE page=?', (page,))
             self._db.commit()
 
         @G.log
@@ -1226,7 +1216,8 @@ class LocalSettings(_Settings):
             self.updates = set()
 
             if self._cursor:
-                self.words_to_process = [self.Word(w, c, p) for w, c, p in self._cursor.execute('SELECT * FROM dict').fetchall()]
+                self.words_to_process = [self.Word(w, c, p) for w, c, p in
+                                         self._cursor.execute('SELECT * FROM dict').fetchall()]
                 worker = self.Worker(self.words_to_process, self.updateFromScratch)
 
                 POOL.start(worker, priority=0)
@@ -1311,7 +1302,8 @@ class LocalSettings(_Settings):
             if self._cursor:
                 for w in [w.disp() for w in self.news]:
                     try:
-                        self._cursor.execute('INSERT INTO dict (word, count, before) VALUES (:word, :count, :before)', w)
+                        self._cursor.execute('INSERT INTO dict (word, count, before) VALUES (:word, :count, :before)',
+                                             w)
                     except sqlite3.IntegrityError:
                         pass
                 for w in [w.disp() for w in self.updates]:
@@ -1548,14 +1540,15 @@ class LocalSettings(_Settings):
 
                 for kid, name, page in self.cursor.execute('SELECT * FROM bm_kutub').fetchall():
                     kitab = self.BOOKMAP.kutub[kid] = LocalSettings.BookMap.Kitab(
-                        name=clean_harakat(name),
+                        name=T.Arabic.clean_harakats(name),
                         kid=kid,
                         page=self.BOOKMAP.getPage(page)
                     )
-                    for bid, bname, bpage in self.cursor.execute(f'SELECT id, name, page FROM bm_abwab WHERE kitab={kid}').fetchall():
+                    for bid, bname, bpage in self.cursor.execute(
+                            f'SELECT id, name, page FROM bm_abwab WHERE kitab={kid}').fetchall():
                         if bname:
                             bab = LocalSettings.BookMap.Bab(
-                                name=clean_harakat(bname),
+                                name=T.Arabic.clean_harakats(bname),
                                 bid=bid,
                                 kid=kid,
                                 page=self.BOOKMAP.getPage(bpage)
@@ -1753,10 +1746,9 @@ class LocalSettings(_Settings):
 GLOBAL = GlobalSettings()
 LOCAL = LocalSettings()
 
-
 if __name__ == "__main__":
     d = LOCAL.Dict()
     d.digest('''
-    
+
     ''')
     print(len(d.words), d.words)

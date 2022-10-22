@@ -932,21 +932,13 @@ class TyperWIN(QMainWindow):
         self.navigator.show()
 
     def lexiconDialog(self):
-        if S.GLOBAL.LEXICON.loading:
-            QMessageBox.critical(
-                None,
-                "Lexicon not loaded yet",
-                "Please try again later",
-                defaultButton=QMessageBox.StandardButton.Ok
-            )
-        else:
-            sel = self.typer.textCursor().selectedText()
-            if len(sel):
-                sel = T.Arabic.reformat_hamza(sel)
-                sel = T.Arabic.clean_harakats(sel)
-                self.lexicon.search(sel)
+        sel = self.typer.textCursor().selectedText()
+        if len(sel):
+            sel = T.Arabic.reformat_hamza(sel)
+            sel = T.Arabic.clean_harakats(sel)
+            self.lexicon.search(sel)
 
-            self.lexicon.show()
+        self.lexicon.show()
 
     def QuranDialog(self):
         """

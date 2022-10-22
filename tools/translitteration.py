@@ -219,7 +219,7 @@ def translitterate(text: str, no_harakat=False) -> str:
     """
     # if the text is arabic, returning as it, just apply the no_harakat if needed
     if text[0] in Arabic.hurufs:
-        return Arabic.clean_harakat(text) if no_harakat else text
+        return Arabic.clean_harakats(text) if no_harakat else text
 
     # first getting our list of (characters, tashkil)
     letters = explode_arabic(text)
@@ -234,7 +234,7 @@ def translitterate(text: str, no_harakat=False) -> str:
         :return: an updated word if it has ى instead of ا
         """
         # pre-cleaning
-        previous_word = Arabic.clean_harakat(word.split(" ")[-1])
+        previous_word = Arabic.clean_harakats(word.split(" ")[-1])
 
         # if it ends with a ا we check he's in dict
         if previous_word.endswith('ا'):
@@ -372,7 +372,7 @@ def translitterate(text: str, no_harakat=False) -> str:
     # we finally check the last word to make sure everybody has been formatted properly
     final = get_previous_word(final)
 
-    return Arabic.clean_harakat(final) if no_harakat else final
+    return Arabic.clean_harakats(final) if no_harakat else final
 
 
 if __name__ == "__main__":

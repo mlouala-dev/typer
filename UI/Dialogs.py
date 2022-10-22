@@ -1547,9 +1547,9 @@ class LexiconView(QWidget):
         def update_string_list(state):
             model = QStringListModel()
             if state:
-                model.setStringList([a for a in S.GLOBAL.LEXICON.by_root.keys()])
+                model.setStringList(S.GLOBAL.LEXICON.roots)
             else:
-                model.setStringList([a for a in S.GLOBAL.LEXICON.by_bareword.keys()])
+                model.setStringList(S.GLOBAL.LEXICON.barewords)
             self.completer.setModel(model)
 
         self.C_by_root.stateChanged.connect(update_string_list)
@@ -1591,12 +1591,19 @@ class LexiconView(QWidget):
                 res, root = S.GLOBAL.LEXICON.find(needle)
 
             if not res:
-                QMessageBox.critical(
+                r = QMessageBox.critical(
                     None,
                     "Can't find root",
                     f"""'{needle}' not found, check search settings""",
-                    defaultButton=QMessageBox.StandardButton.Ok
+                    defaultButton=QMessageBox.StandardButton.Ok,
+                    buttons=QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Discard
                 )
+                if r == QMessageBox.StandardButton.Ok:
+                    res, root = S.GLOBAL.LEXICON.find_deep(needle)
+                    if res and len(res):
+                        self.W_view.setHtml(res)
+                        self.W_highlight.setText(T.Arabic.clean_harakats(needle))
+                        self.W_syntaxHighlighter.rehighlight()
             else:
                 if len(res):
                     if not silent:
@@ -1676,7 +1683,7 @@ class LexiconView(QWidget):
     def show(self) -> None:
         self.W_search.setFocus()
         model = QStringListModel()
-        model.setStringList([a for a in S.GLOBAL.LEXICON.by_bareword.keys()])
+        model.setStringList(S.GLOBAL.LEXICON.barewords)
         self.completer.setModel(model)
         super(LexiconView, self).show()
 
@@ -1710,7 +1717,7 @@ class LexiconView(QWidget):
 
         @needle.setter
         def needle(self, value):
-            self.re_needle = T.Arabic.wide_arabic_pattern(value)
+            self.re_needle = re.compile(T.Arabic.wide_arabic_pattern(value))
 
         @property
         def highlight_needle(self):
@@ -1718,7 +1725,7 @@ class LexiconView(QWidget):
 
         @highlight_needle.setter
         def highlight_needle(self, value):
-            self.re_sub = T.Arabic.wide_arabic_pattern(value)
+            self.re_sub = re.compile(T.Arabic.wide_arabic_pattern(value))
 
         def highlightBlock(self, text):
             """
