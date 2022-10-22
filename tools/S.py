@@ -395,52 +395,6 @@ class GlobalSettings(_Settings):
                     res += f'<p align="justify" dir="ltr">{r}</p>'
                 return res
 
-        # class Worker(QRunnable):
-        #     name = 'Lexicon'
-        #
-        #     def __init__(self, start: int, end: int, callback_fn):
-        #         super().__init__()
-        #
-        #         self.callback_fn = callback_fn
-        #         self.start = start
-        #         self.end = end
-        #
-        #         self.by_name = {}
-        #         self.by_root = {}
-        #         self.by_bareword = {}
-        #         self.by_id = {}
-        #
-        #     def run(self):
-        #         db = sqlite3.connect(G.rsc_path(f'lexicon_{GLOBAL.lang}.db'))
-        #         res = db.cursor().execute('SELECT * FROM entry WHERE id BETWEEN ? AND ?', (self.start, self.end)).fetchall()
-        #         db.close()
-        #
-        #         for i, nid, root, word, bword, xml in res:
-        #             bword = T.Arabic.reformat_hamza(bword).replace('آ', 'ا')
-        #             new_entry = GlobalSettings.Lexicon.Entry(nid, root, word, bword)
-        #             new_entry.feed(xml)
-        #             if word in self.by_name:
-        #                 self.by_name[word].append(nid)
-        #             else:
-        #                 self.by_name[word] = [nid]
-        #             if root in self.by_root:
-        #                 self.by_root[root].append(nid)
-        #             else:
-        #                 self.by_root[root] = [nid]
-        #             if bword in self.by_bareword:
-        #                 self.by_bareword[bword].append(nid)
-        #             else:
-        #                 self.by_bareword[bword] = [nid]
-        #             self.by_id[nid] = new_entry
-        #
-        #         self.callback_fn(
-        #             self.by_name,
-        #             self.by_bareword,
-        #             self.by_root,
-        #             self.by_id
-        #         )
-        #
-        #         self.done(self.name)
 
         def __init__(self):
             self.db = sqlite3.connect(G.rsc_path(f'lexicon_{GLOBAL.lang}.db'))
@@ -511,10 +465,11 @@ class GlobalSettings(_Settings):
             return None, None
 
         def find_deep(self, needle):
+            needle = T.Arabic.reformat_hamza(needle)
             pat = re.compile(T.Arabic.wide_arabic_pattern(needle))
 
             def matched(value):
-                return pat.search(value) is not None
+                return pat.search(T.Arabic.reformat_hamza(value)) is not None
 
             self.db.create_function('REGEXP', 1, matched)
 

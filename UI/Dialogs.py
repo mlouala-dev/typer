@@ -1749,6 +1749,7 @@ class LexiconView(QWidget):
                     index += len(word_match) + 1
 
             for idx, word in tokenize(text):
+                word = T.Arabic.reformat_hamza(word)
                 if len(self.re_needle.findall(word)):
                     self.setFormat(idx, len(word), self.highlight)
 

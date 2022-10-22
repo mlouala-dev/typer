@@ -355,7 +355,7 @@ class ArabicOperator:
         return Regex.arabic_harakat.sub('', text)
 
     def reformat_hamza(self, text):
-        return Regex.arabic_hamzas.sub('ا', text)
+        return Regex.arabic_hamzas.sub('ا', text).replace('ٓ', '')
 
     def clean_alif_lam(self, text):
         return Regex.arabic_aliflam.sub('', text)
