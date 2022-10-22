@@ -15,7 +15,6 @@ from UI.BasicElements import LineLayout, ListWidget, HighlightModelItem, NumberM
     MultiLineModelItem, ArabicField
 from tools import G, S, T
 from tools.PDF import PDF_Exporter
-from tools.translitteration import arabic_hurufs
 
 
 class TopicsDialog(QDialog):
@@ -1711,9 +1710,7 @@ class LexiconView(QWidget):
 
         @needle.setter
         def needle(self, value):
-            formatted_needle = T.Arabic.clean_harakats(value)
-            formatted_needle = re.sub(f'([{"".join(arabic_hurufs)}])', r'\1[ًٌٍَُِّْ]{0,2}', formatted_needle)
-            self.re_needle = re.compile(formatted_needle)
+            self.re_needle = T.Arabic.wide_arabic_pattern(value)
 
         @property
         def highlight_needle(self):
@@ -1721,9 +1718,7 @@ class LexiconView(QWidget):
 
         @highlight_needle.setter
         def highlight_needle(self, value):
-            formatted_needle = T.Arabic.clean_harakats(value)
-            formatted_needle = re.sub(f'([{"".join(arabic_hurufs)}])', r'\1[ًٌٍَُِّْ]{0,2}', formatted_needle)
-            self.re_sub = re.compile(formatted_needle)
+            self.re_sub = T.Arabic.wide_arabic_pattern(value)
 
         def highlightBlock(self, text):
             """

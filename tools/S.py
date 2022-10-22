@@ -15,7 +15,7 @@ from PyQt6.QtGui import QPalette, QColor
 from PyQt6.QtCore import Qt, pyqtSignal, QObject, QThreadPool, QRunnable, QDir, QThread
 
 from tools import G, T, Audio
-from tools.translitteration import translitterate, clean_harakat
+from tools.translitteration import translitterate
 
 QDir.addSearchPath('icons', G.rsc_path('images/icons'))
 QDir.addSearchPath('typer', G.rsc_path('images/typer'))
@@ -491,6 +491,12 @@ class GlobalSettings(_Settings):
                 for r in p:
                     res.append(r)
             return res
+
+        # def deep_search(self, needle):
+        #     clean_txt = re.sub(f'([{"".join(arabic_hurufs)}])', r'\1[ًٌٍَُِّْ]{0,2}', clean_txt)
+        #
+        #     # searching in db
+        #     q = db.exec('SELECT * FROM quran WHERE text REGEXP "%s" ORDER BY surat ASC' % clean_txt)
 
         def get_results(self, result_id: list):
             if len(result_id):

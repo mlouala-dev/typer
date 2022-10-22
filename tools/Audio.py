@@ -2,7 +2,7 @@
 """
 All the QThread elements we use for asynchronous works
 """
-import datetime
+import re
 import os
 import win32api
 import wave
@@ -12,8 +12,9 @@ from time import localtime, strftime
 from id3parse import ID3, ID3TextFrame
 
 from PyQt6.QtCore import QThread, pyqtSignal, QRunnable
+from PyQt6.QtGui import QTextDocument
 
-from tools import G, S
+from tools import G, S, T
 
 
 class AudioWorker(QThread):
@@ -196,3 +197,47 @@ class AudioMap(QRunnable):
 
         # TODO define software from settings
         win32api.ShellExecute(0, "open", r'C:\Program Files\DAUM\PotPlayer\PotPlayerMini64.exe', f'"{self.map[index]["path"]}" /seek={int(time)}', None, 1)
+
+
+class graphBlockMap(QRunnable):
+    name = 'graphBlockMap'
+
+    def __init__(self, document: QTextDocument, callback_fn):
+        self.callback_fn = callback_fn
+        self.doc = document.clone()
+
+        super().__init__()
+
+    def run(self):
+        self.doc.size()
+        map = {}
+
+        for block_id in range(self.doc.blockCount()):
+            block = self.doc.findBlockByNumber(block_id)
+            map[block_id] = (block.layout().position().y() + 1, block.layout().boundingRect().height() - 2)
+
+        self.callback_fn(map)
+        self.done(self.name)
+
+
+class solveAudioMapping(QRunnable):
+    name = 'solveAudioMapping'
+
+    def __init__(self, html: str, callback_fn):
+        self.callback_fn = callback_fn
+        self.html = re.split('<body.*?>', html)[-1].split('\n')
+
+        super().__init__()
+
+    def run(self):
+        blocks = {}
+
+        for i, html_block in enumerate(self.html):
+            if T.HTML.hasParagraphTime(html_block):
+                solve = S.GLOBAL.AUDIOMAP.find(T.HTML.paragraphTime(html_block))
+                blocks[i - 1] = solve
+            else:
+                blocks[i - 1] = -2
+
+        self.callback_fn(blocks)
+        self.done(self.name)

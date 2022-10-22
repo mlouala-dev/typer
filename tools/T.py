@@ -12,7 +12,7 @@ from html.parser import HTMLParser
 
 from PyQt6.QtCore import QRunnable, pyqtSignal, QObject, Qt
 from PyQt6.QtGui import QTextDocument, QFont, QTextOption, QTextBlockFormat, QTextCursor, QFontMetrics
-from tools import G, S
+from tools import G
 
 
 class Regex:
@@ -88,7 +88,8 @@ class SpellChecker(QObject):
         self.loaded = False
 
     def build(self):
-        S.POOL.start(self.Worker(self.load))
+        from tools.S import POOL
+        POOL.start(self.Worker(self.load))
 
     def load(self, dictionary: SymSpell):
         self.dictionary = dictionary
@@ -346,22 +347,29 @@ class TextOperator:
         return filter(lambda x: len(x), phrases)
 
 
-class Arabic:
-    @staticmethod
-    def clean_harakats(text):
+class ArabicOperator:
+    hurufs = frozenset('ذضصثقفغعهخحجدشسيبلاتنمكطئءؤرىةوزظإأـ')
+    digits = list("٠١٢٣٤٥٦٧٨٩")
+
+    def clean_harakats(self, text):
         return Regex.arabic_harakat.sub('', text)
 
-    @staticmethod
-    def reformat_hamza(text):
+    def reformat_hamza(self, text):
         return Regex.arabic_hamzas.sub('ا', text)
 
-    @staticmethod
-    def clean_alif_lam(text):
+    def clean_alif_lam(self, text):
         return Regex.arabic_aliflam.sub('', text)
+
+    def wide_arabic_pattern(self, needle):
+        if Regex.arabic_harakat.fullmatch(needle):
+            needle = self.clean_harakats(needle)
+
+        return re.sub(f'([{"".join(self.hurufs)}])', r'\1[ًٌٍَُِّْ]{0,2}', needle)
 
 
 HTML = HtmlOperator()
 TEXT = TextOperator()
+Arabic = ArabicOperator()
 
 
 class QOperator:
@@ -405,45 +413,3 @@ class QOperator:
                 font-size:{G.__font_size__}pt;
                 text-indent: 10px;
             }}'''
-
-    class graphBlockMap(QRunnable):
-        name = 'graphBlockMap'
-
-        def __init__(self, document: QTextDocument, callback_fn):
-            self.callback_fn = callback_fn
-            self.doc = document.clone()
-
-            super().__init__()
-
-        def run(self):
-            self.doc.size()
-            map = {}
-
-            for block_id in range(self.doc.blockCount()):
-                block = self.doc.findBlockByNumber(block_id)
-                map[block_id] = (block.layout().position().y() + 1, block.layout().boundingRect().height() - 2)
-
-            self.callback_fn(map)
-            self.done(self.name)
-
-    class solveAudioMapping(QRunnable):
-        name = 'solveAudioMapping'
-
-        def __init__(self, html: str, callback_fn):
-            self.callback_fn = callback_fn
-            self.html = re.split('<body.*?>', html)[-1].split('\n')
-
-            super().__init__()
-
-        def run(self):
-            blocks = {}
-
-            for i, html_block in enumerate(self.html):
-                if HTML.hasParagraphTime(html_block):
-                    solve = S.GLOBAL.AUDIOMAP.find(HTML.paragraphTime(html_block))
-                    blocks[i - 1] = solve
-                else:
-                    blocks[i - 1] = -2
-
-            self.callback_fn(blocks)
-            self.done(self.name)

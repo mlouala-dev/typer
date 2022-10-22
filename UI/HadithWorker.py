@@ -10,15 +10,14 @@ from PyQt6.QtGui import *
 from PyQt6.QtCore import *
 
 from UI.BasicElements import ListWidget, ArabicField, LineLayout, AyatModelItem, MultiLineModelItem
-from tools import G, S
-from tools.translitteration import arabic_hurufs, clean_harakat
+from tools import G, S, T
 
 
 class Hadith:
     def __init__(self, hid: int = 0, hadith: str = '', rawi: str = '', grade: str = ''):
         self.id = hid
         self.hadith = self.clean(hadith)
-        self.light_hadith = self.clean(clean_harakat(hadith))
+        self.light_hadith = self.clean(T.Arabic.clean_harakats(hadith))
         self.rawi = rawi
         self.grade = grade
 
@@ -79,14 +78,14 @@ class Hadith:
     def __contains__(self, item):
         # we check first character, if arabic we search in the source text,
         # otherwise the translation
-        if item[0] in arabic_hurufs:
-            return clean_harakat(item) in self.light_hadith
+        if item[0] in T.Arabic.hurufs:
+            return T.Arabic.clean_harakats(item) in self.light_hadith
         else:
             return item in self.hadith_trad
 
     def hasRawi(self, needle):
-        if needle[0] in arabic_hurufs:
-            return clean_harakat(needle) in self.rawi
+        if needle[0] in T.Arabic.hurufs:
+            return T.Arabic.clean_harakats(needle) in self.rawi
         else:
             return needle in self.rawi_trad
 

@@ -5,7 +5,7 @@ TODO: multiple translitteration settings, even user defined ?
 TODO: trim space after "wa"
 """
 from tools.G import appdata_path
-import re
+from tools.T import Arabic
 
 
 class Letter:
@@ -62,17 +62,12 @@ hurufs = frozenset(('kh', 'th', 'dh', 'gh', 'sh', 'z', 'r', 't', 'T', 'Z',
                     'q', 's', 'S', 'D', 'd', 'f', 'j', 'h', 'H', 'k', 'x',
                     'l', 'm', 'w', 'b', 'n', 'y', "''", '"', "'", " "))
 
-# all arabic letters
-arabic_hurufs = frozenset('ذضصثقفغعهخحجدشسيبلاتنمكطئءؤرىةوزظإأـ')
-arabic_digits = list("٠١٢٣٤٥٦٧٨٩")
-
 # translitteration matching, accept duplicates
 matching = {
     'kh': "خ", 'th': "ث", 'dh': "ذ", 'gh': "غ", 'sh': "ش", 'z': "ز", 'r': "ر", 't': "ت", 'T': "ط", 'Z': "ظ", 'k': "ك",
     'q': "ق", 's': "س", 'S': "ص", 'D': "ض", 'd': "د", 'f': "ف", 'j': "ج", 'h': "ه", 'H': "ح", 'l': "ل", 'm': "م",
     'w': "و", 'b': "ب", 'n': "ن", 'y': "ي", "''": "ع", '"': "ع", "'": "ا", "": "ا", " ": " ", "x": "ة"
 }
-arabic_harakat = re.compile(r"[ًٌٍَُِْ~ّ]")
 
 # for sheddah after alif lam
 huruf_shamsya = frozenset(["z", "r", "t", "s", "sh", "n", "d", "dh"])
@@ -100,10 +95,6 @@ except FileNotFoundError:
 # remove trailing return char
 finally:
     ar_dict = [a.replace("\n", "")[:-1] for a in ar_words]
-
-
-def clean_harakat(text: str) -> str:
-    return arabic_harakat.sub('', text)
 
 
 def explode_arabic(text: str) -> [Letter]:
@@ -182,7 +173,7 @@ def get_arabic_numbers(val: str, arabic=False) -> str:
     # trying to convert every character
     for character in val:
         try:
-            arabic_cmd += arabic_digits[int(character)]
+            arabic_cmd += Arabic.digits[int(character)]
 
         # if we can't find it, adding the original char
         except ValueError:
@@ -201,7 +192,7 @@ def append_to_dict(word: str):
 
     try:
         # cleaning the word before storing
-        word = clean_harakat(word)
+        word = Arabic.clean_harakat(word)
 
         # we first make sure our word is not in ar_dict
         assert word.endswith("ى") and word[:-1] not in ar_dict
@@ -227,8 +218,8 @@ def translitterate(text: str, no_harakat=False) -> str:
     :return: the converted arabic string
     """
     # if the text is arabic, returning as it, just apply the no_harakat if needed
-    if text[0] in arabic_hurufs:
-        return clean_harakat(text) if no_harakat else text
+    if text[0] in Arabic.hurufs:
+        return Arabic.clean_harakat(text) if no_harakat else text
 
     # first getting our list of (characters, tashkil)
     letters = explode_arabic(text)
@@ -243,7 +234,7 @@ def translitterate(text: str, no_harakat=False) -> str:
         :return: an updated word if it has ى instead of ا
         """
         # pre-cleaning
-        previous_word = clean_harakat(word.split(" ")[-1])
+        previous_word = Arabic.clean_harakat(word.split(" ")[-1])
 
         # if it ends with a ا we check he's in dict
         if previous_word.endswith('ا'):
@@ -381,7 +372,7 @@ def translitterate(text: str, no_harakat=False) -> str:
     # we finally check the last word to make sure everybody has been formatted properly
     final = get_previous_word(final)
 
-    return clean_harakat(final) if no_harakat else final
+    return Arabic.clean_harakat(final) if no_harakat else final
 
 
 if __name__ == "__main__":

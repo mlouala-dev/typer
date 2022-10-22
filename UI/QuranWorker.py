@@ -8,9 +8,9 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
 from PyQt6.QtCore import *
 
-from tools.translitteration import arabic_hurufs, translitterate, get_arabic_numbers
+from tools.translitteration import translitterate, get_arabic_numbers
 from UI.BasicElements import ListWidget, SearchField, AyatModelItem, NumberModelItem, ArabicField
-from tools import G
+from tools import G, T
 
 
 class QuranQuote(QDialog):
@@ -364,10 +364,7 @@ class QuranSearch(QDialog):
                     txt = translitterate(txt)
 
                 # cleaning all harakats
-                clean_txt = re.sub(r'[ًٌٍَُِّْ]', '', txt)
-
-                # making the regex search pattern to match all harakats for each arabic character
-                clean_txt = re.sub(f'([{"".join(arabic_hurufs)}])', r'\1[ًٌٍَُِّْ]{0,2}', clean_txt)
+                clean_txt = T.Arabic.wide_arabic_pattern(txt)
 
                 # searching in db
                 q = db.exec('SELECT * FROM quran WHERE text REGEXP "%s" ORDER BY surat ASC' % clean_txt)
