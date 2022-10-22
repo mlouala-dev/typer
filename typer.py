@@ -942,8 +942,9 @@ class TyperWIN(QMainWindow):
         else:
             sel = self.typer.textCursor().selectedText()
             if len(sel):
-                print(S.GLOBAL.LEXICON.find(sel))
-                self.lexicon.W_view.setHtml(S.GLOBAL.LEXICON.find(sel))
+                res, root = S.GLOBAL.LEXICON.find(sel)
+                self.lexicon.W_view.setHtml(res)
+
             self.lexicon.show()
 
     def QuranDialog(self):
@@ -1140,11 +1141,11 @@ class TyperWIN(QMainWindow):
         self.bakeGeometry()
         S.LOCAL.saveVisualSettings()
 
-        self.updateStatus(30, 'Saving geometry...')
+        self.updateStatus(30, 'Closing elements...')
         if S.LOCAL.viewer_external:
             self.viewer_frame.close()
 
-        self.updateStatus(50, 'Saving geometry...')
+        self.updateStatus(50, 'Closing elements...')
         if S.LOCAL.PDF:
             try:
                 self.viewer.doc.close()
@@ -1152,6 +1153,10 @@ class TyperWIN(QMainWindow):
                 pass
             finally:
                 os.unlink(S.LOCAL.PDF)
+
+        self.updateStatus(65, 'Closing elements...')
+        if self.lexicon.isVisible():
+            self.lexicon.close()
 
         self.updateStatus(80, 'Abording tasks...')
         S.POOL.clear()
