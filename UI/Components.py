@@ -561,7 +561,8 @@ class StatusBar(QStatusBar):
         self.progress = QProgressBar(self)
         self.progress.setValue(0)
         self.progress.setTextVisible(False)
-        self.progress.setMaximumWidth(300)
+        self.progress.setMaximumWidth(200)
+        self.progress.setVisible(False)
 
         self.processing_blink_state = True
         self.timer_id = 0
@@ -569,6 +570,12 @@ class StatusBar(QStatusBar):
         self.processing_icon.setPixmap(G.pixmap(f"icons:Apple-Half.png", size=19))
         self.processing_icon.setToolTipDuration(1000)
         self.processing_icon.hide()
+        self.processing_progress = QProgressBar(self)
+        self.processing_progress.setMaximumWidth(100)
+        self.processing_progress.setTextVisible(True)
+        self.max_counter = 1
+        self.processing_progress.setMaximum(self.max_counter)
+
         self.not_saved_icon = QLabel(self)
         self.not_saved_icon.setPixmap(G.pixmap("icons:Bullet-Red.png", size=21))
         self.not_saved_icon.hide()
@@ -579,6 +586,7 @@ class StatusBar(QStatusBar):
         self.saved_icon.setPixmap(G.pixmap("icons:Bullet-Green.png", size=21))
 
         self.addPermanentWidget(self.processing_icon, 0)
+        self.addPermanentWidget(self.processing_progress, 0)
         self.addPermanentWidget(self.page_label, 1)
         self.addPermanentWidget(self.connection_status_icon, 0)
         self.addPermanentWidget(self.connection_status, 0)
@@ -598,11 +606,13 @@ class StatusBar(QStatusBar):
         :param msg: Additional Label
         """
 
+        if self.progress.isHidden() and val > 0:
+            self.progress.show()
+        elif self.progress.isVisible() and val == 0:
+            self.progress.hide()
+
         self.label.setText(f'{msg}')
         self.progress.setValue(int(val))
-
-        # Forcing ui's redraw
-        QApplication.processEvents()
 
     def updateSavedState(self, state: int):
         """
@@ -640,14 +650,22 @@ class StatusBar(QStatusBar):
         if state <= 0:
             self.processing_icon.hide()
             self.killTimer(self.timer_id)
+            self.max_counter = 1
+            self.processing_progress.hide()
             return
 
         elif self.processing_icon.isHidden():
             self.processing_icon.show()
+            self.processing_progress.show()
             self.timer_id = self.startTimer(1000)
+
+        if state > self.max_counter:
+            self.max_counter = state
+            self.processing_progress.setMaximum(state)
 
         joblist = "\n".join(S.POOL.jobs)
         self.processing_icon.setToolTip(f'Active threads ({S.POOL.activeThreadCount()}) :\n{joblist}')
+        self.processing_progress.setValue(self.max_counter - state)
 
     @G.log
     def setConnection(self, file: str | bool = False):

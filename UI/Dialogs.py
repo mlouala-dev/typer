@@ -1711,7 +1711,7 @@ class LexiconView(QWidget):
 
         @needle.setter
         def needle(self, value):
-            formatted_needle = T.Regex.arabic_harakat.sub('', value)
+            formatted_needle = T.Arabic.clean_harakats(value)
             formatted_needle = re.sub(f'([{"".join(arabic_hurufs)}])', r'\1[ًٌٍَُِّْ]{0,2}', formatted_needle)
             self.re_needle = re.compile(formatted_needle)
 
@@ -1721,7 +1721,7 @@ class LexiconView(QWidget):
 
         @highlight_needle.setter
         def highlight_needle(self, value):
-            formatted_needle = T.Regex.arabic_harakat.sub('', value)
+            formatted_needle = T.Arabic.clean_harakats(value)
             formatted_needle = re.sub(f'([{"".join(arabic_hurufs)}])', r'\1[ًٌٍَُِّْ]{0,2}', formatted_needle)
             self.re_sub = re.compile(formatted_needle)
 

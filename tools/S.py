@@ -12,7 +12,7 @@ from html.parser import HTMLParser
 
 from PyQt6.QtWidgets import QApplication, QStyleFactory
 from PyQt6.QtGui import QPalette, QColor
-from PyQt6.QtCore import Qt, pyqtSignal, QObject, QThreadPool, QRunnable, QDir
+from PyQt6.QtCore import Qt, pyqtSignal, QObject, QThreadPool, QRunnable, QDir, QThread
 
 from tools import G, T, Audio
 from tools.translitteration import translitterate, clean_harakat
@@ -44,6 +44,7 @@ class _Pool(QThreadPool):
         self.jobs = []
         self.uniqids = []
         super().__init__()
+        self.setThreadPriority(QThread.Priority.HighestPriority)
 
     @property
     def count(self):
@@ -54,7 +55,7 @@ class _Pool(QThreadPool):
         self._count = val
         self.state.emit(self._count)
 
-    def start(self, job, uniq=None):
+    def start(self, job, uniq=None, priority=0):
         if uniq and uniq in self.uniqids:
             return
         elif uniq:
@@ -66,7 +67,7 @@ class _Pool(QThreadPool):
         self.count = self.count + 1
         self.jobs.append(job.name)
 
-        super().start(job)
+        super().start(job, priority=priority)
 
     def jobDone(self, name: str):
         self.jobs.remove(name)
@@ -281,6 +282,7 @@ class GlobalSettings(_Settings):
 
     class Lexicon:
         loading = True
+        database_locked = False
         match_parenthesis = re.compile('(\(.*?\))')
         match_square_brackets = re.compile(r'(\[.*?])')
 
@@ -415,7 +417,7 @@ class GlobalSettings(_Settings):
                 db.close()
 
                 for nid, root, word, bword, xml in res:
-                    bword = T.Regex.arabic_hamzas.sub('ا', bword).replace('آ', 'ا')
+                    bword = T.Arabic.reformat_hamza(bword).replace('آ', 'ا')
                     new_entry = GlobalSettings.Lexicon.Entry(nid, root, word, bword)
                     new_entry.feed(xml)
                     if word in self.by_name:
@@ -450,12 +452,11 @@ class GlobalSettings(_Settings):
             db = sqlite3.connect(G.rsc_path(f'lexicon_{GLOBAL.lang}.db'))
             cursor = db.cursor()
             l = cursor.execute('SELECT COUNT(*) FROM entry').fetchone()[0]
-            db.close()
 
-            chunk = l // POOL.maxThreadCount()
+            chunk = (l // 128)
 
             for i in range(0, l, chunk):
-                POOL.start(self.Worker(i, i + chunk, self.loadEntries))
+                POOL.start(self.Worker(i, i + chunk, self.loadEntries), priority=5)
 
         def loadEntries(self, by_name: dict, by_bareword, by_root, by_id):
             self.by_name.update(by_name)
@@ -467,7 +468,7 @@ class GlobalSettings(_Settings):
 
         def bare_search(self, needle):
             try:
-                return self.by_bareword[T.Regex.arabic_harakat.sub('', needle)]
+                return self.by_bareword[T.Arabic.clean_harakats(needle)]
             except KeyError:
                 pass
 
@@ -505,10 +506,10 @@ class GlobalSettings(_Settings):
             if not res:
                 res = self.bare_search(needle)
 
-            if not res and len(T.Regex.arabic_harakat.sub('', needle)) > 4:
-                sub_needle = T.Regex.arabic_harakat.sub('', needle)
-                sub_needle = T.Regex.arabic_aliflam.sub('', sub_needle)
-                sub_needle = T.Regex.arabic_hamzas.sub('ا', sub_needle)
+            no_harakat = T.Arabic.clean_harakats(needle)
+            if not res and len(no_harakat) > 4:
+                sub_needle = T.Arabic.clean_alif_lam(no_harakat)
+                sub_needle = T.Arabic.reformat_hamza(sub_needle)
                 res = self.bare_search(sub_needle)
 
             if not res:
@@ -519,7 +520,7 @@ class GlobalSettings(_Settings):
             return self.get_results(res)
 
         def find_by_root(self, needle):
-            needle = T.Regex.arabic_harakat.sub('', needle)
+            needle = T.Arabic.clean_harakats(needle)
             if needle in self.by_root:
                 return self.get_results(self.by_root[needle])
             return None, None
@@ -955,7 +956,7 @@ class LocalSettings(_Settings):
 
         def findKitab(self, needle: str) -> Kitab:
             for index, kitab in self.kutub.items():
-                if needle in T.Regex.arabic_hamzas.sub('ا', kitab.name):
+                if needle in T.Arabic.reformat_hamza(kitab.name):
                     return kitab
 
         def findBab(self, needle: str, scope: int = None) -> Bab:
@@ -965,7 +966,7 @@ class LocalSettings(_Settings):
                 scoped = self.abwab
 
             for bab in scoped:
-                if needle in T.Regex.arabic_hamzas.sub('ا', bab.name):
+                if needle in T.Arabic.reformat_hamza(bab.name):
                     return bab
 
         def findScopedBab(self, needle: int | str, scope: int = None) -> Bab | Hadith:
@@ -1222,7 +1223,7 @@ class LocalSettings(_Settings):
                 self.words_to_process = [self.Word(w, c, p) for w, c, p in self._cursor.execute('SELECT * FROM dict').fetchall()]
                 worker = self.Worker(self.words_to_process, self.updateFromScratch)
 
-                POOL.start(worker)
+                POOL.start(worker, priority=0)
 
         def __getitem__(self, item: Word) -> Word:
             i = self.hashes.index(hash(item))

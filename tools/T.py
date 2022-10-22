@@ -346,6 +346,20 @@ class TextOperator:
         return filter(lambda x: len(x), phrases)
 
 
+class Arabic:
+    @staticmethod
+    def clean_harakats(text):
+        return Regex.arabic_harakat.sub('', text)
+
+    @staticmethod
+    def reformat_hamza(text):
+        return Regex.arabic_hamzas.sub('ا', text)
+
+    @staticmethod
+    def clean_alif_lam(text):
+        return Regex.arabic_aliflam.sub('', text)
+
+
 HTML = HtmlOperator()
 TEXT = TextOperator()
 

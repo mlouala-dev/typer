@@ -942,8 +942,9 @@ class TyperWIN(QMainWindow):
         else:
             sel = self.typer.textCursor().selectedText()
             if len(sel):
-                res, root = S.GLOBAL.LEXICON.find(sel)
-                self.lexicon.W_view.setHtml(res)
+                sel = T.Arabic.reformat_hamza(sel)
+                sel = T.Arabic.clean_harakats(sel)
+                self.lexicon.search(sel)
 
             self.lexicon.show()
 
