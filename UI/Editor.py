@@ -14,7 +14,7 @@ from PyQt6.QtCore import *
 from UI import QuranWorker
 from UI.Dialogs import Conjugate, DateTimePickerDialog
 from tools.styles import Styles, Styles_Shortcut, TyperStyle
-from tools import G, T, S, translitteration
+from tools import G, T, S, translitteration, Audio
 
 
 class Typer(QTextEdit):
@@ -585,11 +585,11 @@ class Typer(QTextEdit):
         html = self.toHtml()
         if html != self.W_audioMap.page and len(self.toPlainText().strip()):
             self.W_audioMap.page = html
-            S.POOL.start(T.QOperator.graphBlockMap(self.document(), self.W_audioMap.setMap), uniq='graph')
+            S.POOL.start(Audio.graphBlockMap(self.document(), self.W_audioMap.setMap), uniq='graph')
 
     def solveAudioMap(self):
         if S.LOCAL.audio_map and len(self.W_audioMap.map):
-            S.POOL.start(T.QOperator.solveAudioMapping(self.toHtml(), self.W_audioMap.addSolver), uniq='solve')
+            S.POOL.start(Audio.solveAudioMapping(self.toHtml(), self.W_audioMap.addSolver), uniq='solve')
 
     # MENUS
 
