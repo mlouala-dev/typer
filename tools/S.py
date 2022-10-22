@@ -460,8 +460,8 @@ class GlobalSettings(_Settings):
         def find_by_root(self, needle):
             needle = T.Arabic.clean_harakats(needle)
 
-            if needle in self.by_root:
-                return self.get_results(self.by_root[needle])
+            if needle in self.roots:
+                return self.get_results(self.fetchall_results('SELECT nodeid FROM entry WHERE root=?', (needle,)))
             return None, None
 
         def find_deep(self, needle):
