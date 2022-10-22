@@ -1582,7 +1582,7 @@ class LexiconView(QWidget):
 
     def search(self, needle='', silent=False):
         needle = self.W_search.text() if needle == '' else needle
-        if len(needle):
+        if len(needle) and T.Arabic.is_arabic(needle):
             self.W_syntaxHighlighter.needle = needle
 
             if self.C_by_root.isChecked():
@@ -1591,18 +1591,21 @@ class LexiconView(QWidget):
                 res, root = S.GLOBAL.LEXICON.find(needle)
 
             if not res:
-                r = QMessageBox.critical(
+                r = QMessageBox.warning(
                     None,
                     "Can't find root",
-                    f"""'{needle}' not found, check search settings""",
+                    f"""The word '{needle}' can't be found, check search settings,
+                    or do you want to perform deep search ?""",
                     defaultButton=QMessageBox.StandardButton.Ok,
-                    buttons=QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Discard
+                    buttons=QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel
                 )
                 if r == QMessageBox.StandardButton.Ok:
                     res, root = S.GLOBAL.LEXICON.find_deep(needle)
                     if res and len(res):
                         self.W_view.setHtml(res)
-                        self.W_highlight.setText(T.Arabic.clean_harakats(needle))
+                        needle = T.Arabic.clean_harakats(needle)
+                        needle = T.Arabic.reformat_hamza(needle)
+                        self.W_highlight.setText(needle)
                         self.W_syntaxHighlighter.rehighlight()
             else:
                 if len(res):

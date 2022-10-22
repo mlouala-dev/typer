@@ -366,6 +366,10 @@ class ArabicOperator:
 
         return re.sub(f'([{"".join(self.hurufs)}])', r'\1[ًٌٍَُِّْ]{0,2}', needle)
 
+    def is_arabic(self, text):
+        text = self.reformat_hamza(self.clean_harakats(text))
+        return len(re.findall(f'[{self.hurufs}]', text)) == len(text)
+
 
 HTML = HtmlOperator()
 TEXT = TextOperator()
