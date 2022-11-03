@@ -1036,6 +1036,7 @@ class TyperWIN(QMainWindow):
 
     def dockViewer(self, state: bool):
         self.viewer_frame.hide()
+        self.viewer_frame.docked = state
 
         if state:
             self.splitter.insertWidget(0, self.viewer_frame)

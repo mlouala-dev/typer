@@ -192,6 +192,7 @@ class Viewer(QWidget):
 
         return self.pixmap
 
+    @G.debug
     def resizeEvent(self, e: QResizeEvent):
         """
         Reload the page if ever the viewer is scaled
@@ -202,6 +203,8 @@ class Viewer(QWidget):
 
 
 class ViewerFrame(QWidget):
+    docked = False
+
     def __init__(self, viewer: Viewer, topics_display: QWidget):
         super(ViewerFrame, self).__init__()
         self.viewer = viewer
@@ -217,15 +220,18 @@ class ViewerFrame(QWidget):
         viewer_frame_layout.addWidget(topics_display, stretch=1)
         viewer_frame_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
+    @G.debug
     def forceResize(self):
         w, h = self.width(), int(self.width() / self.viewer.ratio)
         self.resize(QSize(w, h))
 
+    @G.debug
     def resizeEvent(self, e: QResizeEvent):
-        w = e.size().width()
-        h = int(w / self.viewer.ratio)
-        e.ignore()
-        self.resize(QSize(w, h))
+        if not self.docked:
+            w = e.size().width()
+            h = int(w / self.viewer.ratio)
+            e.ignore()
+            self.resize(QSize(w, h))
 
     def closeEvent(self, e: QCloseEvent):
         S.LOCAL.viewer = False
