@@ -610,12 +610,12 @@ class TyperWIN(QMainWindow):
 
         # we update the visual settings
         self.summary_view.setVisible(S.LOCAL.isSummaryVisible())
+        self.dockViewer(not S.LOCAL.viewer_external)
         self.viewer_frame.setVisible(S.LOCAL.isViewerVisible())
 
         self.setGeometry(*S.LOCAL.geometry)
         self.window_title.setMaximized(S.LOCAL.maximized)
 
-        self.dockViewer(not S.LOCAL.viewer_external)
         self.breadcrumbs.setVisible(S.LOCAL.BOOKMAP.active)
 
         # if it's not connected to a PDF reference, we update the viewer and current page

@@ -300,10 +300,10 @@ SHORTCUT.add(shortcut='Alt+A', name='listen', hint='Start Listening...', icon_na
 SHORTCUT.add(shortcut='Alt+Z', name='note', hint='Insert Note...', icon_name='Note-Add')
 SHORTCUT.add(shortcut='Alt+V', name='pdf', hint="Export to PDF...", icon_name="File-Extension-Pdf")
 SHORTCUT.add(shortcut='Alt+V', name='html', hint="Export to HTML...", icon_name="File-Extension-Html")
-SHORTCUT.add(shortcut='Alt+R', name='viewer', hint="Display viewer...", icon_name="Book-Picture", default_state=False)
-SHORTCUT.add(shortcut='F2', name='bookmark', hint="Summary panel...", icon_name="Application-Side-List")
+SHORTCUT.add(shortcut='F2', name='viewer', hint="Display viewer...", icon_name="Book-Picture", default_state=False)
 SHORTCUT.add(shortcut='F3', name='settings', hint="Settings...", icon_name="Setting-Tools")
 SHORTCUT.add(shortcut='F4', name='lexicon', hint="Lane's Lexicon", icon_name="Application-View-Columns")
+SHORTCUT.add(shortcut='F5', name='bookmark', hint="Summary panel...", icon_name="Application-Side-List")
 
 SHORTCUT.add(shortcut='Ctrl+Alt+C', name='quran_search', hint='Search in Quran...', icon_name='Book')
 SHORTCUT.add(shortcut='Alt+C', name='quran_insert', hint='Insert from / Jump to Quran...', icon_name='Book-Go')
