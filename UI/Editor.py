@@ -756,9 +756,17 @@ class Typer(QTextEdit):
         tc.select(tc.SelectionType.WordUnderCursor)
         self.word = tc.selectedText()
 
-        # ARABIC GLYPHS #
         lowered_text = self.word.lower()
 
+        if self.translitterate_mode:
+            if current_text in translitteration.accepted_letters or\
+                key in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete, Qt.Key.Key_Right,
+                        Qt.Key.Key_Left, Qt.Key.Key_twosuperior):
+                pass
+            else:
+                return
+
+        # ARABIC GLYPHS #
         if lowered_text in ("sws", "saws", "jj", "aas", "ra", 'raha', 'rahuma', 'rahum') and key in T.Keys.Exits:
             # a glyph for Salla Allahu 'alayhi wa sallam
             if lowered_text in ("sws", "saws"):
@@ -871,7 +879,7 @@ class Typer(QTextEdit):
 
                     # adding a special character to indicate we're in translitteration mode
                     # TODO: we could indicate differently, maybe with a border, or a text color ?
-                    self.insertHtml(u"<span style='font-weight:bold;'>\u270E</span>")
+                    self.insertHtml(u"<span style='font-weight:bold; color:orange;'>\u2026 </span>")
 
                 # otherwise we just add a character to force the style to return to format
                 else:
@@ -881,7 +889,7 @@ class Typer(QTextEdit):
                     tc.setPosition(tc.position(), tc.MoveMode.MoveAnchor)
                     tc.movePosition(tc.MoveOperation.Left, tc.MoveMode.KeepAnchor,
                                     tc.position() - self.translitteration_bound)
-                    txt = tc.selectedText()[1:-1]
+                    txt = tc.selectedText()[2:-1]
 
                     tc.removeSelectedText()
 
@@ -1298,7 +1306,7 @@ class Typer(QTextEdit):
             tc.setPosition(0, tc.MoveMode.KeepAnchor)
             self.setTextCursor(tc)
             self.ensureCursorVisible()
-            # apply the style to the whold text block
+            # apply the style to the whole text block
             self.applyOverallBlock(partial(self.toggleFormat, Styles.Default))
 
         A_addTranslation = QAction('Make translation from text', M_main)

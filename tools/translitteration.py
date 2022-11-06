@@ -56,6 +56,7 @@ La = Letter([], letter='l', accent='a')
 Laa = Letter([], letter='l', accent='aa')
 Aa = Letter([], letter="'", accent='aa')
 
+accepted_letters = frozenset('abcdefghijklmnopqrstuvwxyz"\' 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ')
 
 # the arabic letters equivalence
 hurufs = frozenset(('kh', 'th', 'dh', 'gh', 'sh', 'z', 'r', 't', 'T', 'Z',
