@@ -761,7 +761,8 @@ class Typer(QTextEdit):
         if self.translitterate_mode:
             if current_text in translitteration.accepted_letters or\
                 key in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete, Qt.Key.Key_Right,
-                        Qt.Key.Key_Left, Qt.Key.Key_twosuperior):
+                        Qt.Key.Key_Left, Qt.Key.Key_twosuperior, Qt.Key.Key_Home,
+                        Qt.Key.Key_End):
                 pass
             else:
                 return
@@ -857,7 +858,8 @@ class Typer(QTextEdit):
                     tc_prev.select(tc.SelectionType.WordUnderCursor)
 
                     self.new_word = True
-        if key == Qt.Key.Key_twosuperior:
+
+        if key == Qt.Key.Key_twosuperior and modifiers == Qt.KeyboardModifier.NoModifier:
             tc = self.textCursor()
 
             # selection has length
