@@ -978,6 +978,9 @@ class Typer(QTextEdit):
             elif key == Qt.Key.Key_E:
                 self.insertHtml('&#x200e;')
 
+            elif key == Qt.Key.Key_Equal or ord(current_text) == 31:
+                self.zoom(3 if key == Qt.Key.Key_Equal else -3)
+
             # otherwise we just consider it a normal command
             else:
                 super(Typer, self).keyPressEvent(e)
@@ -989,7 +992,6 @@ class Typer(QTextEdit):
 
         # the alt modifier is used to apply some fast styles
         elif modifiers == Qt.KeyboardModifier.AltModifier:
-            print(T.Regex.complete_page_filter(self.toHtml()))
             # the main title shortcut
             if key in Styles_Shortcut:  # Alt+1
 
@@ -1114,6 +1116,9 @@ class Typer(QTextEdit):
             tc.insertHtml(bullet)
             tc.endEditBlock()
             return
+
+        elif modifiers == Qt.KeyboardModifier.ControlModifier and current_text in (Qt.Key.Key_Equal, Qt.Key.Key_Minus):
+            self.zoom(1 if current_text == Qt.Key.Key_Equal else -1)
 
         # forwarding to parent to jump through pages
         elif key in (Qt.Key.Key_PageUp, Qt.Key.Key_PageDown):
@@ -1268,7 +1273,6 @@ class Typer(QTextEdit):
             result = ''
             new_line = True
             for x, s, a, b, c, d in res:
-                print(s)
                 if len(x) or '﴿' in a or '﴿' in b or '﴿' in c or '﴿' in d or len(s.strip()):
                     if len(x) and new_line:
                         continue
@@ -1496,30 +1500,30 @@ class Typer(QTextEdit):
 
     def wheelEvent(self, e: QWheelEvent) -> None:
         if e.modifiers() == Qt.KeyboardModifier.ControlModifier:
-            temp = S.LOCAL.BOOK.Page(
-                T.Regex.complete_page_filter(self.toHtml()),
-                self.textCursor().position()
-            )
-
-            if e.angleDelta().y() > 0:
-                G.__font_size__ += 1
-            else:
-                G.__font_size__ -= 1
-
-            T.Regex.update()
-            self.document().setDefaultStyleSheet(T.QOperator.ApplyDefault.DocumentStyleSheet())
-            self.setHtml(temp.content)
-
-            tc = self.textCursor()
-            tc.setPosition(temp.cursor)
-            self.setTextCursor(tc)
-            self.ensureCursorVisible()
-
-            S.GLOBAL.font_size = G.__font_size__
-            S.GLOBAL.saveSetting('font_size')
+            self.zoom(1 if e.angleDelta().y() > 0 else -1)
 
         super().wheelEvent(e)
         self.W_audioMap.update()
+
+    def zoom(self, direction=1):
+        temp_page = S.LOCAL.BOOK.Page(
+            T.Regex.complete_page_filter(self.toHtml()),
+            self.textCursor().position()
+        )
+
+        G.__font_size__ += direction
+
+        T.Regex.update()
+        self.document().setDefaultStyleSheet(T.QOperator.ApplyDefault.DocumentStyleSheet())
+        self.setHtml(temp_page.content)
+
+        tc = self.textCursor()
+        tc.setPosition(temp_page.cursor)
+        self.setTextCursor(tc)
+        self.ensureCursorVisible()
+
+        S.GLOBAL.font_size = G.__font_size__
+        S.GLOBAL.saveSetting('font_size')
 
 
 class TyperHighlighter(QSyntaxHighlighter):

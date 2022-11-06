@@ -215,8 +215,6 @@ class TopicsDialog(QDialog):
             try:
                 # getting the currently selected
                 text = self.topic_list.selectedItems()[0].text(0)
-                print(text)
-                print(text.__class__)
 
                 # updating the variables
                 S.LOCAL.TOPICS.removeTopicFromPage(text, S.LOCAL.page)
