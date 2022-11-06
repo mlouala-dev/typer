@@ -890,9 +890,9 @@ class TopicsBar(QWidget):
         self.current_page = 0
         self.topic_dialog = TopicsDialog(parent, self)
 
-        self.setMaximumWidth(600)
-        self.setFixedHeight(50)
-        self.setContentsMargins(0, 0, 0, 0)
+        self.setContentsMargins(3, 3, 3, 3)
+        self.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        self.setMaximumHeight(25)
 
         topic_layout = QHBoxLayout()
         self.topic_overview = QLabel("")
