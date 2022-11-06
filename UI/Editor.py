@@ -978,8 +978,8 @@ class Typer(QTextEdit):
             elif key == Qt.Key.Key_E:
                 self.insertHtml('&#x200e;')
 
-            elif current_text == '=' or ord(current_text) == 31:
-                self.zoom(5 if current_text == '=' else -5)
+            elif key in (Qt.Key.Key_Plus, Qt.Key.Key_Underscore):
+                self.zoom(5 if key == Qt.Key.Key_Plus else -5)
 
             # otherwise we just consider it a normal command
             else:
@@ -1117,7 +1117,7 @@ class Typer(QTextEdit):
             tc.endEditBlock()
             return
 
-        elif modifiers == Qt.KeyboardModifier.ControlModifier and current_text in '-=':
+        elif modifiers == Qt.KeyboardModifier.ControlModifier and key in (Qt.Key.Key_Equal, Qt.Key.Key_Minus):
             self.zoom(1 if current_text == '=' else -1)
 
         # forwarding to parent to jump through pages
