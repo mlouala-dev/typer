@@ -1329,25 +1329,33 @@ class Typer(QTextEdit):
             paragraph_realtime = T.HTML.paragraphTime(html_block)
             paragraph_time = strftime('%Y-%m-%d %H:%M:%S', localtime(paragraph_realtime))
 
-            A_editDateTime = QAction('Edit date anchor', M_main)
+            A_editDateTime = QAction('Edit datetime anchor', M_main)
 
             def edit_paragraph_time():
                 epoch, ok = DateTimePickerDialog.getDateTime(t=paragraph_realtime)
                 if ok:
+                    previous_pos = self.textCursor().position()
+
                     html = self.toHtml()
                     html = html.replace(str(paragraph_realtime), str(int(epoch)))
                     self.setHtml(html)
+
+                    tc = self.textCursor()
+                    tc.setPosition(previous_pos)
+                    self.setTextCursor(tc)
+                    self.ensureCursorVisible()
 
                     self.solveAudioMap()
 
             A_editDateTime.triggered.connect(edit_paragraph_time)
             M_main.insertAction(M_main.actions()[0], A_editDateTime)
 
-            A_dateTime = QAction(f"Date : {paragraph_time}", M_main)
+            A_dateTime = QAction(f"Datetime : {paragraph_time}", M_main)
             A_dateTime.setDisabled(True)
             M_main.insertAction(M_main.actions()[0], A_dateTime)
+
         else:
-            A_setDateTime = QAction('Set date anchor', M_main)
+            A_setDateTime = QAction('Set datetime anchor', M_main)
 
             def edit_paragraph_time():
                 epoch, ok = DateTimePickerDialog.getDateTime()
