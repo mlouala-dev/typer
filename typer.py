@@ -1165,6 +1165,7 @@ class TApp(QApplication):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    # FOR DEEP TIMING DEBUGGING
     # t = QElapsedTimer()
     #
     # def notify(self, receiver, event):

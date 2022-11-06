@@ -309,7 +309,7 @@ SHORTCUT.add(shortcut='Ctrl+Alt+C', name='quran_search', hint='Search in Quran..
 SHORTCUT.add(shortcut='Alt+C', name='quran_insert', hint='Insert from / Jump to Quran...', icon_name='Book-Go')
 SHORTCUT.add(shortcut='Ctrl+Alt+S', name='book_search', hint='Search in Source...', icon_name='Book-Spelling')
 SHORTCUT.add(shortcut='Alt+S', name='book_jumper', hint='Insert from / Jump to Source', icon_name='Book-Spelling')
-SHORTCUT.add(shortcut='Ctlr+Alt+H', name='hadith_search', hint='Search in hadith database...', icon_name='Book-Keeping')
+SHORTCUT.add(shortcut='Ctlr+Alt+S', name='hadith_search', hint='Search in hadith database...', icon_name='Book-Keeping')
 
 SHORTCUT.add(shortcut='Ctrl+Shift+B', name='bold', hint='bold', icon_name="Text-Bold")
 SHORTCUT.add(shortcut='Ctrl+Shift+I', name='italic', hint='italic', icon_name="Text-Italic")

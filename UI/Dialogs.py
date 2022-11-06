@@ -930,6 +930,10 @@ class Navigator(QDialog):
      if we typed pages 5 to 10 and 45 to 60 it'll display a list of theses two blocks
      with buttons allowing to directly go at the beginning or end of the block
     """
+    color_sequence = ['CC99C9', '9EC1CF', '9EE09E', 'FDFD97', 'FEB144', 'FF6663']
+    current_color = 0
+    current_title = ''
+
     def __init__(self, parent):
         super(Navigator, self).__init__(parent)
 
@@ -953,6 +957,13 @@ class Navigator(QDialog):
     def propagateFont(self):
         self.setFont(G.get_font())
 
+    def evalCurrentColor(self, new_title=''):
+        if new_title != self.current_title:
+            self.current_color += 1
+            self.current_title = new_title
+
+        return self.color_sequence[self.current_color % len(self.color_sequence)]
+
     def addLine(self, start, end, start_title='', end_title=''):
         """
         after we got every parameters of the line, we add all the widgets in a new QHBoxLayout
@@ -975,10 +986,10 @@ class Navigator(QDialog):
             # here we add to buttons, for beginning and end
             goto_start = QPushButton(f'Start ({start_title})')
             goto_start.pressed.connect(partial(goto_page, start))
-            goto_start.setStyleSheet("background:orange;color:#222;")
+            goto_start.setStyleSheet(f"background:#{self.evalCurrentColor(start_title)};color:#222;")
             goto_end = QPushButton(f'End ({end_title})')
             goto_end.pressed.connect(partial(goto_page, end))
-            goto_end.setStyleSheet("background:red;color:#222;")
+            goto_end.setStyleSheet(f"background:#{self.evalCurrentColor(end_title)};color:#222;")
 
             # ui stuff
             line.addWidget(label, 1)
@@ -991,7 +1002,7 @@ class Navigator(QDialog):
             label = QLabel(f'{start}')
             goto = QPushButton(f'Go to ({start_title})')
             goto.pressed.connect(partial(goto_page, start))
-            goto.setStyleSheet("background:#2a82da;color:#222;")
+            goto.setStyleSheet(f"background:#{self.evalCurrentColor(start_title)};color:#222;")
 
             # ui stuff
             line.addWidget(label, 1)
