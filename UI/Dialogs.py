@@ -390,12 +390,12 @@ class GlobalSearch(QDialog):
         except ZeroDivisionError:
             perc = 100.0
 
-        search_options = QTextDocument.FindFlags(0)
+        search_options = QTextDocument.FindFlag(0)
 
         # applies the flag to the QTextDocument
         for widget, flag in zip(
                 [self.case_check, self.word_check],
-                [QTextDocument.FindCaseSensitively, QTextDocument.FindWholeWords]
+                [QTextDocument.FindFlag.FindCaseSensitively, QTextDocument.FindFlag.FindWholeWords]
         ):
             if widget.isChecked():
                 search_options |= flag
@@ -647,6 +647,7 @@ class GlobalSearch(QDialog):
         :return:
         """
         self._book = copy.copy(S.LOCAL.BOOK.getBook())
+        self._book[S.LOCAL.page] = self.parent().typer.toHtml()
 
         super(GlobalSearch, self).show()
         self.find_field.setFocus()
@@ -935,7 +936,7 @@ class Navigator(QDialog):
         # UI stuffs
         self.setFixedSize(550, 600)
         self.L_main = QVBoxLayout()
-        self.setContentsMargins(0, 0, 0, 0)
+        self.L_main.setSpacing(0)
         self.setLayout(self.L_main)
 
         self.setWindowTitle(G.SHORTCUT['navigator'].hint)
@@ -943,6 +944,8 @@ class Navigator(QDialog):
 
         self.WL_title = QLabel()
         self.WL_title.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        self.WL_title.setFixedHeight(25)
+        self.L_main.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.L_main.addWidget(self.WL_title, 1)
 
         self.propagateFont()
@@ -959,6 +962,8 @@ class Navigator(QDialog):
         :param end_title: name of the ending surat
         """
         line = QHBoxLayout()
+        line.setSpacing(0)
+        line.setContentsMargins(0, 0, 0, 0)
 
         def goto_page(page):
             S.LOCAL.page = page
@@ -970,8 +975,10 @@ class Navigator(QDialog):
             # here we add to buttons, for beginning and end
             goto_start = QPushButton(f'Start ({start_title})')
             goto_start.pressed.connect(partial(goto_page, start))
+            goto_start.setStyleSheet("background:orange;color:#222;")
             goto_end = QPushButton(f'End ({end_title})')
             goto_end.pressed.connect(partial(goto_page, end))
+            goto_end.setStyleSheet("background:red;color:#222;")
 
             # ui stuff
             line.addWidget(label, 1)
@@ -984,6 +991,7 @@ class Navigator(QDialog):
             label = QLabel(f'{start}')
             goto = QPushButton(f'Go to ({start_title})')
             goto.pressed.connect(partial(goto_page, start))
+            goto.setStyleSheet("background:#2a82da;color:#222;")
 
             # ui stuff
             line.addWidget(label, 1)
@@ -1075,6 +1083,8 @@ class Navigator(QDialog):
         # adding the widgets
         for block in blocks:
             self.addLine(*block)
+
+        self.setFixedSize(550, 38 * len(blocks) + 25)
 
 
 class Exporter(QDialog):
