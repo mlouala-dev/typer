@@ -227,7 +227,12 @@ class ViewerFrame(QWidget):
 
     @G.debug
     def resizeEvent(self, e: QResizeEvent):
-        if not self.docked:
+        if self.docked:
+            w = int(e.size().height() * self.viewer.ratio)
+            e.ignore()
+            self.viewer.resize(QSize(w, e.size().height()))
+            self.setMaximumWidth(w)
+        else:
             w = e.size().width()
             h = int(w / self.viewer.ratio)
             e.ignore()

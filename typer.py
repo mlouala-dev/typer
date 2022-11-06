@@ -1040,7 +1040,6 @@ class TyperWIN(QMainWindow):
 
         if state:
             self.splitter.insertWidget(0, self.viewer_frame)
-            self.viewer_frame.setMaximumWidth(int(self.width() / 3))
         else:
             self.viewer_frame.setParent(None)
             self.viewer_frame.setGeometry(*S.LOCAL.viewer_geometry)
