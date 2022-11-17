@@ -473,10 +473,10 @@ class Typer(QTextEdit):
                 self.insertHtml(f'<span style="color:#267dff; font-weight:600;">كتاب {obj.name}</span>{reset_style}')
 
             elif isinstance(obj, S.LocalSettings.BookMap.Bab):
-                self.insertHtml(f'<span style="color:#73c3ff;">باب {obj.name}</span>{reset_style}')
+                self.insertHtml(f'<span style="color:#73c3ff;">({obj.id}) {obj.name}</span>{reset_style}')
 
             elif isinstance(obj, S.LocalSettings.BookMap.Hadith):
-                self.insertHtml(f'{obj.toHtml()}{reset_style}')
+                self.insertHtml(f'{obj.id} [{obj.sub_id}] {obj.toHtml()}{reset_style}')
 
         tc.endEditBlock()
 
