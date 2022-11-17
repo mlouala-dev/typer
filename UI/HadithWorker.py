@@ -95,6 +95,7 @@ class HadithSearch(QDialog):
     hadiths: [Hadith]
     loading_step = pyqtSignal(int, int)
     result_click = pyqtSignal(str)
+    goto = pyqtSignal(int)
 
     class Worker(QRunnable):
         name = 'HadithSearch'
@@ -202,7 +203,11 @@ class HadithSearch(QDialog):
         hadith = self.hadiths[hid] if domain == 'hadith' else S.LOCAL.BOOKMAP.datas[hid]
         content = hadith.toHtml() if column == 0 or domain == 'bookmap' else hadith.toTranslatedHtml()
 
-        self.result_click.emit(content)
+        if QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier and domain == 'bookmap':
+            self.goto.emit(S.LOCAL.BOOKMAP.getHadithPage(hid).page)
+        else:
+            self.result_click.emit(content)
+
         self.close()
 
     def updateHadith(self, hadiths):
