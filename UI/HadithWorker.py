@@ -196,9 +196,11 @@ class HadithSearch(QDialog):
 
     def itemClicked(self, item: QTreeWidgetItem, column: int):
         hadith: Hadith
+        domain = item.data(0, Qt.ItemDataRole.UserRole)
         hid = item.data(1, Qt.ItemDataRole.UserRole)
-        hadith = self.hadiths[hid]
-        content = hadith.toHtml() if column == 0 else hadith.toTranslatedHtml()
+
+        hadith = self.hadiths[hid] if domain == 'hadith' else S.LOCAL.BOOKMAP.datas[hid]
+        content = hadith.toHtml() if column == 0 or domain == 'bookmap' else hadith.toTranslatedHtml()
 
         self.result_click.emit(content)
         self.close()
@@ -214,32 +216,41 @@ class HadithSearch(QDialog):
             needle = self.search_field.text()
 
             result_count = 0
-            s = 100 / len(self.hadiths)
+            s = 100 / (len(self.hadiths) + len(S.LOCAL.BOOKMAP.datas))
 
             self.result_view.clear()
 
             self.result_label.setText(f'<i>Searching...</i>')
 
-            for hid, hadith in enumerate(self.hadiths):
-                if needle in hadith:
-                    fm_ar = QFontMetrics(self.arabic_font)
-                    fm_fr = QFontMetrics(self.translation_font)
+            for domain_name, domain in (('hadith', self.hadiths), ('bookmap', S.LOCAL.BOOKMAP.datas)):
+                for hid, hadith in enumerate(domain):
+                    if needle in hadith:
+                        fm_ar = QFontMetrics(self.arabic_font)
 
-                    hadith_ar = hadith.toPlainText()
-                    hadith_fr = hadith.toTranslatedPlainText()
-                    item = QTreeWidgetItem(self.result_view, [hadith_ar, hadith_fr])
+                        if domain_name == 'hadith':
+                            fm_fr = QFontMetrics(self.translation_font)
+                            hadith_ar = hadith.toPlainText()
+                            hadith_fr = hadith.toTranslatedPlainText()
+                            h_fr = math.ceil(.8 * fm_fr.horizontalAdvance(hadith_fr) / self.result_view.columnWidth(1))
+                            h_fr *= fm_fr.height()
+                        else:
+                            hadith_ar = hadith.content
+                            hadith_fr = ''
+                            h_fr = 1
 
-                    h_ar = math.floor(.8 * fm_ar.horizontalAdvance(hadith_ar) / self.result_view.columnWidth(0))
-                    h_fr = math.ceil(.8 * fm_fr.horizontalAdvance(hadith_fr) / self.result_view.columnWidth(1))
+                        item = QTreeWidgetItem(self.result_view, [hadith_ar, hadith_fr])
 
-                    item.setData(1, Qt.ItemDataRole.UserRole, hid)
-                    item.setSizeHint(0, QSize(self.result_view.columnWidth(0), h_ar * fm_ar.height()))
-                    item.setSizeHint(1, QSize(self.result_view.columnWidth(1), h_fr * fm_fr.height()))
-                    result_count += 1
+                        h_ar = math.floor(.8 * fm_ar.horizontalAdvance(hadith_ar) / self.result_view.columnWidth(0))
 
-                c = int(s * hid)
-                if c % 2 == 0:
-                    self.progress.setValue(c)
+                        item.setData(0, Qt.ItemDataRole.UserRole, domain_name)
+                        item.setData(1, Qt.ItemDataRole.UserRole, hid)
+                        item.setSizeHint(0, QSize(self.result_view.columnWidth(0), h_ar * fm_ar.height()))
+                        item.setSizeHint(1, QSize(self.result_view.columnWidth(1), h_fr))
+                        result_count += 1
+
+                    c = int(s * hid)
+                    if c % 2 == 0:
+                        self.progress.setValue(c)
 
             self.result_label.setText(f'{result_count} occurences found')
 

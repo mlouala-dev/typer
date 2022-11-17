@@ -847,6 +847,9 @@ class LocalSettings(_Settings):
                 n += f' <span style="font-weight:600; color:#bb9a48;"><i>[{self.sub_id}]</i></span>'
                 return f'''{n} {h} <i>({self.grade})</i>'''
 
+            def __contains__(self, item):
+                return T.Arabic.clean_harakats(item) in T.Arabic.clean_harakats(self.content)
+
         class Page:
             def __init__(self, page=0, kid=0, bid=0, previous_hid=1, hid=1):
                 self.page = page
