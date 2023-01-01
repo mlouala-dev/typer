@@ -1700,6 +1700,8 @@ class LexiconView(QWidget):
                     self.W_view.setHtml(res)
                     self.WL_root.setText(root)
 
+            self.raise_()
+
     def goToRoot(self):
         if self.W_search.hasFocus():
             return
