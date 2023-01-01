@@ -4,6 +4,7 @@ import re
 import html
 import sqlite3
 import win32api
+import time
 from logging import CRITICAL, ERROR, WARNING, INFO, DEBUG, NOTSET
 from functools import partial
 
@@ -264,7 +265,24 @@ class GlobalSearch(QDialog):
         self.replace_field = QLineEdit()
         self.replace_check.stateChanged.connect(self.replace_field.setEnabled)
         self.replace_field.setDisabled(True)
-        widgets_layout.addLayout(LineLayout(self, 'Find : ', self.find_field, self.replace_check, self.replace_field))
+
+        self.W_datetimePicker = QDateEdit(self)
+        self.W_datetimePicker.setCalendarPopup(True)
+        self.W_datetimePicker.setDateTime(QDateTime.currentDateTime())
+        self.W_datetimePicker.setVisible(False)
+        self.W_datetimePicker.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.MinimumExpanding)
+        self.date_check = QCheckBox('Date Search')
+        self.date_check.stateChanged.connect(self.switch_date_search)
+
+        widgets_layout.addLayout(LineLayout(
+            self,
+            'Find : ',
+            self.find_field,
+            self.replace_check,
+            self.replace_field,
+            self.W_datetimePicker,
+            self.date_check
+        ))
 
         self.regex_check = QCheckBox("Regexp")
         self.word_check = QCheckBox("Whole word")
@@ -272,10 +290,13 @@ class GlobalSearch(QDialog):
         self.harakat_check = QCheckBox("Ignore harakat")
         self.page_search_check = QCheckBox("Search in Page")
         self.code_search_check = QCheckBox("Search in HTML Code")
-        widgets_layout.addLayout(LineLayout(self, self.regex_check, self.word_check, self.case_check,
-                                            self.harakat_check, self.page_search_check, self.code_search_check))
+
+        self.search_options_layout = LineLayout(self, self.regex_check, self.word_check, self.case_check,
+                                                self.harakat_check, self.page_search_check, self.code_search_check)
+        widgets_layout.addLayout(self.search_options_layout)
 
         self.result_list = ListWidget(self)
+        self.result_list.setHeaderLabels(['Text', 'Page'])
         self.result_list.setColumnCount(2)
         self.result_list.setColumnWidth(0, self.width() - 100)
         self.result_list.setColumnWidth(1, 100)
@@ -300,6 +321,7 @@ class GlobalSearch(QDialog):
         main_layout.addWidget(self.progress, 0)
 
         self.propagateFont()
+        self.show()
 
     def propagateFont(self):
         self.setFont(G.get_font())
@@ -518,6 +540,48 @@ class GlobalSearch(QDialog):
 
         return changes, len(new_book)
 
+    def switch_date_search(self, state: bool):
+        for widget in self.search_options_layout.widgets:
+            widget.setHidden(bool(state))
+        self.find_field.setHidden(bool(state))
+        self.replace_check.setHidden(bool(state))
+        self.replace_field.setHidden(bool(state))
+        self.replace_button.setDisabled(bool(state))
+
+        self.W_datetimePicker.setVisible(bool(state))
+        self.search_button.setText(f'Search{" Date" if state else ""}')
+
+    def search_date(self, date: QDate) -> [tuple]:
+        results = []
+        total, perc = 0, 100.0 / len(S.LOCAL.BOOK)
+
+        start = int(QDateTime(date, QTime(0, 0, 0)).toMSecsSinceEpoch() / 1000)
+        end = int(QDateTime(date, QTime(23, 59, 59)).toMSecsSinceEpoch() / 1000)
+        document = QTextDocument()
+
+        for page in S.LOCAL.BOOK:
+            page_text = S.LOCAL.BOOK[page].content
+            for res in T.Regex.paragraph_time.finditer(page_text):
+                s, t = res.start(), int(res.groups()[0])
+                if t in range(start, end):
+                    blocks = page_text.split('</p>')
+                    blocks_length, block_id = 0, 0
+
+                    while blocks_length < s:
+                        blocks_length += len(blocks[min(block_id, len(blocks) - 1)])
+                        block_id += 1
+
+                    document.setHtml(page_text)
+                    block = document.findBlockByNumber(block_id - 1)
+                    text = block.text()
+                    if len(text):
+                        results.append((page, (time.strftime('(%H:%M:%S) - ', time.localtime(t)), text, ''), block.position()))
+
+            total += perc
+            self.progress.setValue(int(total))
+
+        return results
+
     def format_result(self, result: list) -> str:
         """
         Format the results we got from the search_in_doc or search_in_code to the list
@@ -549,8 +613,11 @@ class GlobalSearch(QDialog):
         # cleaning the list of results
         self.result_list.clear()
 
+        if self.date_check.isChecked():
+            results = self.search_date(self.W_datetimePicker.date())
+
         # if we need to search in the whole document including HTML code
-        if self.code_search_check.isChecked():
+        elif self.code_search_check.isChecked():
             results = self.search_in_code(self.find_field.text())
 
         # otherwise we just perform a QTextDocument search
