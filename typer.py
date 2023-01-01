@@ -1054,7 +1054,7 @@ class TyperWIN(QMainWindow):
         :param state: app state either focusOut (state=2) or focusIn (state=4)
         """
         # if focusIn we force the external widgets to also be raised
-        if state == 4 and S.LOCAL.viewer_external and S.LOCAL.viewer:
+        if state == Qt.ApplicationState.ApplicationActive and S.LOCAL.viewer_external and S.LOCAL.viewer:
             self.viewer_frame.raise_()
             self.typer.setFocus()
 
