@@ -321,7 +321,6 @@ class GlobalSearch(QDialog):
         main_layout.addWidget(self.progress, 0)
 
         self.propagateFont()
-        self.show()
 
     def propagateFont(self):
         self.setFont(G.get_font())
