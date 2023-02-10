@@ -2,6 +2,7 @@
 """
 The Settings manager
 """
+import importlib
 import sqlite3
 import html
 import tempfile
@@ -481,7 +482,7 @@ class GlobalSettings(_Settings):
         chunk_size = 500000
 
         class Word:
-            def __init__(self, word, ancestors, tag='', tense='000', _weight=1, _vector=None):
+            def __init__(self, word, ancestors=('', ''), tag='', tense=0, _weight=1, _vector=None):
                 self.word = str(word)
                 self.tag = tag
                 self._ancestors = []
@@ -509,7 +510,7 @@ class GlobalSettings(_Settings):
 
                     self.first_ancestor, self.last_ancestor = value
 
-            def set_tense(self, tense='000'):
+            def set_tense(self, tense=0):
                 self.tense = tense
 
             def __repr__(self):
@@ -547,7 +548,7 @@ class GlobalSettings(_Settings):
                 database = []
 
                 while words:
-                    database.extend([GlobalSettings.Predikt.Word(word, ancestors=[t1, t2], tense=f'{tense:03}', _weight=weight) for
+                    database.extend([GlobalSettings.Predikt.Word(word, ancestors=[t1, t2], tense=tense, _weight=weight) for
                                     word, weight, tense, t1, t2 in words])
                     words = cursor.fetchmany(GlobalSettings.Predikt.chunk_size)
 
@@ -555,14 +556,72 @@ class GlobalSettings(_Settings):
                 self.callback(database)
                 self.done(self.name)
 
+        class Temporal(QObject):
+            masks = {
+                'tense': {
+                    'Pres': 1,
+                    'Imp': 2,
+                    'Past': 3,
+                    'Fut': 4
+                },
+                'voice': {
+                    'Pass': 1
+                },
+                'form': {
+                    'Fin': 1,
+                    'Part': 2,
+                    'Inf': 3
+                }
+            }
+            tenseAnalysed = pyqtSignal(int)
+
+            class Analysis(QRunnable):
+                name = 'PrediktAnalysis'
+
+                def __init__(self, sample, nlp, callback):
+                    self.cb = callback
+                    self.nlp = nlp
+                    self.sample = sample
+                    super().__init__()
+
+                def run(self):
+                    doc = self.nlp(self.sample)
+
+                    for token in reversed(doc):
+                        if token.pos_ == "VERB":
+                            t, v, f = token.morph.get("Tense"), token.morph.get("Voice"), token.morph.get("VerbForm")
+                            verb_data = ''
+                            verb_data += str(GLOBAL.PREDIKT.Temporal.masks['tense'][t[0]]) if len(t) else '0'
+                            verb_data += str(GLOBAL.PREDIKT.Temporal.masks['voice'][v[0]]) if len(v) else '0'
+                            verb_data += str(GLOBAL.PREDIKT.Temporal.masks['form'][f[0]]) if len(f) else '0'
+
+                            self.cb(int(verb_data))
+                            break
+
+                    self.done(self.name)
+
+            class Loader(QRunnable):
+                name = 'PrediktAnalysisLoader'
+
+                def __init__(self, callback):
+                    self.cb = callback
+                    super().__init__()
+
+                def run(self):
+                    # spacy = importlib.import_module('spacy')
+                    # nlp = spacy.load('fr_core_news_lg')
+                    nlp = None
+                    self.cb(nlp)
+                    self.done(self.name)
+
         def __init__(self):
+            self.TEMPORAL = self.Temporal()
+            self.nlp = None
             self.database = []
             self.wanted = 0
 
             self.raw = []
             self.words_tail_last_letter = {}
-            self.words_head_first_letter = {}
-            self.words_tail_by_first_letter = {}
             self.words_tail = {}
             self.words_tail_last_word = {}
 
@@ -575,10 +634,23 @@ class GlobalSettings(_Settings):
 
         def preload(self):
             POOL.start(self.Loader(self.core_loaded))
+            POOL.start(self.Temporal.Loader(self.nlp_loaded))
 
         def core_loaded(self, database):
             self.database.extend(database)
             POOL.start(self)
+
+        def analyze(self, sample=''):
+            if not self.nlp or not self.loaded:
+                return
+
+            POOL.start(self.Temporal.Analysis(sample, self.nlp, self.analysis_done), uniq=192)
+
+        def analysis_done(self, tense=0):
+            self.TEMPORAL.tenseAnalysed.emit(tense)
+
+        def nlp_loaded(self, nlp):
+            self.nlp = nlp
 
         def run(self):
             word: GlobalSettings.Predikt.Word
@@ -602,17 +674,10 @@ class GlobalSettings(_Settings):
                     pass
 
                 try:
-                    if word.word[0] in self.words_head_first_letter:
-                        self.words_head_first_letter[word.word[0]].append(word)
-                        if word.tail in self.words_tail_by_first_letter[word.word[0]]:
-                            self.words_tail_by_first_letter[word.word[0]][word.tail].append(word)
-                        else:
-                            self.words_tail_by_first_letter[word.word[0]][word.tail] = [word]
-                    else:
-                        self.words_head_first_letter[word.word[0]] = [word]
-                        self.words_tail_by_first_letter[word.word[0]] = {word.tail: [word]}
+                    if len(word.word) <= 2:
+                        raise IndexError
 
-                    for chr in range(0, len(word.word)):
+                    for chr in range(1, len(word.word)):
                         if word.word[:chr] in self.wide_range:
                             self.wide_range[word.word[:chr]].append(word)
                         else:
@@ -629,7 +694,7 @@ class GlobalSettings(_Settings):
             self.loaded = True
             self.done(self.name)
 
-        def predict(self, *sentence, tense=None):
+        def predict(self, ancestor_1, ancestor_2, word, tense=None):
             if not self.loaded:
                 return ''
 
@@ -637,14 +702,7 @@ class GlobalSettings(_Settings):
                 if tense:
                     elements.sort(key=lambda x: x.tense != tense)
 
-            tail, word = ' '.join(sentence[:-1]), sentence[-1]
-
-            def filter_by_head(elements):
-                for element in elements:
-                    if element.word.startswith(word):
-                        return [element]
-                else:
-                    return []
+            tail = ' '.join((ancestor_1, ancestor_2,))
 
             def filter_by_tail(elements):
                 for element in elements:
@@ -656,26 +714,17 @@ class GlobalSettings(_Settings):
             # print(f'trying to predict... "{tail}"..."{word}"', f' (preferring {tense} tense)' if tense else '')
 
             results = []
-            ancestors = ('', '',) + tuple(tail.split(' '))
-            target = self.Word(word, ancestors[-2:])
+            target = self.Word(word, (ancestor_1, ancestor_2))
 
             go_tail = False
 
             try:
-                assert (word not in self.wide_range)
-                candidates = self.words_tail_by_first_letter[word[0]][tail]
-                sort_by_tense(candidates)
-                results = filter_by_head(candidates)
-
-            except AssertionError:
-                # print('ASSERT ERROR RAISED')
                 candidates = self.wide_range[word]
                 sort_by_tense(candidates)
                 results = filter_by_tail(candidates)
 
-            except IndexError:
-                # print("= NO WORD LENGTH")
-                go_tail = True
+                if not len(results):
+                    results = [candidates[0]]
 
             except KeyError:
                 # print("= CANT FIND WORD AND TAIL")
@@ -685,24 +734,11 @@ class GlobalSettings(_Settings):
                     candidates = self.words_tail_last_word[target.last_ancestor]
                     sort_by_tense(candidates)
                     results = [candidates[0]]
-                    raise KeyError
 
-                except IndexError:
+                except (IndexError, KeyError):
+                    go_tail = True
                     # print('CANT FIND LAST ANCESTOR ONLY')
                     pass
-
-                except KeyError:
-                    # print('== CANT FIND LAST WORD')
-
-                    try:
-                        candidates = self.words_head_first_letter[word[0]]
-                        candidates = filter(lambda x: x.word.startswith(word), candidates)
-                        sort_by_tense(candidates)
-                        results = filter_by_tail(candidates)
-
-                    except KeyError:
-                        pass
-                        # print("== CANT FIND WORD HEAD FIRST LETTER")
 
             if go_tail:
                 try:
@@ -712,8 +748,8 @@ class GlobalSettings(_Settings):
                     # print("=== CANT FIND WORD TAIL")
                     try:
                         candidates = self.words_tail_last_letter[tail[-1]]
-                        sort_by_tense(candidates)
                         results = filter_by_tail(candidates)
+                        sort_by_tense(results)
 
                     except IndexError:
                         # print('==== NO TAIL LENGTH')
@@ -723,9 +759,8 @@ class GlobalSettings(_Settings):
                         # print("==== CANT FIND WORD LAST LETTER")
                         pass
 
-            # print(len(results))
-
             if len(results):
+                # print(results)
                 return results[0].word
             else:
                 return ''

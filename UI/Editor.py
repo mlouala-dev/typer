@@ -32,6 +32,7 @@ class Typer(QTextEdit):
     re_numbering = re.compile(r'((1)(ers?|ères?))|((\d+)([èe]mes?))')
     re_textblock = re.compile(r'(.*?>)( +)?[-\u2022]?(<span.*?>\d\)</span>)?( +)?([\w\d]+)(.*?)<', flags=re.IGNORECASE)
     prophet_match = ('Muhammad', 'Prophète', 'Messager')
+    Allah_match = ('Allah', 'Dieu')
     ThanaaWaMadh = {
         'aas': 'e',
         'ra': 'h',
@@ -92,6 +93,8 @@ class Typer(QTextEdit):
 
         # this is the current word
         self._word = ''
+        self.tense = None
+        S.GLOBAL.PREDIKT.TEMPORAL.tenseAnalysed.connect(self.applyTense)
         # we measure time spent to type a word
         self.word_time = time()
 
@@ -163,6 +166,18 @@ class Typer(QTextEdit):
     @property
     def previous_word(self, *args) -> str:
         return self.textOperation(*args, operation=QTextCursor.MoveOperation.PreviousWord)
+
+    def guessTense(self):
+        tc = self.textCursor()
+        tc.movePosition(tc.MoveOperation.StartOfBlock, tc.MoveMode.KeepAnchor, 1)
+        hard_split = T.Regex.Predikt_hard_split.split(tc.selectedText())[-1]
+        words = T.Regex.Predikt_soft_split.split(hard_split)
+        sentence = ' '.join((('',) + tuple(words))[-2:])
+
+        S.GLOBAL.PREDIKT.analyze(sentence)
+
+    def applyTense(self, tense):
+        self.tense = tense if tense else None
 
     def loadPage(self, page: int = 0):
         try:
@@ -858,6 +873,7 @@ class Typer(QTextEdit):
                     tc_prev.select(tc.SelectionType.WordUnderCursor)
 
                     self.new_word = True
+                    # self.guessTense()
 
         if key == Qt.Key.Key_twosuperior and modifiers == Qt.KeyboardModifier.NoModifier:
             tc = self.textCursor()
@@ -1141,6 +1157,7 @@ class Typer(QTextEdit):
             # print('PREVIOUS 2 WORDS', tc.selectedText())
             # previous two words
             last_words = tc.selectedText()
+
             try:
                 hard_split = T.Regex.Predikt_hard_split.split(last_words)[-1]
                 hard_split = hard_split[0].lower() + hard_split[1:]
@@ -1148,19 +1165,19 @@ class Typer(QTextEdit):
                 words_tuple = (('', '',) + tuple(words))[-3:]
                 tail, word = words_tuple[:-1] + ('', '',), words_tuple[-1]
 
+                assert (len(self.word))
                 assert (not T.Regex.Predikt_ignore_token.match(''.join(tail + (word,))))
-                candidate = S.GLOBAL.PREDIKT.predict(*tail[:2], word)
+                candidate = S.GLOBAL.PREDIKT.predict(*tail[:2], word, tense=self.tense)
 
             except (AssertionError, IndexError):
                 candidate, word = None, self.word
 
             # print(candidate)
 
-            if candidate == word:
-                if word in self.prophet_match:
-                    candidate = f'{word} ﷺ'
-                elif word == 'Allah':
-                    candidate = f'{word} ﷻ'
+            if word in self.prophet_match:
+                candidate = f'{word} ﷺ'
+            elif word in self.Allah_match:
+                candidate = f'{word} ﷻ'
 
             # if there is a candidate, we draw the autocomplete_label
             # we also require that the next character is a new word character (' ' or ", etc...)
@@ -1198,12 +1215,15 @@ class Typer(QTextEdit):
             tc = self.textCursor()
             tc.select(tc.SelectionType.WordUnderCursor)
 
-            if next_character not in T.Keys.NewWord.values() and tc.selectedText() not in self.prophet_match:
+            if next_character not in T.Keys.NewWord.values() and\
+                    tc.selectedText() not in self.prophet_match and\
+                    tc.selectedText() not in self.Allah_match:
                 # adding a space since the previous word should be complete
                 # if the next character is in the new word characters, we skip the space after
                 self.insertPlainText(" ")
 
             self.new_word = True
+            # self.guessTense()
 
         # if there is a character we update the changed state
         if len(current_text):
