@@ -4,6 +4,8 @@ All the QThread elements we use for asynchronous works
 """
 import re
 import os
+
+import pydub.exceptions
 import win32api
 import wave
 import pyaudio
@@ -144,7 +146,13 @@ class AudioMap(QRunnable):
 
             except ValueError:
                 G.warning(f'duration not found for "{file}", searching')
-                duration = AudioSegment.from_file(self.filepath).duration_seconds
+
+                try:
+                    duration = AudioSegment.from_file(self.filepath).duration_seconds
+
+                except pydub.exceptions.CouldntDecodeError:
+                    duration = 0
+
                 id3.add_frame(ID3TextFrame.from_scratch('TPE1', str(int(duration))))
 
             finally:
@@ -169,10 +177,15 @@ class AudioMap(QRunnable):
         super().__init__()
 
     def run(self):
+        joblist = set()
         for dirpath, dirnames, filenames in os.walk(self.folder):
             for file in filter(lambda x: x.endswith('.ogg'), filenames):
-                path = os.path.join(dirpath, file)
-                S.POOL.start(self.FileProbe(path, self.digest))
+                joblist.add(os.path.join(dirpath, file))
+
+        S.POOL.count += len(joblist)
+
+        for path in joblist:
+            S.POOL.start(self.FileProbe(path, self.digest), weight=0)
 
         self.done(self.name)
 

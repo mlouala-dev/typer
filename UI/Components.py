@@ -529,7 +529,7 @@ class StatusBar(QStatusBar):
 
     def __init__(self, parent: QWidget = None):
         super(StatusBar, self).__init__(parent)
-        self.setFixedHeight(30)
+        self.setFixedHeight(20)
         self.setContentsMargins(10, 0, 0, 2)
         self.layout().setAlignment(Qt.AlignmentFlag.AlignTop)
 
@@ -567,12 +567,12 @@ class StatusBar(QStatusBar):
         self.processing_blink_state = True
         self.timer_id = 0
         self.processing_icon = QLabel(self)
-        self.processing_icon.setPixmap(G.pixmap(f"icons:Apple-Half.png", size=19))
+        self.processing_icon.setPixmap(G.pixmap(f"icons:Bullet-Black.png", size=19))
         self.processing_icon.setToolTipDuration(1000)
         self.processing_icon.hide()
         self.processing_progress = QProgressBar(self)
         self.processing_progress.setMaximumWidth(100)
-        self.processing_progress.setTextVisible(True)
+        self.processing_progress.setTextVisible(False)
         self.max_counter = 1
         self.processing_progress.setMaximum(self.max_counter)
 
@@ -644,7 +644,7 @@ class StatusBar(QStatusBar):
 
     def timerEvent(self, a0: QTimerEvent) -> None:
         self.processing_blink_state = not self.processing_blink_state
-        self.processing_icon.setPixmap(G.pixmap(f"icons:Apple{'' if self.processing_blink_state else '-Half'}.png", size=19))
+        self.processing_icon.setPixmap(G.pixmap(f"icons:Bullet-Bl{'ack' if self.processing_blink_state else 'ue'}.png", size=19))
 
     def loadingState(self, state: int):
         if state <= 0:

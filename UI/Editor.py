@@ -794,7 +794,7 @@ class Typer(QTextEdit):
         if current_text == "ى" and (next_character in T.Keys.NewWord.values() or len(next_character) == 0):
             translitteration.append_to_dict(self.word + "ى")
 
-        # it make the 'st' 'er' to superscript
+        # it makes the 'st' 'er' to superscript
         elif is_number and key in T.Keys.NewWord:
             # getting the groups from the regex match
             num = int(is_number.groups()[1] or is_number.groups()[4])
@@ -921,11 +921,11 @@ class Typer(QTextEdit):
                 tc.select(tc.SelectionType.BlockUnderCursor)
                 indent = tc.blockFormat().indent()
 
-                # first we make sure our block doesn't contains spelling errors
-                if tc.block().userData().state != G.State_Correction:
-                    # and imports all word to our frequency list
-                    # we split the paragraph in phrase, so the previous word suggestion will be coherent
-                    S.LOCAL.DICT.digest(tc.selectedText().replace("\u2029", ""))
+                # # first we make sure our block doesn't contains spelling errors
+                # if tc.block().userData().state != G.State_Correction:
+                #     # and imports all word to our frequency list
+                #     # we split the paragraph in phrase, so the previous word suggestion will be coherent
+                #     S.LOCAL.DICT.digest(tc.selectedText().replace("\u2029", ""))
 
                 # forward to superclass
                 tc = self.textCursor()
@@ -1135,34 +1135,39 @@ class Typer(QTextEdit):
             tc.select(tc.SelectionType.WordUnderCursor)
             self.word = tc.selectedText()
 
-            # getting two words before
-            ptc = self.textCursor()
-            ptc.movePosition(QTextCursor.MoveOperation.PreviousWord, QTextCursor.MoveMode.MoveAnchor, 2)
-            ptc.select(ptc.SelectionType.WordUnderCursor)
-            # we check if next character exists to prevent useless autocompletion display
-            previous_word = ptc.selectedText()
+            # print('CURRENT WORD', self.word)
+            tc = self.textCursor()
+            tc.movePosition(tc.MoveOperation.StartOfBlock, tc.MoveMode.KeepAnchor, 1)
+            # print('PREVIOUS 2 WORDS', tc.selectedText())
+            # previous two words
+            last_words = tc.selectedText()
+            try:
+                hard_split = T.Regex.Predikt_hard_split.split(last_words)[-1]
+                hard_split = hard_split[0].lower() + hard_split[1:]
+                words = T.Regex.Predikt_soft_split.split(hard_split)
+                words_tuple = (('', '',) + tuple(words))[-3:]
+                tail, word = words_tuple[:-1] + ('', '',), words_tuple[-1]
 
-            word = S.LocalSettings.Dict.Word(self.word, previous=previous_word)
-            candidate = S.LOCAL.DICT.find(word)
+                assert (not T.Regex.Predikt_ignore_token.match(''.join(tail + (word,))))
+                candidate = S.GLOBAL.PREDIKT.predict(*tail[:2], word)
 
-            # if no candidate was found when looking for the previous item, searching the best candidate for
-            # word starting with same root
-            if not candidate:
-                candidate = S.LOCAL.DICT.find(word, True)
+            except (AssertionError, IndexError):
+                candidate, word = None, self.word
 
-            elif candidate == self.word:
-                if self.word in self.prophet_match:
-                    candidate = f'{self.word} ﷺ'
-                elif self.word == 'Allah':
-                    candidate = f'{self.word} ﷻ'
+            # print(candidate)
+
+            if candidate == word:
+                if word in self.prophet_match:
+                    candidate = f'{word} ﷺ'
+                elif word == 'Allah':
+                    candidate = f'{word} ﷻ'
 
             # if there is a candidate, we draw the autocomplete_label
             # we also require that the next character is a new word character (' ' or ", etc...)
             # OR that the cursor is at the end of the line
-            if candidate and len(candidate) > len(self.word) and \
-                    (self.next_character in T.Keys.NewWord.values() or tc.positionInBlock() == (tc.block().length() - 1)):
+            if candidate:
                 rect = self.cursorRect(self.textCursor())
-                res = candidate[len(self.word):]
+                res = candidate[len(word):]
 
                 # placing the label where the textCursor is
                 self.WL_autoComplete.setFont(tc.charFormat().font())

@@ -915,9 +915,9 @@ class Settings(QDialog):
             S.GLOBAL.auto_load = state
 
         elif domain == 'minimum_word_length':
-            S.LOCAL.DICT.save()
+            # S.LOCAL.DICT.save()
             S.GLOBAL.minimum_word_length = state
-            S.LOCAL.DICT = S.LOCAL.Dict(S.LOCAL.db, S.LOCAL.cursor)
+            # S.LOCAL.DICT = S.LOCAL.Dict(S.LOCAL.db, S.LOCAL.cursor)
 
         elif domain == 'arabic_font_family':
             S.GLOBAL.arabic_font_family = self.arabic_font_family.itemText(state)

@@ -55,7 +55,7 @@ class _Pool(QThreadPool):
         self._count = val
         self.state.emit(self._count)
 
-    def start(self, job, uniq=None, priority=0):
+    def start(self, job, uniq=None, priority=0, weight=1):
         if uniq and uniq in self.uniqids:
             return
         elif uniq:
@@ -64,19 +64,19 @@ class _Pool(QThreadPool):
         else:
             job.done = self.jobDone
 
-        self.count = self.count + 1
+        self.count += weight
         self.jobs.append(job.name)
 
         super().start(job, priority=priority)
 
     def jobDone(self, name: str):
         self.jobs.remove(name)
-        self.count = self.count - 1
+        self.count -= 1
 
     def uniqJobDone(self, uniqid, name):
         self.jobs.remove(name)
         self.uniqids.remove(uniqid)
-        self.count = self.count - 1
+        self.count -= 1
 
 
 POOL = _Pool()
@@ -395,7 +395,6 @@ class GlobalSettings(_Settings):
                     res += f'<p align="justify" dir="ltr">{r}</p>'
                 return res
 
-
         def __init__(self):
             self.db = sqlite3.connect(G.rsc_path(f'lexicon_{GLOBAL.lang}.db'))
             self.cursor = self.db.cursor()
@@ -476,6 +475,261 @@ class GlobalSettings(_Settings):
             res = self.fetchall_results('SELECT nodeid FROM entry WHERE REGEXP(xml)')
             return self.get_results(res)
 
+    class Predikt(QRunnable):
+        name = 'Predikt'
+        loaded = False
+        chunk_size = 500000
+
+        class Word:
+            def __init__(self, word, ancestors, tag='', tense='000', _weight=1, _vector=None):
+                self.word = str(word)
+                self.tag = tag
+                self._ancestors = []
+                self.tail = ''
+                self.ancestors = list(ancestors)
+                self.tense = tense
+
+                self.weight = _weight
+
+                self.first_ancestor = ''
+                self.last_ancestor = ''
+
+            @property
+            def ancestors(self):
+                return self._ancestors
+
+            @ancestors.setter
+            def ancestors(self, value: [str]):
+                self._ancestors = value
+                if len(value):
+                    if value[-1].startswith('-'):
+                        self.tail = ''.join(value)
+                    else:
+                        self.tail = ' '.join(value)
+
+                    self.first_ancestor, self.last_ancestor = value
+
+            def set_tense(self, tense='000'):
+                self.tense = tense
+
+            def __repr__(self):
+                res = f'"{self.word}" ({self.weight}) [{", ".join(map(str, self.ancestors))}]'
+
+                if self.tense != "000":
+                    res += f' = {self.tense}'
+
+                res += f' #{hash(self)}'
+
+                return res
+
+            def __hash__(self):
+                return hash(' '.join(self.ancestors) + self.word)
+
+            def __eq__(self, other):
+                if isinstance(other, GlobalSettings.Predikt.Word):
+                    return (' '.join(self.ancestors) + self.word) == (' '.join(other.ancestors) + other.word)
+
+                return False
+
+        class Loader(QRunnable):
+            name = 'PrediktLoader'
+
+            def __init__(self, cb):
+                self.callback = cb
+                super().__init__()
+
+            def run(self):
+                db = sqlite3.connect(G.appdata_path("predikt_data.db"))
+                cursor = db.cursor()
+                cursor.execute(f'SELECT * FROM tokens ORDER BY weight DESC')
+
+                words = cursor.fetchmany(GlobalSettings.Predikt.chunk_size)
+                database = []
+
+                while words:
+                    database.extend([GlobalSettings.Predikt.Word(word, ancestors=[t1, t2], tense=f'{tense:03}', _weight=weight) for
+                                    word, weight, tense, t1, t2 in words])
+                    words = cursor.fetchmany(GlobalSettings.Predikt.chunk_size)
+
+                db.close()
+                self.callback(database)
+                self.done(self.name)
+
+        def __init__(self):
+            self.database = []
+            self.wanted = 0
+
+            self.raw = []
+            self.words_tail_last_letter = {}
+            self.words_head_first_letter = {}
+            self.words_tail_by_first_letter = {}
+            self.words_tail = {}
+            self.words_tail_last_word = {}
+
+            self.wide_range = {}
+
+            self.words = set()
+
+            self.preload()
+            super().__init__()
+
+        def preload(self):
+            POOL.start(self.Loader(self.core_loaded))
+
+        def core_loaded(self, database):
+            self.database.extend(database)
+            POOL.start(self)
+
+        def run(self):
+            word: GlobalSettings.Predikt.Word
+
+            self.raw.extend(self.database)
+
+            for word in self.database:
+                try:
+                    if word.tail[-1] in self.words_tail_last_letter:
+                        self.words_tail_last_letter[word.tail[-1]].append(word)
+                    else:
+                        self.words_tail_last_letter[word.tail[-1]] = [word]
+
+                    if word.last_ancestor in self.words_tail_last_word:
+                        self.words_tail_last_word[word.last_ancestor].append(word)
+                    else:
+                        self.words_tail_last_word[word.last_ancestor] = [word]
+
+                except IndexError:
+                    # no ancestor
+                    pass
+
+                try:
+                    if word.word[0] in self.words_head_first_letter:
+                        self.words_head_first_letter[word.word[0]].append(word)
+                        if word.tail in self.words_tail_by_first_letter[word.word[0]]:
+                            self.words_tail_by_first_letter[word.word[0]][word.tail].append(word)
+                        else:
+                            self.words_tail_by_first_letter[word.word[0]][word.tail] = [word]
+                    else:
+                        self.words_head_first_letter[word.word[0]] = [word]
+                        self.words_tail_by_first_letter[word.word[0]] = {word.tail: [word]}
+
+                    for chr in range(0, len(word.word)):
+                        if word.word[:chr] in self.wide_range:
+                            self.wide_range[word.word[:chr]].append(word)
+                        else:
+                            self.wide_range[word.word[:chr]] = [word]
+
+                except IndexError:
+                    pass
+
+                if word.tail in self.words_tail:
+                    self.words_tail[word.tail].append(word)
+                else:
+                    self.words_tail[word.tail] = [word]
+
+            self.loaded = True
+            self.done(self.name)
+
+        def predict(self, *sentence, tense=None):
+            if not self.loaded:
+                return ''
+
+            def sort_by_tense(elements):
+                if tense:
+                    elements.sort(key=lambda x: x.tense != tense)
+
+            tail, word = ' '.join(sentence[:-1]), sentence[-1]
+
+            def filter_by_head(elements):
+                for element in elements:
+                    if element.word.startswith(word):
+                        return [element]
+                else:
+                    return []
+
+            def filter_by_tail(elements):
+                for element in elements:
+                    if element.tail.endswith(tail):
+                        return [element]
+                else:
+                    return []
+
+            # print(f'trying to predict... "{tail}"..."{word}"', f' (preferring {tense} tense)' if tense else '')
+
+            results = []
+            ancestors = ('', '',) + tuple(tail.split(' '))
+            target = self.Word(word, ancestors[-2:])
+
+            go_tail = False
+
+            try:
+                assert (word not in self.wide_range)
+                candidates = self.words_tail_by_first_letter[word[0]][tail]
+                sort_by_tense(candidates)
+                results = filter_by_head(candidates)
+
+            except AssertionError:
+                # print('ASSERT ERROR RAISED')
+                candidates = self.wide_range[word]
+                sort_by_tense(candidates)
+                results = filter_by_tail(candidates)
+
+            except IndexError:
+                # print("= NO WORD LENGTH")
+                go_tail = True
+
+            except KeyError:
+                # print("= CANT FIND WORD AND TAIL")
+                # both word first letter and tail can't be found
+
+                try:
+                    candidates = self.words_tail_last_word[target.last_ancestor]
+                    sort_by_tense(candidates)
+                    results = [candidates[0]]
+                    raise KeyError
+
+                except IndexError:
+                    # print('CANT FIND LAST ANCESTOR ONLY')
+                    pass
+
+                except KeyError:
+                    # print('== CANT FIND LAST WORD')
+
+                    try:
+                        candidates = self.words_head_first_letter[word[0]]
+                        candidates = filter(lambda x: x.word.startswith(word), candidates)
+                        sort_by_tense(candidates)
+                        results = filter_by_tail(candidates)
+
+                    except KeyError:
+                        pass
+                        # print("== CANT FIND WORD HEAD FIRST LETTER")
+
+            if go_tail:
+                try:
+                    results = self.words_tail[tail]
+
+                except KeyError:
+                    # print("=== CANT FIND WORD TAIL")
+                    try:
+                        candidates = self.words_tail_last_letter[tail[-1]]
+                        sort_by_tense(candidates)
+                        results = filter_by_tail(candidates)
+
+                    except IndexError:
+                        # print('==== NO TAIL LENGTH')
+                        pass
+
+                    except KeyError:
+                        # print("==== CANT FIND WORD LAST LETTER")
+                        pass
+
+            # print(len(results))
+
+            if len(results):
+                return results[0].word
+            else:
+                return ''
+
     themes = {
         'dark': Dark(),
         'light': Light()
@@ -505,6 +759,7 @@ class GlobalSettings(_Settings):
     def __init__(self):
         self.QURAN = GlobalSettings.Quran()
         self.LEXICON = None
+        self.PREDIKT = GlobalSettings.Predikt()
 
         super().__init__()
         self.filename = G.appdata_path('config.db')
@@ -1021,260 +1276,6 @@ class LocalSettings(_Settings):
         def getObjectResult(self, cmd=''):
             return self._query(cmd)
 
-    class Dict:
-        class Word:
-            def __init__(self, word: str, count: int = 1, previous=''):
-                self.word = word
-                self.root = word[:GLOBAL.minimum_word_length]
-                self.count = count
-                self.previous = previous
-
-            def __repr__(self):
-                return f'[{self.previous}] {self.word}({self.count})'
-
-            def __hash__(self):
-                return hash(f'{self.previous}{self.word}')
-
-            def __lt__(self, other):
-                return self.count < other.count
-
-            def __gt__(self, other):
-                return self.count > other.count
-
-            def disp(self):
-                """
-                it returns a named dict used by the SQL cursor command
-                """
-                return {
-                    'word': self.word,
-                    'count': self.count,
-                    'before': self.previous
-                }
-
-        class Worker(QRunnable):
-            name = 'Dictionnary'
-
-            def __init__(self, words, callback_fn, existing=None):
-                super().__init__()
-
-                self.callback_fn = callback_fn
-                self.words_to_process = words
-
-                self.news = set()
-                self.updates = set()
-
-                if existing:
-                    self.words = existing['words']
-                    self.hashes = existing['hashes']
-                    self.word_roots = existing['word_roots']
-                    self.word_wide_roots = existing['word_wide_roots']
-
-                    self.runFrom = self.runFromExisting
-
-                else:
-                    self.words = []
-                    self.hashes = []
-                    self.word_roots = {}
-                    self.word_wide_roots = {}
-
-                    self.runFrom = self.runFromScratch
-
-            def __getitem__(self, item):
-                i = self.hashes.index(hash(item))
-                return self.words[i]
-
-            @G.log
-            def runFromScratch(self):
-                for word in self.words_to_process:
-                    try:
-                        assert word.previous in self.word_roots[word.root]
-                        self.word_roots[word.root][word.previous].append(word)
-                        self.word_wide_roots[word.root].append(word)
-
-                    # root not find
-                    except KeyError:
-                        self.word_roots[word.root] = {}
-                        self.word_roots[word.root][word.previous] = [word]
-                        self.word_wide_roots[word.root] = [word]
-
-                    # word previous is not an array
-                    except AssertionError:
-                        self.word_roots[word.root][word.previous] = [word]
-                        self.word_wide_roots[word.root].append(word)
-
-                    finally:
-                        self.words.append(word)
-                        self.hashes.append(hash(word))
-
-            @G.log
-            def runFromExisting(self):
-                for word in self.words_to_process:
-                    try:
-                        self[word].count += 1
-                        self.updates.add(self[word])
-                        assert word.previous in self.word_roots[word.root]
-
-                    except AssertionError:
-                        self.word_roots[word.root][word.previous] = [word]
-                        self.word_wide_roots[word.root].append(word)
-
-                    # word not find
-                    except ValueError:
-                        try:
-                            assert word.previous in self.word_roots[word.root]
-                            self.word_roots[word.root][word.previous].append(word)
-                            self.word_wide_roots[word.root].append(word)
-
-                        # root not find
-                        except KeyError:
-                            self.word_roots[word.root] = {}
-                            self.word_roots[word.root][word.previous] = [word]
-                            self.word_wide_roots[word.root] = [word]
-
-                        # word previous is not an array
-                        except AssertionError:
-                            self.word_roots[word.root][word.previous] = [word]
-                            self.word_wide_roots[word.root].append(word)
-
-                        finally:
-                            self.words.append(word)
-                            self.news.add(word)
-                            self.hashes.append(hash(word))
-
-                    finally:
-                        self.word_roots[word.root][word.previous].sort(reverse=True)
-                        self.word_wide_roots[word.root].sort(reverse=True)
-
-            def run(self):
-                self.runFrom()
-
-                self.callback_fn(
-                    self.word_wide_roots,
-                    self.word_roots,
-                    self.words,
-                    self.hashes,
-                    self.news,
-                    self.updates
-                )
-
-                self.done(self.name)
-
-        def __init__(self, db: sqlite3.Connection = None, cursor: sqlite3.Cursor = None):
-            self._db = db
-            self._cursor = cursor
-
-            self.words_to_process = []
-
-            self.words = []
-            self.hashes = []
-            self.word_roots = {}
-            self.word_wide_roots = {}
-
-            self.news = set()
-            self.updates = set()
-
-            if self._cursor:
-                self.words_to_process = [self.Word(w, c, p) for w, c, p in
-                                         self._cursor.execute('SELECT * FROM dict').fetchall()]
-                worker = self.Worker(self.words_to_process, self.updateFromScratch)
-
-                POOL.start(worker, priority=0)
-
-        def __getitem__(self, item: Word) -> Word:
-            i = self.hashes.index(hash(item))
-            return self.words[i]
-
-        def __contains__(self, item: Word):
-            return hash(item) in self.hashes
-
-        def __iter__(self) -> [Word]:
-            for word in self.words:
-                yield word
-
-        def updateFromScratch(self, word_wide_roots, word_roots, words, hashes, *args):
-            self.word_wide_roots.update(word_wide_roots)
-            self.word_roots.update(word_roots)
-            self.news.update(words)
-            self.words.extend(words)
-            self.hashes.extend(hashes)
-
-        def updateFromExisting(self, word_wide_roots, word_roots, words, hashes, news, updates):
-            self.word_wide_roots = word_wide_roots
-            self.word_roots = word_roots
-            self.words = words
-            self.hashes = hashes
-            self.news = news
-            self.updates = updates
-
-        def digest(self, text: str):
-            digest_list = []
-            for phrase in T.TEXT.split(text):
-                for i, word_text in enumerate(phrase[1:]):
-                    # in this configuration, phrase[i] will point the previous word
-                    try:
-                        assert len(word_text) >= (GLOBAL.minimum_word_length + 1) and len(phrase[i]) >= 2
-
-                    except (AssertionError, IndexError):
-                        continue
-
-                    else:
-                        digest_list.append(self.Word(word_text, previous=phrase[i]))
-
-            worker = self.Worker(
-                digest_list,
-                self.updateFromExisting,
-                existing={
-                    'words': self.words,
-                    'hashes': self.hashes,
-                    'word_roots': self.word_roots,
-                    'word_wide_roots': self.word_wide_roots
-                }
-            )
-
-            POOL.start(worker, uniq='digest')
-
-        def find(self, word: Word, wide=False):
-            """
-            Find in current dictionnary's words
-            :param word: the Word object we're trying to find candidates for
-            :param wide: if specified, will not consider the previous object
-            :return: the best candidate
-            """
-            match = None
-
-            try:
-                assert len(word.root) == GLOBAL.minimum_word_length
-                bank = self.word_roots[word.root][word.previous] if not wide else self.word_wide_roots[word.root]
-
-                for key in bank:
-                    if key.word.startswith(word.word):
-                        match = key.word
-                        break
-
-            except AssertionError:
-                pass
-            finally:
-                return match
-
-        def save(self):
-            if self._cursor:
-                for w in [w.disp() for w in self.news]:
-                    try:
-                        self._cursor.execute('INSERT INTO dict (word, count, before) VALUES (:word, :count, :before)',
-                                             w)
-                    except sqlite3.IntegrityError:
-                        pass
-                for w in [w.disp() for w in self.updates]:
-                    try:
-                        self._cursor.execute('UPDATE dict SET count=:count WHERE word=:word AND before=:before', w)
-                    except sqlite3.IntegrityError:
-                        pass
-
-                self.news.clear()
-                self.updates.clear()
-
-                self._db.commit()
-
     class Topics:
         Domains = {
             'prophet': 'Prophètes',
@@ -1361,7 +1362,6 @@ class LocalSettings(_Settings):
 
     def __init__(self):
         self.BOOK = LocalSettings.Book()
-        self.DICT = LocalSettings.Dict()
 
         self.TOPICS = LocalSettings.Topics()
         self.BOOKMAP = LocalSettings.BookMap()
@@ -1462,7 +1462,6 @@ class LocalSettings(_Settings):
         self.BOOK = LocalSettings.Book(self.db, self.cursor)
 
         self.step.emit(25, f'Loading words dictionnary')
-        self.DICT = LocalSettings.Dict(self.db, self.cursor)
 
         self.step.emit(50, f'Loading topics')
         for name, page, domain in self.cursor.execute('SELECT * FROM topics').fetchall():
@@ -1583,9 +1582,6 @@ class LocalSettings(_Settings):
 
         self.step.emit(30, 'Saving book')
         self.BOOK.saveAllPage()
-
-        self.step.emit(60, 'Saving words dictionnay')
-        self.DICT.save()
 
         self.step.emit(90, 'Saving visual settings')
         self.saveVisualSettings()

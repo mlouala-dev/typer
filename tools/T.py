@@ -28,6 +28,17 @@ class Regex:
     arabic_harakat = re.compile(r"[ًٌٍَُِْ~ّ]")
     arabic_hamzas = re.compile(r'[أإآ]')
 
+    Predikt_infix = re.compile(r'''~''')
+    Predikt_prefix = re.compile(r'''^[\\[\\("]''')
+
+    Predikt_hard_split = re.compile(r'[.!?"();:]')
+    Predikt_soft_split = re.compile(r'''[ \t\n\r\v\f!"۞#$%&()*+,./:;<=>?@[\]^_`{|}°~«»]''')
+    Predikt_ignore_token = re.compile(r'.*?[\d\u0621-\u064a\ufe70-\ufefc]')
+    Predikt_ignore_invalid_uppercase = re.compile(r'[A-ZÎ]')
+    Predikt_ignore_for_dictionnary = re.compile(r'''^[A-Z]|^.*[\-']''')
+
+    Predikt_cleanup_whitespace = re.compile(fr'[{whitespace}]{{2,}}')
+
     @staticmethod
     def update():
         Regex.filter_text_style = re.compile(rf' ?font-family:\'{G.__la_font__}\',\'{G.__ar_font__}\';| ?font-family:\'{G.__la_font__}\';| ?font-family:\'{G.__ar_font__}\';| ?font-size:{G.__font_size__}pt;')
@@ -42,6 +53,15 @@ class Regex:
 
         return content
 
+    @staticmethod
+    def Predikt_cleanup(content: str):
+        cleanup = Regex.Predikt_cleanup_whitespace.sub(' ', content)
+        cleanup = cleanup.replace('œ', 'oe')
+        cleanup = cleanup.strip()
+        cleanup = cleanup.strip('-')
+
+        return cleanup
+
 
 def buildCharMap(*characters):
     return {ord(key): key for key in characters}
@@ -51,6 +71,7 @@ class Keys:
     phrase_characters = '.!?'
     word_characters = '(),:; "_[]«»' + phrase_characters
     quote_characters = '(\'"'
+    whitespace = ' \t\n\r\v\f'
 
     NewPhrase = buildCharMap(*phrase_characters)
     NewWord = buildCharMap(*word_characters)
