@@ -942,6 +942,7 @@ class Typer(QTextEdit):
                 #     # and imports all word to our frequency list
                 #     # we split the paragraph in phrase, so the previous word suggestion will be coherent
                 #     S.LOCAL.DICT.digest(tc.selectedText().replace("\u2029", ""))
+                S.GLOBAL.PREDIKT.digest(tc.selectedText().replace("\u2029", ""))
 
                 # forward to superclass
                 tc = self.textCursor()
@@ -1167,7 +1168,8 @@ class Typer(QTextEdit):
 
                 assert (len(self.word))
                 assert (not T.Regex.Predikt_ignore_token.match(''.join(tail + (word,))))
-                candidate = S.GLOBAL.PREDIKT.predict(*tail[:2], word, tense=self.tense)
+                candidate = S.GLOBAL.PREDIKT.predict(*tail[:2], word)
+                print(candidate)
 
             except (AssertionError, IndexError):
                 candidate, word = None, self.word

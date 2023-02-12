@@ -4,6 +4,7 @@ Some handful text operations especially on HTML code
 NOT IMPLEMENTED YET
 """
 import re
+import sys
 import time
 
 from symspellpy import SymSpell, Verbosity
@@ -28,16 +29,21 @@ class Regex:
     arabic_harakat = re.compile(r"[ًٌٍَُِْ~ّ]")
     arabic_hamzas = re.compile(r'[أإآ]')
 
-    Predikt_infix = re.compile(r'''~''')
-    Predikt_prefix = re.compile(r'''^[\\[\\("]''')
+    proper_nouns = re.compile('^[{}]'.format("".join([chr(i) for i in range(sys.maxunicode) if chr(i).isupper()])))
 
-    Predikt_hard_split = re.compile(r'[.!?"();:]')
-    Predikt_soft_split = re.compile(r'''[ \t\n\r\v\f!"۞#$%&()*+,./:;<=>?@[\]^_`{|}°~«»]''')
+    soft_break_characters = r''',;[\]*/+@<=>^_{|}°~'''
+    hard_break_characters = r'''().!?"«»:…۞'''
+
+    extra_characters = r'''\-–'’`ʽ''' + soft_break_characters + hard_break_characters
+    alpha_characters = r'''A-Za-zÀ-ÿ'''
+    full_match_characters = alpha_characters + extra_characters + whitespace
+
+    Predikt_hard_split = re.compile(f'''[{hard_break_characters}]''')
+    Predikt_soft_split = re.compile(f'''[{soft_break_characters}{whitespace}]''')
+    Predikt_full_match = re.compile(f'''([{full_match_characters}]{{3,}})''')
+
     Predikt_ignore_token = re.compile(r'.*?[\d\u0621-\u064a\ufe70-\ufefc]')
-    Predikt_ignore_invalid_uppercase = re.compile(r'[A-ZÎ]')
-    Predikt_ignore_for_dictionnary = re.compile(r'''^[A-Z]|^.*[\-']''')
-
-    Predikt_cleanup_whitespace = re.compile(fr'[{whitespace}]{{2,}}')
+    Predikt_ignore_for_dictionnary = re.compile(r'''^[A-ZÔÎÛÂÊ]|^.*[\-']''')
 
     @staticmethod
     def update():
@@ -99,21 +105,30 @@ class SpellChecker(QObject):
             sympell.load_dictionary(SpellChecker.dictionary_path, term_index=0,
                                     count_index=1, encoding="utf8", separator="\t")
 
-            self.callback_fn(sympell)
+            flat_dictionary = set()
+
+            with open(r"C:\Users\DEV\AppData\Local\Typer\dict.txt", mode='r+', encoding='utf-8') as f:
+                for line in f.readlines():
+                    flat_dictionary.add(line.split('\t')[0])
+
+            self.callback_fn(sympell, flat_dictionary)
 
             self.done(self.name)
 
     def __init__(self):
         super().__init__()
         self.dictionary = None
+        self.flat_dictionary = set()
         self.loaded = False
 
     def build(self):
         from tools.S import POOL
         POOL.start(self.Worker(self.load))
 
-    def load(self, dictionary: SymSpell):
+    def load(self, dictionary: SymSpell, flat_dictionary: set):
         self.dictionary = dictionary
+        self.flat_dictionary.update(flat_dictionary)
+
         self.finished.emit()
         self.loaded = True
 

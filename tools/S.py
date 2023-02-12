@@ -478,6 +478,7 @@ class GlobalSettings(_Settings):
 
     class Predikt(QRunnable):
         name = 'Predikt'
+        db_path = G.appdata_path('predikt_data.db')
         loaded = False
         chunk_size = 500000
 
@@ -487,13 +488,14 @@ class GlobalSettings(_Settings):
                 self.tag = tag
                 self._ancestors = []
                 self.tail = ''
-                self.ancestors = list(ancestors)
                 self.tense = tense
 
                 self.weight = _weight
 
                 self.first_ancestor = ''
                 self.last_ancestor = ''
+
+                self.ancestors = list(ancestors)
 
             @property
             def ancestors(self):
@@ -540,7 +542,7 @@ class GlobalSettings(_Settings):
                 super().__init__()
 
             def run(self):
-                db = sqlite3.connect(G.appdata_path("predikt_data.db"))
+                db = sqlite3.connect(GlobalSettings.Predikt.db_path)
                 cursor = db.cursor()
                 cursor.execute(f'SELECT * FROM tokens ORDER BY weight DESC')
 
@@ -548,8 +550,8 @@ class GlobalSettings(_Settings):
                 database = []
 
                 while words:
-                    database.extend([GlobalSettings.Predikt.Word(word, ancestors=[t1, t2], tense=tense, _weight=weight) for
-                                    word, weight, tense, t1, t2 in words])
+                    database.extend([GlobalSettings.Predikt.Word(word, ancestors=[t1, t2], _weight=weight) for
+                                    word, weight, t1, t2 in words])
                     words = cursor.fetchmany(GlobalSettings.Predikt.chunk_size)
 
                 db.close()
@@ -608,15 +610,103 @@ class GlobalSettings(_Settings):
                     super().__init__()
 
                 def run(self):
-                    # spacy = importlib.import_module('spacy')
-                    # nlp = spacy.load('fr_core_news_lg')
+                    # nlp = importlib.import_module('fr_core_news_lg')
                     nlp = None
                     self.cb(nlp)
                     self.done(self.name)
 
+        class Digester(QRunnable):
+            name = 'PrediktDigester'
+            lower_exceptions = ('Prophète', 'Muhammad', 'Abû', 'Allah', 'Dieu', 'Coran')
+
+            cleanups = [
+                ('[\n\r]', ' '),
+                ('“', '"'),
+                ('[ḤḢḦ]', 'H'),
+                ('[ḥḣḧ]', 'h'),
+                ('[ḊḌḎḐḒ]', 'D'),
+                ('[ḋḍḏḑḓ]', 'd'),
+                ('[ṠṢṨ]', 'S'),
+                ('[ṡṣṩ]', 's'),
+                ('[ṪṬṮṰ]', 'T'),
+                ('[ṫṭṯṱ]', 't'),
+                (fr'''([{T.Regex.extra_characters}]){{2,}}''', r'\1'),
+                ('œ', 'oe'),
+                ("'’ʽ`", "'"),
+                ('–', '-')
+            ]
+
+            R_cleanups = [re.compile(a) for a, b in cleanups]
+
+            def cleanup(self, text=''):
+                for seq, eqs in zip(self.R_cleanups, self.cleanups):
+                    text = seq.sub(eqs[1], text)
+
+                return text
+
+            def __init__(self, sample, cb):
+                self.sample = sample
+                self.callback = cb
+                super().__init__()
+
+            def run(self):
+                # print(f'reading book ... {len(self.sample)}')
+                cleanup = self.cleanup(self.sample)
+
+                elements = set()
+
+                for text_block in T.Regex.Predikt_full_match.findall(cleanup):
+                    sentences = []
+
+                    for sentence in T.Regex.Predikt_hard_split.split(text_block):
+                        sentence = sentence.strip(' -')
+
+                        if len(sentence) <= 3:
+                            continue
+
+                        for exception in self.lower_exceptions:
+                            if sentence.startswith(exception):
+                                break
+                        else:
+                            sentences.append(sentence[0].lower() + sentence[1:])
+
+                    for sentence in sentences:
+                        # print(f'== {sentence}')
+
+                        words = list(filter(lambda x: len(x), T.Regex.Predikt_soft_split.split(sentence)))
+
+                        for i, word in enumerate(words):
+                            if not T.Regex.Predikt_ignore_for_dictionnary.match(word)\
+                                    and word not in T.SPELL.flat_dictionary:
+                                    # or T.Regex.proper_nouns.match(word):
+
+                                replace = ' '.join(words[i + 1:])
+
+                                sentences.append(replace)
+
+                                break
+
+                            ancestor_1, ancestor_2 = (('', '',) + tuple(words[max(0, i - 2):i]))[-2:]
+                            # print(ancestor_1, ancestor_2, word)
+
+                            obj = GlobalSettings.Predikt.Word(word, (ancestor_1, ancestor_2))
+
+                            if obj in elements:
+                                for e in elements:
+                                    if hash(obj) == hash(e):
+                                        e.weight += 1
+                                        break
+                            else:
+                                elements.add(obj)
+
+                self.callback(elements)
+                self.done(self.name)
+
         def __init__(self):
             self.TEMPORAL = self.Temporal()
+
             self.nlp = None
+
             self.database = []
             self.wanted = 0
 
@@ -626,11 +716,12 @@ class GlobalSettings(_Settings):
             self.words_tail_last_word = {}
 
             self.wide_range = {}
-
             self.words = set()
 
-            self.preload()
             super().__init__()
+
+            self.setAutoDelete(False)
+            self.preload()
 
         def preload(self):
             POOL.start(self.Loader(self.core_loaded))
@@ -711,6 +802,13 @@ class GlobalSettings(_Settings):
                 else:
                     return []
 
+            def filter_by_head(elements):
+                for element in elements:
+                    if element.word.startswith(word):
+                        return [element]
+                else:
+                    return []
+
             # print(f'trying to predict... "{tail}"..."{word}"', f' (preferring {tense} tense)' if tense else '')
 
             results = []
@@ -733,7 +831,7 @@ class GlobalSettings(_Settings):
                 try:
                     candidates = self.words_tail_last_word[target.last_ancestor]
                     sort_by_tense(candidates)
-                    results = [candidates[0]]
+                    results = filter_by_head(candidates)
 
                 except (IndexError, KeyError):
                     go_tail = True
@@ -764,6 +862,37 @@ class GlobalSettings(_Settings):
                 return results[0].word
             else:
                 return ''
+
+        def digest(self, text=''):
+            POOL.start(self.Digester(text, self.apply_to_db))
+
+        def apply_to_db(self, elements):
+            db = sqlite3.connect(self.db_path)
+            cursor = db.cursor()
+
+            news, updates = 0, 0
+
+            for element in elements:
+                try:
+                    cursor.execute('INSERT INTO tokens (word, weight, ancestor_1, ancestor_2) VALUES (?, ?, ?, ?)',
+                                   (element.word, element.weight, element.first_ancestor, element.last_ancestor))
+                    news += 1
+
+                except sqlite3.IntegrityError:
+                    res = cursor.execute('SELECT weight FROM tokens WHERE word=? AND ancestor_1=? AND ancestor_2=?',
+                                         (element.word, element.first_ancestor, element.last_ancestor))
+                    element.weight += res.fetchone()[0]
+                    cursor.execute('UPDATE tokens SET weight=? WHERE word=? AND ancestor_1=? AND ancestor_2=?',
+                                   (element.weight, element.word, element.first_ancestor, element.last_ancestor))
+                    updates += 1
+
+                except sqlite3.OperationalError:
+                    return self.apply_to_db(elements)
+
+            db.commit()
+            db.close()
+
+            self.core_loaded(elements)
 
     themes = {
         'dark': Dark(),
