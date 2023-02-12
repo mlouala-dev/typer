@@ -649,7 +649,6 @@ class GlobalSettings(_Settings):
                 self.callback = cb
                 super().__init__()
 
-            @G.time
             def run(self):
                 # print(f'reading book ... {len(self.sample)}')
                 cleanup = self.cleanup(self.sample)
@@ -870,7 +869,6 @@ class GlobalSettings(_Settings):
         def digest(self, text=''):
             POOL.start(self.Digester(text, self.apply_to_db))
 
-        @G.time
         def apply_to_db(self, elements):
             db = sqlite3.connect(self.db_path)
             cursor = db.cursor()
