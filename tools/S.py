@@ -13,7 +13,7 @@ from html.parser import HTMLParser
 
 from PyQt6.QtWidgets import QApplication, QStyleFactory
 from PyQt6.QtGui import QPalette, QColor
-from PyQt6.QtCore import Qt, pyqtSignal, QObject, QThreadPool, QRunnable, QDir, QThread
+from PyQt6.QtCore import Qt, pyqtSignal, QObject, QThreadPool, QRunnable, QDir, QThread, QSemaphore, QMutex
 
 from tools import G, T, Audio
 from tools.translitteration import translitterate
@@ -45,7 +45,6 @@ class _Pool(QThreadPool):
         self.jobs = []
         self.uniqids = []
         super().__init__()
-        self.setThreadPriority(QThread.Priority.HighestPriority)
 
     @property
     def count(self):
@@ -68,7 +67,7 @@ class _Pool(QThreadPool):
         self.count += weight
         self.jobs.append(job.name)
 
-        super().start(job, priority=priority)
+        super().start(job)
 
     def jobDone(self, name: str):
         self.jobs.remove(name)
@@ -480,10 +479,10 @@ class GlobalSettings(_Settings):
         name = 'Predikt'
         db_path = G.appdata_path('predikt_data.db')
         loaded = False
-        chunk_size = 500000
+        chunk_size = 1000000
 
         class Word:
-            def __init__(self, word, ancestors=('', ''), tag='', tense=0, _weight=1, _vector=None):
+            def __init__(self, word, ancestors=('', ''), tag='', tense=0, _weight=1):
                 self.word = str(word)
                 self.tag = tag
                 self._ancestors = []
@@ -504,16 +503,8 @@ class GlobalSettings(_Settings):
             @ancestors.setter
             def ancestors(self, value: [str]):
                 self._ancestors = value
-                if len(value):
-                    if value[-1].startswith('-'):
-                        self.tail = ''.join(value)
-                    else:
-                        self.tail = ' '.join(value)
-
-                    self.first_ancestor, self.last_ancestor = value
-
-            def set_tense(self, tense=0):
-                self.tense = tense
+                self.first_ancestor, self.last_ancestor = value
+                self.tail = ' '.join(value)
 
             def __repr__(self):
                 res = f'"{self.word}" ({self.weight}) [{", ".join(map(str, self.ancestors))}]'
@@ -537,25 +528,23 @@ class GlobalSettings(_Settings):
         class Loader(QRunnable):
             name = 'PrediktLoader'
 
-            def __init__(self, cb):
+            def __init__(self, semaphore, cb, offset=0):
                 self.callback = cb
+                self.offset = offset
+                self.semaphore = semaphore
                 super().__init__()
 
             def run(self):
+                self.semaphore.acquire()
+
                 db = sqlite3.connect(GlobalSettings.Predikt.db_path)
-                cursor = db.cursor()
-                cursor.execute(f'SELECT * FROM tokens ORDER BY weight DESC')
-
-                words = cursor.fetchmany(GlobalSettings.Predikt.chunk_size)
-                database = []
-
-                while words:
-                    database.extend([GlobalSettings.Predikt.Word(word, ancestors=[t1, t2], _weight=weight) for
-                                    word, weight, t1, t2 in words])
-                    words = cursor.fetchmany(GlobalSettings.Predikt.chunk_size)
-
+                database = db.execute(f'SELECT * FROM tokens ORDER BY weight DESC LIMIT {GlobalSettings.Predikt.chunk_size} OFFSET {self.offset}').fetchall()
                 db.close()
-                self.callback(database)
+
+                self.semaphore.release()
+
+                self.callback([GlobalSettings.Predikt.Word(word, ancestors=[t1, t2], _weight=weight) for
+                               word, weight, t1, t2 in database])
                 self.done(self.name)
 
         class Temporal(QObject):
@@ -705,6 +694,7 @@ class GlobalSettings(_Settings):
 
         def __init__(self):
             self.TEMPORAL = self.Temporal()
+            self.db = sqlite3.connect(self.db_path)
 
             self.nlp = None
 
@@ -725,12 +715,23 @@ class GlobalSettings(_Settings):
             self.preload()
 
         def preload(self):
-            POOL.start(self.Loader(self.core_loaded))
+            length = self.db.execute('SELECT COUNT(*) FROM tokens').fetchone()[0]
+            semaphore = QSemaphore(1)
+
+            self.db.close()
+
+            for i in range(0, length, self.chunk_size):
+                POOL.start(self.Loader(semaphore, self.core_loaded, offset=i), priority=5)
+                self.wanted += 1
+
             POOL.start(self.Temporal.Loader(self.nlp_loaded))
 
         def core_loaded(self, database):
             self.database.extend(database)
-            POOL.start(self)
+            self.wanted -= 1
+
+            if not self.wanted:
+                POOL.start(self, uniq=256, priority=5)
 
         def analyze(self, sample=''):
             if not self.nlp or not self.loaded:
@@ -746,8 +747,6 @@ class GlobalSettings(_Settings):
 
         def run(self):
             word: GlobalSettings.Predikt.Word
-
-            self.raw.extend(self.database)
 
             for word in self.database:
                 try:
@@ -821,7 +820,7 @@ class GlobalSettings(_Settings):
 
             try:
                 candidates = self.wide_range[word]
-                sort_by_tense(candidates)
+                # sort_by_tense(candidates)
                 results = filter_by_tail(candidates)
 
                 if not len(results):
@@ -833,7 +832,7 @@ class GlobalSettings(_Settings):
 
                 try:
                     candidates = self.words_tail_last_word[target.last_ancestor]
-                    sort_by_tense(candidates)
+                    # sort_by_tense(candidates)
                     results = filter_by_head(candidates)
 
                 except (IndexError, KeyError):
@@ -850,7 +849,7 @@ class GlobalSettings(_Settings):
                     try:
                         candidates = self.words_tail_last_letter[tail[-1]]
                         results = filter_by_tail(candidates)
-                        sort_by_tense(results)
+                        # sort_by_tense(results)
 
                     except IndexError:
                         # print('==== NO TAIL LENGTH')
@@ -923,10 +922,10 @@ class GlobalSettings(_Settings):
     step = pyqtSignal(int, str)
     loaded = pyqtSignal()
 
-    def __init__(self):
+    def __init__(self, PREDIKT):
         self.QURAN = GlobalSettings.Quran()
         self.LEXICON = None
-        self.PREDIKT = GlobalSettings.Predikt()
+        self.PREDIKT = PREDIKT
 
         super().__init__()
         self.filename = G.appdata_path('config.db')
@@ -1863,8 +1862,8 @@ class LocalSettings(_Settings):
     def hasPDF(self):
         return bool(self.PDF)
 
-
-GLOBAL = GlobalSettings()
+PREDIKT = GlobalSettings.Predikt()
+GLOBAL = GlobalSettings(PREDIKT)
 LOCAL = LocalSettings()
 
 if __name__ == "__main__":
