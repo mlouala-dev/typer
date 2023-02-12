@@ -29,7 +29,9 @@ class Regex:
     arabic_harakat = re.compile(r"[ًٌٍَُِْ~ّ]")
     arabic_hamzas = re.compile(r'[أإآ]')
 
-    proper_nouns = re.compile('^[{}]'.format("".join([chr(i) for i in range(sys.maxunicode) if chr(i).isupper()])))
+    uppercases = "".join([chr(i) for i in range(sys.maxunicode) if chr(i).isupper()])
+    proper_nouns = re.compile('^[{}]'.format(uppercases))
+    bad_uppercase = re.compile('^.+[{}]'.format(uppercases))
 
     soft_break_characters = r''',;[\]*/+@<=>^_{|}°~'''
     hard_break_characters = r'''().!?"«»:…۞'''

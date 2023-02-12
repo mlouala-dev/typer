@@ -649,6 +649,7 @@ class GlobalSettings(_Settings):
                 self.callback = cb
                 super().__init__()
 
+            @G.time
             def run(self):
                 # print(f'reading book ... {len(self.sample)}')
                 cleanup = self.cleanup(self.sample)
@@ -676,9 +677,10 @@ class GlobalSettings(_Settings):
                         words = list(filter(lambda x: len(x), T.Regex.Predikt_soft_split.split(sentence)))
 
                         for i, word in enumerate(words):
-                            if not T.Regex.Predikt_ignore_for_dictionnary.match(word)\
-                                    and word not in T.SPELL.flat_dictionary:
-                                    # or T.Regex.proper_nouns.match(word):
+                            if (T.Regex.proper_nouns.match(word)
+                                or not T.Regex.Predikt_ignore_for_dictionnary.match(word)) \
+                                    and word not in T.SPELL.flat_dictionary\
+                                    or T.Regex.bad_uppercase.match(word):
 
                                 replace = ' '.join(words[i + 1:])
 
@@ -782,6 +784,8 @@ class GlobalSettings(_Settings):
                 else:
                     self.words_tail[word.tail] = [word]
 
+            self.database.clear()
+
             self.loaded = True
             self.done(self.name)
 
@@ -866,6 +870,7 @@ class GlobalSettings(_Settings):
         def digest(self, text=''):
             POOL.start(self.Digester(text, self.apply_to_db))
 
+        @G.time
         def apply_to_db(self, elements):
             db = sqlite3.connect(self.db_path)
             cursor = db.cursor()
