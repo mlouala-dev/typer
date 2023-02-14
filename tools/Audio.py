@@ -4,14 +4,13 @@ All the QThread elements we use for asynchronous works
 """
 import re
 import os
-
-import pydub.exceptions
 import win32api
+
+import soundfile
 import wave
 import pyaudio
-from pydub import AudioSegment
-from time import localtime, strftime
 from id3parse import ID3, ID3TextFrame
+from time import localtime, strftime
 
 from PyQt6.QtCore import QThread, pyqtSignal, QRunnable
 from PyQt6.QtGui import QTextDocument
@@ -116,8 +115,9 @@ class AudioConverter(QRunnable):
 
     def run(self):
         new_path = self.filepath.replace('.wav', '.ogg')
-        audiofile = AudioSegment.from_wav(self.filepath)
-        audiofile.export(new_path)
+
+        data, samplerate = soundfile.read(self.filepath)
+        soundfile.write(new_path, data, samplerate, format='OGG', subtype='OPUS')
 
         os.remove(self.filepath)
         S.POOL.start(AudioMap.FileProbe(new_path, S.GLOBAL.AUDIOMAP.digest))
@@ -148,9 +148,10 @@ class AudioMap(QRunnable):
                 G.warning(f'duration not found for "{file}", searching')
 
                 try:
-                    duration = AudioSegment.from_file(self.filepath).duration_seconds
+                    data, samplerate = soundfile.read(self.filepath)
+                    duration = len(data) / float(samplerate)
 
-                except pydub.exceptions.CouldntDecodeError:
+                except (soundfile.SoundFileError, soundfile.SoundFileRuntimeError, soundfile.LibsndfileError):
                     duration = 0
 
                 id3.add_frame(ID3TextFrame.from_scratch('TPE1', str(int(duration))))
