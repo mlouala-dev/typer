@@ -2,7 +2,6 @@
 """
 The Settings manager
 """
-import importlib
 import sqlite3
 import html
 import tempfile
@@ -538,7 +537,8 @@ class GlobalSettings(_Settings):
                 self.semaphore.acquire()
 
                 db = sqlite3.connect(GlobalSettings.Predikt.db_path)
-                database = db.execute(f'SELECT * FROM tokens ORDER BY weight DESC LIMIT {GlobalSettings.Predikt.chunk_size} OFFSET {self.offset}').fetchall()
+                database = db.execute(f'SELECT * FROM tokens WHERE weight>1 ORDER BY weight DESC LIMIT {GlobalSettings.Predikt.chunk_size} OFFSET {self.offset}').fetchall()
+                # database = db.execute(f'SELECT * FROM tokens ORDER BY weight DESC LIMIT {GlobalSettings.Predikt.chunk_size} OFFSET {self.offset}').fetchall()
                 db.close()
 
                 self.semaphore.release()
@@ -715,7 +715,8 @@ class GlobalSettings(_Settings):
             self.preload()
 
         def preload(self):
-            length = self.db.execute('SELECT COUNT(*) FROM tokens').fetchone()[0]
+            length = self.db.execute('SELECT COUNT(*) FROM tokens WHERE weight>1').fetchone()[0]
+            # length = self.db.execute('SELECT COUNT(*) FROM tokens').fetchone()[0]
             semaphore = QSemaphore(1)
 
             self.db.close()
@@ -783,8 +784,8 @@ class GlobalSettings(_Settings):
                     self.words_tail[word.tail] = [word]
 
             self.database.clear()
-
             self.loaded = True
+
             self.done(self.name)
 
         def predict(self, ancestor_1, ancestor_2, word, tense=None):
@@ -801,15 +802,15 @@ class GlobalSettings(_Settings):
                 for element in elements:
                     if element.tail.endswith(tail):
                         return [element]
-                else:
-                    return []
+
+                return []
 
             def filter_by_head(elements):
                 for element in elements:
                     if element.word.startswith(word):
                         return [element]
-                else:
-                    return []
+
+                return []
 
             # print(f'trying to predict... "{tail}"..."{word}"', f' (preferring {tense} tense)' if tense else '')
 
@@ -838,7 +839,6 @@ class GlobalSettings(_Settings):
                 except (IndexError, KeyError):
                     go_tail = True
                     # print('CANT FIND LAST ANCESTOR ONLY')
-                    pass
 
             if go_tail:
                 try:
