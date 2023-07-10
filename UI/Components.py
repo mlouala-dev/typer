@@ -72,140 +72,6 @@ background: qlineargradient(x1: 0, y1: 0.5, x2: 1, y2: 0.5, stop: 0 #0054AA, sto
         time.sleep(0.01)
 
 
-class TitleBar(QFrame):
-    """
-    A wrapper to get a custom window's title bar
-    """
-    # style in format : (bar's height, stylesheet)
-
-    default_style = (32, "QFrame#TitleBar { border-top:2px solid grey; }")
-    maximized_style = (30, "QFrame#TitleBar { border:0; }")
-    geometryChanged = pyqtSignal()
-
-    def __init__(self, parent: QMainWindow = None):
-        self.win = parent
-        super(TitleBar, self).__init__(parent)
-
-        height, style = self.default_style
-        self.setFixedHeight(height)
-        self.setMouseTracking(True)
-        self.setObjectName('TitleBar')
-        self.setStyleSheet(style)
-
-        layout = QHBoxLayout()
-        layout.setContentsMargins(2, 2, 2, 2)
-
-        ico = QLabel("")
-        ico.setPixmap(G.pixmap('ico', size=25))
-        ico.setFixedSize(28, 28)
-
-        self.W_title = QLabel("Window's title")
-        self.W_title.setStyleSheet('color:#2a82da;')
-        self.W_title.setObjectName('WindowTitle')
-        self.W_title.setAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
-        self.W_title.setFixedHeight(30)
-
-        self.min_button = QPushButton('\u268A')
-        self.min_button.setStyleSheet("QPushButton{border:0;}QPushButton:hover{background:#2a82da;border:0;}")
-        self.max_button = QPushButton('\u271B')
-        self.max_button.setStyleSheet("QPushButton{border:0;}QPushButton:hover{background:orange;border:0;}")
-        self.close_button = QPushButton('\u2715')
-        self.close_button.setStyleSheet("QPushButton{border:0;}QPushButton:hover{background:red;border:0;}")
-
-        layout.addWidget(ico, 0)
-        layout.addWidget(self.W_title, 1)
-        for b in (self.min_button, self.max_button, self.close_button):
-            b.setFixedWidth(50)
-            layout.addWidget(b, 0)
-
-        self.setLayout(layout)
-
-        # SIGNALS
-        self.max_button.clicked.connect(self.toggleMaximized)
-
-        # USER DEFINED
-        self.start = QPoint(0, 0)
-        self.pressing = False
-        self.propagateFont()
-
-    def propagateFont(self):
-        self.W_title.setFont(G.get_font(1.3))
-
-    def setMaximized(self, state=True):
-        # loading a style tuple
-        height, style = self.maximized_style if state else self.default_style
-
-        if state:
-            self.win.showMaximized()
-        else:
-            self.win.showNormal()
-
-        # making some visual ajustements
-        self.setFixedHeight(height)
-        self.setStyleSheet(style)
-
-    def toggleMaximized(self):
-        state = not self.win.isMaximized()
-        self.setMaximized(state)
-
-    def mouseDoubleClickEvent(self, e: QMouseEvent):
-        self.toggleMaximized()
-
-        super(TitleBar, self).mouseDoubleClickEvent(e)
-
-    def mousePressEvent(self, e: QMouseEvent):
-        """
-        Forward mouse event and catch click
-        """
-        self.start = self.mapToGlobal(e.pos())
-        self.pressing = True
-
-    def mouseMoveEvent(self, e: QMouseEvent):
-        """
-        Move the window
-        FIXME: replace the window under the cursor : offset
-        """
-
-        if self.pressing and not self.win.isMaximized():
-            # getting position's offset
-            end = self.mapToGlobal(e.pos())
-            movement = end - self.start
-
-            # moving the window
-            self.win.move(
-                QPoint(
-                    self.mapToGlobal(movement).x(),
-                    self.mapToGlobal(movement).y()
-                )
-            )
-
-            self.start = end
-
-    def mouseReleaseEvent(self, e: QMouseEvent):
-        """
-        if cursor hit the top of screen, maximize
-        """
-        # getting position relative to screen for multiscreen
-        y = self.mapToGlobal(e.pos()).y()
-        screen = QApplication.screenAt(self.mapToGlobal(e.pos()))
-        delta = y - screen.geometry().y()
-
-        if delta == 0:
-            self.toggleMaximized()
-
-        # setting pressed state
-        self.pressing = False
-
-        # emit signal to save the geometry settings
-        self.geometryChanged.emit()
-
-    def setTitle(self, title=""):
-        """
-        Reimplement setTitle
-        """
-        self.W_title.setText(title)
-
-
 class Toolbar(QToolBar):
     def __init__(self, parent=None):
         self._win = parent
@@ -224,8 +90,8 @@ class Toolbar(QToolBar):
 
     def insertButton(self, tool: QAction):
         """
-        Insert the given list of buttons depending of the type
-        :param buttons: a list of buttons
+        Insert the given list of buttons depending on the type
+        :param tool: a list of buttons
         """
 
         # looping through all left buttons

@@ -13,7 +13,7 @@ from PyQt6.QtCore import *
 from UI import QuranWorker, Editor
 from UI.HadithWorker import HadithSearch
 from UI.Dialogs import Settings, Navigator, GlobalSearch, Exporter, Jumper, LexiconView
-from UI.Components import StatusBar, Summary, TitleBar, MainToolbar, SplashScreen, TextToolbar, TopicsBar, BreadCrumbs
+from UI.Components import StatusBar, Summary, MainToolbar, SplashScreen, TextToolbar, TopicsBar, BreadCrumbs
 
 from tools import G, PDF, Audio, S, T
 
@@ -175,7 +175,6 @@ class TyperWIN(QMainWindow):
         self.recording = False
 
         # Main layout operations
-        # _layout.addWidget(self.window_title)
         _layout.addWidget(self.toolbar)
         _layout.addWidget(self.text_toolbar)
         _layout.addWidget(self.breadcrumbs)
@@ -184,7 +183,6 @@ class TyperWIN(QMainWindow):
         _layout.setRowStretch(1, 0)
         _layout.setRowStretch(2, 0)
         _layout.setRowStretch(3, 1)
-        # _layout.setRowStretch(4, 1)
         _layout.setColumnStretch(0, 1)
         _layout.setSpacing(0)
         _layout.setContentsMargins(0, 0, 0, 0)
@@ -268,11 +266,6 @@ class TyperWIN(QMainWindow):
         self.typer.contentChanged.connect(partial(self.summary_view.build, self.typer.document()))
         self.typer.contentChanged.connect(self.summary_view.updateSummaryHighLight)
         self.typer.cursorPositionChanged.connect(self.summary_view.updateSummaryHighLight)
-
-        # self.window_title.min_button.clicked.connect(self.showMinimized)
-        # self.window_title.close_button.clicked.connect(self.close)
-        # self.window_title.geometryChanged.connect(self.bakeGeometry)
-        # self.windowTitleChanged.connect(self.window_title.setTitle)
 
         self.setWindowTitle(f'{self._title} v{G.__ver__}')
 
