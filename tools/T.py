@@ -109,7 +109,7 @@ class SpellChecker(QObject):
 
             flat_dictionary = set()
 
-            with open(r"C:\Users\DEV\AppData\Local\Typer\dict.txt", mode='r+', encoding='utf-8') as f:
+            with open(SpellChecker.dictionary_path, mode='r+', encoding='utf-8') as f:
                 for line in f.readlines():
                     flat_dictionary.add(line.split('\t')[0])
 

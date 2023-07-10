@@ -54,7 +54,7 @@ class TyperWIN(QMainWindow):
         _layout = QGridLayout(self)
         self.font_propagate = [_splash.propagateFont]
 
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        # self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setWindowIcon(QIcon("typer:ico.png"))
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
@@ -155,8 +155,8 @@ class TyperWIN(QMainWindow):
         self.breadcrumbs.setHidden(True)
 
         _splash.progress(55, "Loading UI Window Title...")
-        self.window_title = TitleBar(self)
-        self.font_propagate.append(self.window_title.propagateFont)
+        # self.window_title = TitleBar(self)
+        # self.font_propagate.append(self.window_title.propagateFont)
 
         _splash.progress(60, "Loading UI Main Layout...")
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -175,7 +175,7 @@ class TyperWIN(QMainWindow):
         self.recording = False
 
         # Main layout operations
-        _layout.addWidget(self.window_title)
+        # _layout.addWidget(self.window_title)
         _layout.addWidget(self.toolbar)
         _layout.addWidget(self.text_toolbar)
         _layout.addWidget(self.breadcrumbs)
@@ -183,8 +183,8 @@ class TyperWIN(QMainWindow):
         _layout.setRowStretch(0, 0)
         _layout.setRowStretch(1, 0)
         _layout.setRowStretch(2, 0)
-        _layout.setRowStretch(3, 0)
-        _layout.setRowStretch(4, 1)
+        _layout.setRowStretch(3, 1)
+        # _layout.setRowStretch(4, 1)
         _layout.setColumnStretch(0, 1)
         _layout.setSpacing(0)
         _layout.setContentsMargins(0, 0, 0, 0)
@@ -269,10 +269,10 @@ class TyperWIN(QMainWindow):
         self.typer.contentChanged.connect(self.summary_view.updateSummaryHighLight)
         self.typer.cursorPositionChanged.connect(self.summary_view.updateSummaryHighLight)
 
-        self.window_title.min_button.clicked.connect(self.showMinimized)
-        self.window_title.close_button.clicked.connect(self.close)
-        self.window_title.geometryChanged.connect(self.bakeGeometry)
-        self.windowTitleChanged.connect(self.window_title.setTitle)
+        # self.window_title.min_button.clicked.connect(self.showMinimized)
+        # self.window_title.close_button.clicked.connect(self.close)
+        # self.window_title.geometryChanged.connect(self.bakeGeometry)
+        # self.windowTitleChanged.connect(self.window_title.setTitle)
 
         self.setWindowTitle(f'{self._title} v{G.__ver__}')
 
@@ -615,7 +615,7 @@ class TyperWIN(QMainWindow):
         self.viewer_frame.setVisible(S.LOCAL.isViewerVisible())
 
         self.setGeometry(*S.LOCAL.geometry)
-        self.window_title.setMaximized(S.LOCAL.maximized)
+        # self.window_title.setMaximized(S.LOCAL.maximized)
 
         self.breadcrumbs.setVisible(S.LOCAL.BOOKMAP.active)
 
