@@ -94,7 +94,6 @@ class Typer(QTextEdit):
         # this is the current word
         self._word = ''
         self.tense = None
-        S.GLOBAL.PREDIKT.TEMPORAL.tenseAnalysed.connect(self.applyTense)
         # we measure time spent to type a word
         self.word_time = time()
 
@@ -186,6 +185,20 @@ class Typer(QTextEdit):
             tc.setPosition(S.LOCAL.BOOK[page].cursor)
             self.setTextCursor(tc)
             self.ensureCursorVisible()
+
+            def forward_analysis(*args, **kwargs):
+                S.GLOBAL.CORPUS.get_notes(*args, **kwargs)
+                self.W_syntaxHighlighter.rehighlight()
+                self.update()
+
+            S.POOL.start(
+                S.GLOBAL.CORPUS.Analyze(
+                    T.Regex.tokenize(self.toPlainText()),
+                    S.GLOBAL.CORPUS,
+                    forward_analysis
+                ),
+                uniq='grammar_note'
+            )
 
         except KeyError:
             pass
@@ -711,6 +724,10 @@ class Typer(QTextEdit):
 
         # for all these action trigger the correctWord function
         if menu.actions():
+            try:
+                menu.triggered.disconnect()
+            except TypeError:
+                pass
             menu.triggered.connect(self.correctWord)
 
     # OVERRIDES
@@ -763,6 +780,11 @@ class Typer(QTextEdit):
         # we check if next character exists to prevent useless autocompletion display
         next_character = self.next_character
         previous_character = self.previous_character
+
+        self.auto_complete_available = bool(not len(next_character.strip()))
+        if not self.auto_complete_available:
+            self.WL_autoComplete.hide()
+
         key, current_text = e.key(), e.text()
         modifiers = QApplication.keyboardModifiers()
 
@@ -774,10 +796,10 @@ class Typer(QTextEdit):
         lowered_text = self.word.lower()
 
         if self.translitterate_mode:
-            if current_text in translitteration.accepted_letters or\
-                key in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete, Qt.Key.Key_Right,
-                        Qt.Key.Key_Left, Qt.Key.Key_twosuperior, Qt.Key.Key_Home,
-                        Qt.Key.Key_End):
+            if current_text in translitteration.accepted_letters or \
+                    key in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete, Qt.Key.Key_Right,
+                            Qt.Key.Key_Left, Qt.Key.Key_twosuperior, Qt.Key.Key_Home,
+                            Qt.Key.Key_End):
                 pass
             else:
                 return
@@ -1003,7 +1025,7 @@ class Typer(QTextEdit):
             # otherwise we just consider it a normal command
             else:
                 super(Typer, self).keyPressEvent(e)
-                
+
             return
 
         elif (modifiers & Qt.KeyboardModifier.ControlModifier) and (modifiers & Qt.KeyboardModifier.AltModifier):
@@ -1216,8 +1238,8 @@ class Typer(QTextEdit):
             tc = self.textCursor()
             tc.select(tc.SelectionType.WordUnderCursor)
 
-            if next_character not in T.Keys.NewWord.values() and\
-                    tc.selectedText() not in self.prophet_match and\
+            if next_character not in T.Keys.NewWord.values() and \
+                    tc.selectedText() not in self.prophet_match and \
                     tc.selectedText() not in self.Allah_match:
                 # adding a space since the previous word should be complete
                 # if the next character is in the new word characters, we skip the space after
@@ -1291,65 +1313,60 @@ class Typer(QTextEdit):
         A_addSeparator.triggered.connect(lambda: self.insertHtml('<hr />'))
         M_main.insertAction(M_main.actions()[0], A_addSeparator)
 
-        def add_page_content():
-            res = re.findall(
-                r'(۞)|<span style=\"[\w\d;:\., #\'\-]*font-size:30pt;[\w\d;:\., #\'\-]*\">(.*?)</span>|\[<span style=\"[\w\d;:\., #\'\-]*font-size:14.4pt;[\w\d;:\., #\'\-]*\">(.*?)</span>]|<span style=\"[\w\d;:\., #\'\-]*font-size:14.4pt;[\w\d;:\., #\'\-]*\"> ?\[(.*?)] ?</span>|<span style=\"[\w\d;:\., #\'\-]*color:#267dff;[\w\d;:\., #\'\-]*\">(.*?)</span>|<span> ?\[(.*?)] ?</span>',
-                self.toHtml(), flags=re.MULTILINE)
-
-            ayat = S.GLOBAL.QURAN.pages[S.LOCAL.page - 1].ayats[0].num
-
-            result = ''
-            new_line = True
-            for x, s, a, b, c, d in res:
-                if len(x) or '﴿' in a or '﴿' in b or '﴿' in c or '﴿' in d or len(s.strip()):
-                    if len(x) and new_line:
-                        continue
-                    if len(s.strip()):
-                        result += f'</p><p>\n{s.strip()}'
-                        ayat = 1
-                    else:
-                        result += f'</p><p>\n{ayat}. '
-                        ayat += 1
-                    new_line = True
-                    continue
-
-                if len(c.strip()) and c.strip()[0] in translitteration.arabic_hurufs:
-                    c = ''
-
-                line = ' '.join([a, b, c, d])
-                result += line
-
-                if len(line.strip()):
-                    new_line = False
-
-            result = re.sub(r'\(.*?\)', '', result)
-            result = result.replace('[', '').replace(']', '')
-            result = re.sub(r' {2,}', ' ', result)
-            result += '</p><hr />'
-
-            tc = self.textCursor()
-            tc.beginEditBlock()
-            tc.setPosition(0, tc.MoveMode.MoveAnchor)
-            tc.insertBlock()
-            tc.setPosition(0, tc.MoveMode.MoveAnchor)
-            tc.insertHtml(result)
-            tc.endEditBlock()
-            tc.movePosition(tc.MoveOperation.PreviousBlock, tc.MoveMode.MoveAnchor)
-            tc.setPosition(0, tc.MoveMode.KeepAnchor)
-            self.setTextCursor(tc)
-            self.ensureCursorVisible()
-            # apply the style to the whole text block
-            self.applyOverallBlock(partial(self.toggleFormat, Styles.Default))
-
-        A_addTranslation = QAction('Make translation from text', M_main)
-        A_addTranslation.triggered.connect(add_page_content)
-        M_main.insertAction(M_main.actions()[0], A_addTranslation)
-
         # getting the word
         tc = self.cursorForPosition(pos)
         tc.select(QTextCursor.SelectionType.WordUnderCursor)
         text = tc.selectedText()
         html_text = T.HTML.extractTextFragment(tc.selection().toHtml())
+
+        x1, x2, z = None, None, None
+        p = tc.positionInBlock()
+        tc.movePosition(QTextCursor.MoveOperation.NextWord, QTextCursor.MoveMode.MoveAnchor, 1)
+        if tc.positionInBlock() != p:
+            tc.select(QTextCursor.SelectionType.WordUnderCursor)
+            z = tc.selectedText()
+
+            tc.movePosition(QTextCursor.MoveOperation.PreviousWord, QTextCursor.MoveMode.MoveAnchor, 2)
+            tc.select(QTextCursor.SelectionType.WordUnderCursor)
+            p = tc.positionInBlock()
+
+        tc.movePosition(QTextCursor.MoveOperation.PreviousWord, QTextCursor.MoveMode.MoveAnchor, 2)
+        tc.select(QTextCursor.SelectionType.WordUnderCursor)
+        if tc.positionInBlock() != p:
+            x2 = tc.selectedText()
+            p = tc.positionInBlock()
+
+            tc.movePosition(QTextCursor.MoveOperation.PreviousWord, QTextCursor.MoveMode.MoveAnchor, 2)
+            tc.select(QTextCursor.SelectionType.WordUnderCursor)
+            if tc.positionInBlock() != p:
+                x1 = tc.selectedText()
+
+        if S.GLOBAL.check_grammar:
+            grammar_note, grammar_corrections = S.GLOBAL.CORPUS.analyze(x1, x2, text, z)
+
+            if grammar_note:
+                original_tc = self.cursorForPosition(pos)
+                original_tc.select(QTextCursor.SelectionType.WordUnderCursor)
+
+                M_grammar = QMenu(f'Grammar corrections for "{text}"', M_main)
+                self.insertItemsToMenu(
+                    [c for c in grammar_corrections['best']],
+                    original_tc,
+                    M_grammar
+                )
+                M_grammar.addSeparator()
+                self.insertItemsToMenu(
+                    [c for c in grammar_corrections['roles']],
+                    original_tc,
+                    M_grammar
+                )
+                M_grammar.addSeparator()
+                self.insertItemsToMenu(
+                    [c for c in grammar_corrections['anc']],
+                    original_tc,
+                    M_grammar
+                )
+                M_main.insertMenu(M_main.actions()[0], M_grammar)
 
         # getting the block
         c_block = self.cursorForPosition(pos)
@@ -1477,7 +1494,7 @@ class Typer(QTextEdit):
                 M_suggestions = QMenu(f'Suggestions for "{text}"', M_main)
                 cnt = self.buildSpellMenu(text, tc, M_suggestions)
 
-                # add the word to the dictionary if its not (flagged as incorrect means its not in the dictionary
+                # add the word to the dictionary if it's not (flagged as incorrect means its not in the dictionary
                 A_addWord = QAction(f'Add "{text}" to dictionary', M_main)
                 A_addWord.setData(text)
                 M_main.insertAction(M_main.actions()[0], A_addWord)
@@ -1573,6 +1590,21 @@ class TyperHighlighter(QSyntaxHighlighter):
     ref_format.setForeground(QColor(255, 35, 45))
     ref_format.setFontWeight(800)
 
+    grammar_format = {}
+    grammar_colors = [
+        QColor(6, 24, 38),
+        QColor(6, 38, 36),
+        QColor(11, 38, 21),
+        QColor(24, 45, 7),
+        QColor(72, 35, 12),
+        QColor(72, 12, 35)
+    ]
+    for n in range(1, 7):
+        grammar_format[n] = QTextCharFormat()
+        grammar_format[n].setBackground(grammar_colors[n - 1])
+        grammar_format[n].setUnderlineColor(grammar_colors[n - 1].lighter(300))
+        grammar_format[n].setUnderlineStyle(QTextCharFormat.UnderlineStyle.WaveUnderline)
+
     def __init__(self, parent=None, *args):
         self.typer = parent
         super(TyperHighlighter, self).__init__(*args)
@@ -1584,41 +1616,52 @@ class TyperHighlighter(QSyntaxHighlighter):
         if not T.SPELL.loaded:
             return
 
-        def tokenize(body_text: str) -> (int, str):
-            """
-            this tokenize the text with a rule
-            :param body_text: the whole text we want to tokenize
-            :return: yield the index of the word and the word itself
-            """
-            index = 0
-            # TODO: this split regex should be an re.unescape(''.join(G.escape...) ???
-            for word_match in T.Regex.highlight_split.split(body_text):
-                yield index, word_match
-
-                # increments the current text's index
-                index += len(word_match) + 1
-
         # we define a default BlockUser State data scanning the words
         data = QTextBlockUserData()
         data.state = state = G.State_Default
 
-        for idx, word in tokenize(text):
-            if len(word) > 1:
+        previous_word = None
+
+        text = text.replace(chr(T.TEXT.para_char), '')
+        text = text.replace(chr(T.TEXT.audio_char), '')
+
+        if len(text):
+            text = text[0].lower() + text[1:]
+
+        S.POOL.start(
+            S.GLOBAL.CORPUS.Analyze(
+                T.Regex.tokenize(text),
+                S.GLOBAL.CORPUS,
+                S.GLOBAL.CORPUS.get_notes
+            ),
+            uniq='grammar_note'
+        )
+
+        for pos, x, y, z in T.Regex.tokenize(text):
+            if len(y) > 1:
                 # a word with # around is a reference
                 # TODO: should match a regex pattern, same for the audio
-                if [*map(ord, word)] == [9834, T.TEXT.audio_char]:
-                    self.setFormat(idx, len(word), self.audio_format)
 
-                elif word.startswith("#") and word.endswith("#"):
-                    self.setFormat(idx, len(word), self.ref_format)
+                grammar_note = S.GLOBAL.CORPUS.get_note(previous_word, x, y, z)
+                # grammar_note = 0
+                if grammar_note:
+                    self.setFormat(pos, len(y), self.grammar_format[grammar_note])
+
+                elif [*map(ord, y)] == [9834, T.TEXT.audio_char]:
+                    self.setFormat(pos, len(y), self.audio_format)
+
+                elif y.startswith("#") and y.endswith("#"):
+                    self.setFormat(pos, len(y), self.ref_format)
                     state = G.State_Reference
 
                 # otherwise we check if word' spelling is invalid
-                elif not T.SPELL.word_check(word):
+                elif not T.SPELL.word_check(y):
                     # if we reach this point it means the word is incorrect and have some spell suggestions
-                    self.setFormat(idx, len(word), self.err_format)
+                    self.setFormat(pos, len(y), self.err_format)
 
                     state = G.State_Correction
+
+                previous_word = x
 
                 # finally setting the data state
                 data.state = state

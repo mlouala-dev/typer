@@ -821,6 +821,8 @@ class Settings(QDialog):
         self.verbose_level.setCurrentIndex(self.verbose_eq.index(G.__debug_level__))
         self.verbose_level.currentIndexChanged.connect(partial(self.updateGlobalSettings, 'verbose_level'))
 
+        self.check_grammar_box = self.addGlobalOption('check_grammar', 'Enable Grammar Checking')
+
         # LOCAL SETTINGS
         self.G_local = QGroupBox('Local Settings')
         self.L_local = QVBoxLayout()
@@ -963,6 +965,23 @@ class Settings(QDialog):
                 S.GLOBAL.setAudioRecordPath(dialog.selectedFiles()[0])
                 self.audio_record_path.setText(S.GLOBAL.audio_record_path)
 
+        elif domain == 'check_grammar':
+            S.GLOBAL.check_grammar = state
+
+            def forward_analysis(*args, **kwargs):
+                S.GLOBAL.CORPUS.get_notes(*args, **kwargs)
+                self._win.typer.W_syntaxHighlighter.rehighlight()
+                self._win.typer.update()
+
+            S.POOL.start(
+                S.GLOBAL.CORPUS.Analyze(
+                    T.Regex.tokenize(self._win.typer.toPlainText()),
+                    S.GLOBAL.CORPUS,
+                    forward_analysis
+                ),
+                uniq='grammar_note'
+            )
+
         if domain != 'verbose_level':
             S.GLOBAL.saveSetting(domain)
 
@@ -978,6 +997,7 @@ class Settings(QDialog):
         self.update_default_path_box.setChecked(S.GLOBAL.update_default_path)
         self.auto_load_box.setChecked(S.GLOBAL.auto_load)
         self.minimum_word_length.setValue(S.GLOBAL.minimum_word_length)
+        self.check_grammar_box.setChecked(S.GLOBAL.check_grammar)
 
         self.audio_map.setChecked(S.LOCAL.audio_map)
         self.connected_box.setChecked(S.LOCAL.connected)

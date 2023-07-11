@@ -1149,10 +1149,6 @@ class TyperWIN(QMainWindow):
         S.POOL.clear()
         S.POOL.waitForDone()
 
-        self.updateStatus(90, 'Releasing files...')
-        for file in S.LIB.files.values():
-            os.unlink(file)
-
 
 class TApp(QApplication):
     def __init__(self, *args, **kwargs):

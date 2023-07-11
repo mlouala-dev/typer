@@ -22,7 +22,7 @@ from PyQt6.QtSql import QSqlDatabase
 
 # The application's core settings
 __app__ = 'Typer'   # name
-__ver__ = 1.7       # version
+__ver__ = 2.0       # version
 __ext__ = '786'     # extension
 __debug_level__ = logging.ERROR
 
@@ -69,8 +69,8 @@ QuoteRole = 1
 
 
 class MAX_SCREEN_SIZE:
-    width = 1280
-    height = 720
+    width = 1920
+    height = 1080
 
 
 # PATH OPERATORS

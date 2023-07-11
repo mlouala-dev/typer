@@ -19,7 +19,7 @@ from tools import G
 class Regex:
     src_audio_path = re.compile(r'^.*?src="audio_record_(.*?)".*?$')
     paragraph_time = re.compile(r'src="paragraph_time_(.*?)"')
-    highlight_split = re.compile(r'[ \-\.\,:;!?\"\'\(\)\[\]\n￼«»]')
+    highlight_split = re.compile(r'[ \-\.\,:;!?\"\(\)\[\]\n￼«»]')
     ignoretoken = re.compile(r'\d|^[A-Z]|ﷺ|ﷻ|[\u0621-\u064a\ufb50-\ufdff\ufe70-\ufefc]')
     filter_text_style = re.compile(rf' ?font-family:\'{G.__la_font__}\',\'{G.__ar_font__}\';| ?font-family:\'{G.__la_font__}\';| ?font-family:\'{G.__ar_font__}\';| ?font-size:{G.__font_size__}pt;')
     filter_text_margin = re.compile(r' ?margin-\w+:\d+px;| ?line-height:100%;| text-indent:\d+px;')
@@ -34,13 +34,19 @@ class Regex:
     bad_uppercase = re.compile('^.+[{}]'.format(uppercases))
 
     soft_break_characters = r''',;[\]*/+@<=>^_{|}°~'''
-    hard_break_characters = r'''().!?"«»:…۞'''
+    hard_break_characters = r'''￼().!?"«»:…۞'''
 
     extra_characters = r'''\-–'’`ʽ''' + soft_break_characters + hard_break_characters
     alpha_characters = r'''A-Za-zÀ-ÿ'''
     full_match_characters = alpha_characters + extra_characters + whitespace
 
+    tokenizer = re.compile(r"""([A-Za-zÀ-ÿ]+')|([A-Za-zÀ-ÿ]+)|([().!?\"«»:…۞,;[\]*\/+@<=>^_{|}°~]+)|([\d\u0621-\u064a\ufe70-\ufefc]+.*?\s)""")
+    is_title = re.compile(r"^[A-ZÔÎÛÂÊ]").match
+    is_digit = re.compile(r'.*?\d+').match
+
     Predikt_hard_split = re.compile(f'''[{hard_break_characters}]''')
+    Predikt_hard_soft_split = re.compile(f'''[{hard_break_characters}{soft_break_characters}]''')
+    Predikt_hard_soft_w_split = re.compile(f'''[{hard_break_characters}{soft_break_characters}{whitespace}]|(?<=')''')
     Predikt_soft_split = re.compile(f'''[{soft_break_characters}{whitespace}]''')
     Predikt_full_match = re.compile(f'''([{full_match_characters}]{{3,}})''')
 
@@ -69,6 +75,35 @@ class Regex:
         cleanup = cleanup.strip('-')
 
         return cleanup
+
+    @staticmethod
+    def tokenize(body_text: str):
+        """
+        this tokenizes the text with a rule
+        :param body_text: the whole text we want to tokenize
+        :return: yield the index of the word and the word itself
+        """
+        # TODO: this split regex should be an re.unescape(''.join(G.escape...) ???
+        iterator = Regex.tokenizer.finditer(body_text)
+        x = None
+        try:
+            y = next(iterator)
+        except StopIteration:
+            y = 0
+
+        for z in iterator:
+            y1, y2, yd, ya = y.groups()
+            z1, z2, zd, za = z.groups()
+            if yd or ya:
+                x = None
+                y = z
+                continue
+            index = y.span(0)[0] + 1
+            yield index, x, y1 or y2, z1 or z2
+            # increments the current text's index
+
+            x = y1 or y2
+            y = z
 
 
 def buildCharMap(*characters):

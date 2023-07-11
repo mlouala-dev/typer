@@ -9,6 +9,7 @@ import os
 import re
 from functools import partial
 from html.parser import HTMLParser
+import numpy as np
 
 from PyQt6.QtWidgets import QApplication, QStyleFactory
 from PyQt6.QtGui import QPalette, QColor
@@ -19,21 +20,6 @@ from tools.translitteration import translitterate
 
 QDir.addSearchPath('icons', G.rsc_path('images/icons'))
 QDir.addSearchPath('typer', G.rsc_path('images/typer'))
-
-
-class LIB:
-    db = sqlite3.connect(G.rsc_path('ressources.db'))
-    cursor = db.cursor()
-
-    files = {}
-    for name, data, local in cursor.execute('SELECT name,data,local FROM files').fetchall():
-        if local:
-            files[name] = G.abs_path(name)
-        else:
-            files[name] = tempfile.mktemp()
-
-        with open(files[name], 'wb') as f:
-            f.write(data)
 
 
 class _Pool(QThreadPool):
@@ -474,6 +460,294 @@ class GlobalSettings(_Settings):
             res = self.fetchall_results('SELECT nodeid FROM entry WHERE REGEXP(xml)')
             return self.get_results(res)
 
+    class Corpus(QRunnable):
+        name = 'Corpus'
+        db_path = G.appdata_path(r"D:\Script\sketches\corpus\corpus_V3_realigned_v2.db")
+        loaded = False
+
+        size = 198
+        level = 3
+
+        class Analyze(QRunnable):
+            name = 'Analyze'
+
+            def __init__(self, iterator, root, callback):
+                self.root = root
+                self.iterator = iterator
+
+                self.cb = callback
+
+                super().__init__()
+
+            def run(self):
+                if not GLOBAL.check_grammar:
+                    self.done(self.name)
+                    return
+
+                recorded = {}
+                previous_word = None
+                for a1, a2, word, n in self.iterator:
+                    try:
+                        recorded[(a1, a2, word, n)]
+                        continue
+                    except KeyError:
+                        pass
+
+                    if (T.Regex.is_title(word) and word not in self.root.words_id) or T.Regex.is_digit(word):
+                        continue
+
+                    note, result = 0, []
+
+                    y, word_ids = self.root.get_word_infos(word)
+
+                    x2, w2 = self.root.get_word_infos(a2)
+                    x1, w1 = self.root.get_word_infos(a1)
+                    z, wz = self.root.get_word_infos(n)
+
+                    results = []
+                    scores = []
+                    weights = []
+
+                    for a in x1:
+                        for b in x2:
+                            for d in z:
+                                best_suggestion_score = np.argsort(self.root.grammar[a, b, :, d])[::-1][0]
+                                best_current_score = 0
+
+                                for c in y:
+                                    best_current_score = max(self.root.grammar[a, b, c, d], best_current_score)
+
+                                if self.root.grammar[a, b, best_suggestion_score, d]:
+                                    perc = best_current_score / self.root.grammar[a, b, best_suggestion_score, d] * 100
+                                    scores.append(best_suggestion_score)
+                                    results.append(perc)
+                                    weights.append(self.root.grammar[a, b, best_suggestion_score, d])
+
+                    if len(results):
+                        middle = sum(results) / len(results)
+
+                        if middle < 50:
+                            corrections = []
+
+                            wanted_lemmas = set()
+                            for wd, role, lemma, weight in [self.root.words[wid] for wid in word_ids]:
+                                nice_lemma = self.root.words[lemma][0] if lemma and lemma in self.root.words else wd
+                                wanted_lemmas.add(nice_lemma)
+
+                            for lemma in wanted_lemmas:
+                                for wanted_role, current_weight in [(a[0], a[2]) for a in
+                                                                    sorted(zip(scores, results, weights), reverse=True,
+                                                                           key=lambda x: x[1])]:
+
+                                    try:
+                                        suggestion = self.root.unique_words[self.root.lemmas[lemma][wanted_role]]
+                                    except KeyError:
+                                        suggestion = False
+
+                                    if suggestion and suggestion not in corrections:
+                                        corrections.append(suggestion)
+
+                            if middle == 0:
+                                note = 6
+                            elif word in corrections and middle <= 2:
+                                note = 2
+                            elif word in corrections and middle <= 5:
+                                note = 1
+                            elif middle <= 5:
+                                note = 5
+                            elif middle <= 10:
+                                note = 4
+                            elif word in corrections and len(corrections) > 1:
+                                note = 1
+
+                    recorded[(previous_word, a2, word, n)] = note
+                    previous_word = a2
+
+                self.cb(recorded)
+                self.done(self.name)
+
+        def __init__(self):
+            self.words = {'': (0, 0, '', 0)}
+            self.lemmas = {}
+            self.roles = {}
+            self.words_id = {}
+
+            self.unique_words = {}
+
+            self.grammar = np.zeros(shape=(self.size, self.size, self.size, self.size), dtype=np.int32)
+
+            self.predict = {}
+            self.predict_ancestors = {}
+            self.predict_roles = {}
+
+            self.recorded = {}
+
+            super().__init__()
+            self.setAutoDelete(False)
+
+        def run(self):
+            connector = sqlite3.connect(self.db_path)
+            cursor = connector.cursor()
+
+            all_words_request = cursor.execute(f'SELECT * FROM dict ORDER BY weight ASC').fetchall()
+
+            self.words.update({word_id: (word, role, lemma, weight) for word_id, word, role, lemma, weight in all_words_request})
+            for word_id, word, role, lemma, weight in all_words_request:
+                try:
+                    assert lemma in self.words
+                    new_lemma = word if lemma in ('', 0) else (lemma if isinstance(lemma, str) else self.words[lemma][0])
+                    self.lemmas[new_lemma][role] = word_id
+                except KeyError:
+                    self.lemmas[new_lemma] = {role: word_id}
+                except AssertionError:
+                    self.lemmas[lemma] = {role: word_id}
+
+                try:
+                    self.roles[word].append(role)
+                    self.words_id[word].append(word_id)
+                except KeyError:
+                    self.roles[word] = [role]
+                    self.words_id[word] = [word_id]
+
+            self.unique_words = {word_id: word for word_id, word, role, lemma, weight in all_words_request}
+            del all_words_request
+
+            for x1, x2, y, z, w in cursor.execute(f'SELECT * FROM grammar WHERE w>{self.level}').fetchall():
+                self.grammar[x1, x2, y, z] = w
+
+            self.predict_ancestors.update({
+                (x1, x2): word_id
+                for x1, x2, word_id, w
+                in cursor.execute(f'SELECT * FROM predikt WHERE w>{self.level} ORDER BY w ASC').fetchall()
+            })
+
+            self.predict_roles.update({
+                (x1, x2, self.words[word_id][1]): word_id
+                for x1, x2, word_id, w
+                in cursor.execute(f'SELECT * FROM predikt WHERE w>{self.level} ORDER BY w ASC').fetchall()
+            })
+            connector.close()
+
+            self.loaded = True
+            self.done(self.name)
+
+        def get_word_infos(self, word):
+            try:
+                x = self.roles[word]
+                w = self.words_id[word]
+            except KeyError:
+                x, w = [0], [0]
+            return x, w
+
+        def get_notes(self, record):
+            self.recorded.update(record)
+
+        def get_note(self, a1, a2, word, n):
+            try:
+                assert GLOBAL.check_grammar
+                return self.recorded[(a1, a2, word, n)]
+            except (KeyError, AssertionError):
+                pass
+
+        def analyze(self, a1, a2, word, n):
+            if (T.Regex.is_title(word) and word not in self.words_id) or T.Regex.is_digit(word):
+                return
+
+            note, result = 0, []
+            corrections = {'best': [], 'roles': [], 'anc': [], 'weights': []}
+
+            y, word_ids = self.get_word_infos(word)
+
+            x2, w2 = self.get_word_infos(a2)
+            x1, w1 = self.get_word_infos(a1)
+            z, wz = self.get_word_infos(n)
+
+            # print(word, x1, x2, y, z)
+            results = []
+            scores = []
+            weights = []
+
+            for a in x1:
+                for b in x2:
+                    for d in z:
+                        best_suggestion_score = np.argsort(self.grammar[a, b, :, d])[::-1][0]
+                        best_current_score = 0
+
+                        for c in y:
+                            best_current_score = max(self.grammar[a, b, c, d], best_current_score)
+
+                        if self.grammar[a, b, best_suggestion_score, d]:
+                            perc = best_current_score / self.grammar[a, b, best_suggestion_score, d] * 100
+
+                            scores.append(best_suggestion_score)
+                            results.append(perc)
+                            weights.append(self.grammar[a, b, best_suggestion_score, d])
+
+            if len(results):
+                middle = sum(results) / len(results)
+
+                if middle < 50:
+                    wanted_lemmas = set()
+                    for wd, role, lemma, weight in [self.words[wid] for wid in word_ids]:
+                        nice_lemma = self.words[lemma][0] if lemma and lemma in self.words else wd
+                        wanted_lemmas.add(nice_lemma)
+
+                    for lemma in wanted_lemmas:
+                        for wanted_role, current_weight in [(a[0], a[2]) for a in
+                                                            sorted(zip(scores, results, weights), reverse=True,
+                                                                   key=lambda x: x[1])]:
+
+                            try:
+                                suggestion = self.unique_words[self.lemmas[lemma][wanted_role]]
+                            except KeyError:
+                                suggestion = False
+
+                            if suggestion and suggestion not in corrections['best']:
+                                corrections['best'].append(suggestion)
+                                corrections['weights'].append(current_weight)
+
+                    # print('   = PREDIKTION BY ROLE')
+                    for a in w1:
+                        for b in w2:
+                            for c in y:
+                                try:
+                                    best_id = self.words[self.predict_roles[(a, b, c)]][0]
+                                    if best_id not in corrections['roles']:
+                                        corrections['roles'].append(best_id)
+                                except KeyError:
+                                    pass
+
+                    # print('   = PREDIKTION BY ANCESTORS')
+                    for a in w1:
+                        for b in w2:
+                            try:
+                                best_id = self.words[self.predict_ancestors[(a, b)]][0]
+                                if best_id not in corrections['anc']:
+                                    corrections['anc'].append(best_id)
+                            except KeyError:
+                                pass
+
+                    if len(corrections['best']) + len(corrections['roles']) + len(corrections['anc']):
+                        if middle == 0:
+                            note = 6
+                            # print(' /!\\  ', end="", flush=True)
+                        elif word in corrections['best'] and middle <= 2:
+                            note = 5
+                            # print(' ! ', end="", flush=True)
+                        elif word in corrections['best'] and middle <= 5:
+                            note = 3
+                            # print(' ? ', end="", flush=True)
+                        elif middle <= 5:
+                            note = 4
+                            # print(' ??  ', end="", flush=True)
+                        elif middle <= 10:
+                            note = 2
+                            # print(' .. ', end="", flush=True)
+                        elif word in corrections['best'] and len(corrections['best']) > 1:
+                            note = 1
+
+            return note, corrections
+
     class Predikt(QRunnable):
         name = 'Predikt'
         db_path = G.appdata_path('predikt_data.db')
@@ -546,63 +820,6 @@ class GlobalSettings(_Settings):
                 self.callback([GlobalSettings.Predikt.Word(word, ancestors=[t1, t2], _weight=weight) for
                                word, weight, t1, t2 in database])
                 self.done(self.name)
-
-        class Temporal(QObject):
-            masks = {
-                'tense': {
-                    'Pres': 1,
-                    'Imp': 2,
-                    'Past': 3,
-                    'Fut': 4
-                },
-                'voice': {
-                    'Pass': 1
-                },
-                'form': {
-                    'Fin': 1,
-                    'Part': 2,
-                    'Inf': 3
-                }
-            }
-            tenseAnalysed = pyqtSignal(int)
-
-            class Analysis(QRunnable):
-                name = 'PrediktAnalysis'
-
-                def __init__(self, sample, nlp, callback):
-                    self.cb = callback
-                    self.nlp = nlp
-                    self.sample = sample
-                    super().__init__()
-
-                def run(self):
-                    doc = self.nlp(self.sample)
-
-                    for token in reversed(doc):
-                        if token.pos_ == "VERB":
-                            t, v, f = token.morph.get("Tense"), token.morph.get("Voice"), token.morph.get("VerbForm")
-                            verb_data = ''
-                            verb_data += str(GLOBAL.PREDIKT.Temporal.masks['tense'][t[0]]) if len(t) else '0'
-                            verb_data += str(GLOBAL.PREDIKT.Temporal.masks['voice'][v[0]]) if len(v) else '0'
-                            verb_data += str(GLOBAL.PREDIKT.Temporal.masks['form'][f[0]]) if len(f) else '0'
-
-                            self.cb(int(verb_data))
-                            break
-
-                    self.done(self.name)
-
-            class Loader(QRunnable):
-                name = 'PrediktAnalysisLoader'
-
-                def __init__(self, callback):
-                    self.cb = callback
-                    super().__init__()
-
-                def run(self):
-                    # nlp = importlib.import_module('fr_core_news_lg')
-                    nlp = None
-                    self.cb(nlp)
-                    self.done(self.name)
 
         class Digester(QRunnable):
             name = 'PrediktDigester'
@@ -693,7 +910,6 @@ class GlobalSettings(_Settings):
                 self.done(self.name)
 
         def __init__(self):
-            self.TEMPORAL = self.Temporal()
             self.db = sqlite3.connect(self.db_path)
 
             self.nlp = None
@@ -725,8 +941,6 @@ class GlobalSettings(_Settings):
                 POOL.start(self.Loader(semaphore, self.core_loaded, offset=i), priority=5)
                 self.wanted += 1
 
-            POOL.start(self.Temporal.Loader(self.nlp_loaded))
-
         def core_loaded(self, database):
             self.database.extend(database)
             self.wanted -= 1
@@ -737,11 +951,6 @@ class GlobalSettings(_Settings):
         def analyze(self, sample=''):
             if not self.nlp or not self.loaded:
                 return
-
-            POOL.start(self.Temporal.Analysis(sample, self.nlp, self.analysis_done), uniq=192)
-
-        def analysis_done(self, tense=0):
-            self.TEMPORAL.tenseAnalysed.emit(tense)
 
         def nlp_loaded(self, nlp):
             self.nlp = nlp
@@ -916,7 +1125,8 @@ class GlobalSettings(_Settings):
         'minimum_word_length': 2,
         'arabic_font_family': 'Arial',
         'latin_font_family': 'Arial',
-        'font_size': 14
+        'font_size': 14,
+        'check_grammar': True
     }
 
     step = pyqtSignal(int, str)
@@ -926,6 +1136,7 @@ class GlobalSettings(_Settings):
         self.QURAN = GlobalSettings.Quran()
         self.LEXICON = None
         self.PREDIKT = PREDIKT
+        self.CORPUS = GlobalSettings.Corpus()
 
         super().__init__()
         self.filename = G.appdata_path('config.db')
@@ -950,6 +1161,8 @@ class GlobalSettings(_Settings):
         self.arabic_font_family = self.defaults['arabic_font_family']
         self.latin_font_family = self.defaults['latin_font_family']
         self.font_size = self.defaults['font_size']
+
+        self.check_grammar = self.defaults['check_grammar']
 
         self.AUDIOMAP = Audio.AudioMap
 
@@ -978,6 +1191,7 @@ class GlobalSettings(_Settings):
             self.AUDIOMAP = Audio.AudioMap(self.audio_record_path)
 
     def loadSettings(self):
+        POOL.start(self.CORPUS)
         settings = self.loadCoreSettings()
         # closing file if other instance needs it
         self.db.close()
@@ -1012,6 +1226,8 @@ class GlobalSettings(_Settings):
 
         self.font_size = int(settings['font_size'])
         G.__font_size__ = self.font_size
+
+        self.check_grammar = bool(settings['check_grammar'])
 
         self.loaded.emit()
 
@@ -1861,6 +2077,7 @@ class LocalSettings(_Settings):
 
     def hasPDF(self):
         return bool(self.PDF)
+
 
 PREDIKT = GlobalSettings.Predikt()
 GLOBAL = GlobalSettings(PREDIKT)
