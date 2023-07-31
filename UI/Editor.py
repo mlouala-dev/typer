@@ -187,7 +187,7 @@ class Typer(QTextEdit):
             self.ensureCursorVisible()
 
             def forward_analysis(*args, **kwargs):
-                S.GLOBAL.CORPUS.get_notes(*args, **kwargs)
+                S.GLOBAL.CORPUS.get_solutions(*args, **kwargs)
                 self.W_syntaxHighlighter.rehighlight()
                 self.update()
 
@@ -717,18 +717,37 @@ class Typer(QTextEdit):
         # looping through items
         for solution in terms:
             action = QAction(solution, menu)
-
+            action.triggered.connect(self.correctWord)
             # adding the cursor as a userData
             action.setData((cursor, solution))
             menu.addAction(action)
 
-        # for all these action trigger the correctWord function
-        if menu.actions():
-            try:
-                menu.triggered.disconnect()
-            except TypeError:
-                pass
-            menu.triggered.connect(self.correctWord)
+    def upvoteGrammar(self, s: S.GLOBAL.CORPUS.Solution, text:str):
+        x1 = s.x1 if isinstance(s.x1, S.GLOBAL.CORPUS.Solution) else S.GLOBAL.CORPUS.Solution(role=s.x1)
+        x2 = s.x2 if isinstance(s.x2, S.GLOBAL.CORPUS.Solution) else S.GLOBAL.CORPUS.Solution(role=s.x2)
+        z = s.z if isinstance(s.z, S.GLOBAL.CORPUS.Solution) else S.GLOBAL.CORPUS.Solution(role=s.z)
+
+        x1, x2, y, z = x1.role, x2.role, s.role, z.role
+        scheme = '\n'.join([S.GLOBAL.CORPUS.morphs[n] for n in [x1, x2, y, z]])
+        res = QMessageBox.warning(
+            None,
+            "Upvote grammar",
+            f"Do you want to upvote the current grammar scheme ? \n {scheme}",
+            buttons=QMessageBox.StandardButton.Cancel | QMessageBox.StandardButton.Yes,
+            defaultButton=QMessageBox.StandardButton.Yes
+        )
+
+        if res == QMessageBox.StandardButton.Yes:
+            S.GLOBAL.CORPUS.upvote_grammar(x1, x2, y, z)
+            S.POOL.start(
+                S.GLOBAL.CORPUS.Analyze(
+                    T.Regex.tokenize(text),
+                    S.GLOBAL.CORPUS,
+                    S.GLOBAL.CORPUS.get_solutions
+                ),
+                uniq='grammar_note'
+            )
+            self.W_syntaxHighlighter.rehighlight()
 
     # OVERRIDES
 
@@ -1319,54 +1338,11 @@ class Typer(QTextEdit):
         text = tc.selectedText()
         html_text = T.HTML.extractTextFragment(tc.selection().toHtml())
 
-        x1, x2, z = None, None, None
         p = tc.positionInBlock()
-        tc.movePosition(QTextCursor.MoveOperation.NextWord, QTextCursor.MoveMode.MoveAnchor, 1)
-        if tc.positionInBlock() != p:
-            tc.select(QTextCursor.SelectionType.WordUnderCursor)
-            z = tc.selectedText()
-
-            tc.movePosition(QTextCursor.MoveOperation.PreviousWord, QTextCursor.MoveMode.MoveAnchor, 2)
-            tc.select(QTextCursor.SelectionType.WordUnderCursor)
-            p = tc.positionInBlock()
-
-        tc.movePosition(QTextCursor.MoveOperation.PreviousWord, QTextCursor.MoveMode.MoveAnchor, 2)
-        tc.select(QTextCursor.SelectionType.WordUnderCursor)
-        if tc.positionInBlock() != p:
-            x2 = tc.selectedText()
-            p = tc.positionInBlock()
-
-            tc.movePosition(QTextCursor.MoveOperation.PreviousWord, QTextCursor.MoveMode.MoveAnchor, 2)
-            tc.select(QTextCursor.SelectionType.WordUnderCursor)
-            if tc.positionInBlock() != p:
-                x1 = tc.selectedText()
-
-        if S.GLOBAL.check_grammar:
-            grammar_note, grammar_corrections = S.GLOBAL.CORPUS.analyze(x1, x2, text, z)
-
-            if grammar_note:
-                original_tc = self.cursorForPosition(pos)
-                original_tc.select(QTextCursor.SelectionType.WordUnderCursor)
-
-                M_grammar = QMenu(f'Grammar corrections for "{text}"', M_main)
-                self.insertItemsToMenu(
-                    [c for c in grammar_corrections['best']],
-                    original_tc,
-                    M_grammar
-                )
-                M_grammar.addSeparator()
-                self.insertItemsToMenu(
-                    [c for c in grammar_corrections['roles']],
-                    original_tc,
-                    M_grammar
-                )
-                M_grammar.addSeparator()
-                self.insertItemsToMenu(
-                    [c for c in grammar_corrections['anc']],
-                    original_tc,
-                    M_grammar
-                )
-                M_main.insertMenu(M_main.actions()[0], M_grammar)
+        tc.select(tc.SelectionType.BlockUnderCursor)
+        block_text = tc.selectedText()
+        block_text = '.'.join([(s[0].lower() + s[1:]) if len(s) else '' for s in T.Regex.Predikt_hard_split.split(block_text)])
+        tokenized_block_text = [token for token in T.Regex.tokenize(block_text)]
 
         # getting the block
         c_block = self.cursorForPosition(pos)
@@ -1485,50 +1461,101 @@ class Typer(QTextEdit):
             AS_audioRecord.setDisabled(True)
             M_main.insertAction(M_main.actions()[0], AS_audioRecord)
 
-        else:
-            checked = T.SPELL.word_check(text)
+        checked = T.SPELL.word_check(text)
 
-            # if the block's flagged as incorrect
-            if block.userData().state == G.State_Correction and not checked:
-                # we add suggestions for the given word
-                M_suggestions = QMenu(f'Suggestions for "{text}"', M_main)
-                cnt = self.buildSpellMenu(text, tc, M_suggestions)
+        tc = self.cursorForPosition(pos)
+        tc.select(QTextCursor.SelectionType.WordUnderCursor)
 
-                # add the word to the dictionary if it's not (flagged as incorrect means its not in the dictionary
-                A_addWord = QAction(f'Add "{text}" to dictionary', M_main)
-                A_addWord.setData(text)
-                M_main.insertAction(M_main.actions()[0], A_addWord)
-                A_addWord.triggered.connect(partial(T.SPELL.add, text))
+        # if the block's flagged as incorrect
+        if block.userData().state == G.State_Correction and not checked:
+            # we add suggestions for the given word
+            M_suggestions = QMenu(f'Suggestions for "{text}"', M_main)
+            cnt = self.buildSpellMenu(text, tc, M_suggestions)
 
-                # if suggestions for the word are at least one we display the menu
-                if cnt >= 1:
-                    M_main.insertMenu(M_main.actions()[0], M_suggestions)
+            # add the word to the dictionary if it's not (flagged as incorrect means its not in the dictionary
+            A_addWord = QAction(f'Add "{text}" to dictionary', M_main)
+            A_addWord.setData(text)
+            M_main.insertAction(M_main.actions()[0], A_addWord)
+            A_addWord.triggered.connect(partial(T.SPELL.add, text))
 
-            if checked:
-                # adding synonyms suggestions
-                M_synonyms = QMenu(f'Synonyms for "{text}"', M_main)
-                cnt = self.buildSynMenu(text, tc, M_synonyms)
+            # if suggestions for the word are at least one we display the menu
+            if cnt >= 1:
+                M_main.insertMenu(M_main.actions()[0], M_suggestions)
 
-                # if we got some synonyms
-                if cnt >= 1:
-                    M_main.insertMenu(M_main.actions()[0], M_synonyms)
+        x1, x2, y, z = None, None, None, None
+        for i, x2, y, z in tokenized_block_text:
+            if (i + len(text)) >= p >= i:
+                break
+            x1 = x2
 
-                # if word's flagged as a verb
-                # TODO: add it as a signal to enable / disable a button in the Toolbar
-                # TODO: batch the forms in a frozenset
-                is_verb = self.cursor.execute(f'SELECT source FROM conjugaison WHERE forme="{text}"').fetchone()
+        if S.GLOBAL.check_grammar:
+            solutions = S.GLOBAL.CORPUS.solve(x1, x2, y, z)
 
-                # if selection is a verb, display the menu...
-                if is_verb:
-                    A_conjugate = QAction('Conjugate...', M_main)
-                    A_conjugate.triggered.connect(partial(self.openConjugate, tc, is_verb[0]))
-                    M_main.insertAction(M_main.actions()[0], A_conjugate)
+            if solutions:
+                original_tc = self.cursorForPosition(pos)
+                original_tc.select(QTextCursor.SelectionType.WordUnderCursor)
 
-            # adding a section "Edit" for suggestion, dictionary ops
-            M_main.insertSeparator(M_main.actions()[0])
-            AS_audioRecord = QAction('Lang', M_main)
-            AS_audioRecord.setDisabled(True)
-            M_main.insertAction(M_main.actions()[0], AS_audioRecord)
+                M_grammar = QMenu(f'Grammar for "{text}"', M_main)
+
+                if len(solutions['lemma']):
+                    M_grammar.addSeparator()
+                    self.insertItemsToMenu(
+                        [c for c in solutions['lemma']],
+                        original_tc,
+                        M_grammar
+                    )
+
+                if len(solutions['roles']):
+                    M_grammar.addSeparator()
+                    self.insertItemsToMenu(
+                        [c for c in solutions['roles']],
+                        original_tc,
+                        M_grammar
+                    )
+
+                if len(solutions['ancestors']):
+                    M_grammar.addSeparator()
+                    self.insertItemsToMenu(
+                        [c for c in solutions['ancestors']],
+                        original_tc,
+                        M_grammar
+                    )
+
+                A_upvote_grammar = QAction('Upvote grammar')
+                A_upvote_grammar.triggered.connect(partial(
+                    self.upvoteGrammar,
+                    S.GLOBAL.CORPUS.get_solution(x1, x2, y, z),
+                    block_text
+                ))
+                M_grammar.insertAction(M_grammar.actions()[0], A_upvote_grammar)
+
+                M_main.insertMenu(M_main.actions()[0], M_grammar)
+
+        if checked:
+            # adding synonyms suggestions
+            M_synonyms = QMenu(f'Synonyms for "{text}"', M_main)
+            cnt = self.buildSynMenu(text, tc, M_synonyms)
+
+            # if we got some synonyms
+            if cnt >= 1:
+                M_main.insertMenu(M_main.actions()[0], M_synonyms)
+
+            # if word's flagged as a verb
+            # TODO: add it as a signal to enable / disable a button in the Toolbar
+            # TODO: batch the forms in a frozenset
+            is_verb = self.cursor.execute(f'SELECT source FROM conjugaison WHERE forme="{text}"').fetchone()
+
+            # if selection is a verb, display the menu...
+            if is_verb:
+                A_conjugate = QAction('Conjugate...', M_main)
+                A_conjugate.triggered.connect(partial(self.openConjugate, tc, is_verb[0]))
+                M_main.insertAction(M_main.actions()[0], A_conjugate)
+
+        # adding a section "Edit" for suggestion, dictionary ops
+        M_main.insertSeparator(M_main.actions()[0])
+        AS_audioRecord = QAction('Lang', M_main)
+        AS_audioRecord.setDisabled(True)
+        M_main.insertAction(M_main.actions()[0], AS_audioRecord)
 
         # displaying the final popup menu
         M_main.exec(global_pos)
@@ -1593,17 +1620,15 @@ class TyperHighlighter(QSyntaxHighlighter):
     grammar_format = {}
     grammar_colors = [
         QColor(6, 24, 38),
-        QColor(6, 38, 36),
-        QColor(11, 38, 21),
-        QColor(24, 45, 7),
-        QColor(72, 35, 12),
+        QColor(31, 48, 17),
+        QColor(51, 37, 15),
         QColor(72, 12, 35)
     ]
-    for n in range(1, 7):
+    for n in range(1, 5):
         grammar_format[n] = QTextCharFormat()
         grammar_format[n].setBackground(grammar_colors[n - 1])
-        grammar_format[n].setUnderlineColor(grammar_colors[n - 1].lighter(300))
-        grammar_format[n].setUnderlineStyle(QTextCharFormat.UnderlineStyle.WaveUnderline)
+        # grammar_format[n].setUnderlineColor(grammar_colors[n - 1].lighter(300))
+        # grammar_format[n].setUnderlineStyle(QTextCharFormat.UnderlineStyle.WaveUnderline)
 
     def __init__(self, parent=None, *args):
         self.typer = parent
@@ -1632,7 +1657,7 @@ class TyperHighlighter(QSyntaxHighlighter):
             S.GLOBAL.CORPUS.Analyze(
                 T.Regex.tokenize(text),
                 S.GLOBAL.CORPUS,
-                S.GLOBAL.CORPUS.get_notes
+                S.GLOBAL.CORPUS.get_solutions
             ),
             uniq='grammar_note'
         )
@@ -1642,10 +1667,10 @@ class TyperHighlighter(QSyntaxHighlighter):
                 # a word with # around is a reference
                 # TODO: should match a regex pattern, same for the audio
 
-                grammar_note = S.GLOBAL.CORPUS.get_note(previous_word, x, y, z)
+                solution = S.GLOBAL.CORPUS.get_solution(previous_word, x, y, z)
                 # grammar_note = 0
-                if grammar_note:
-                    self.setFormat(pos, len(y), self.grammar_format[grammar_note])
+                if solution and solution.normalized_score():
+                    self.setFormat(pos, len(y), self.grammar_format[solution.normalized_score()])
 
                 elif [*map(ord, y)] == [9834, T.TEXT.audio_char]:
                     self.setFormat(pos, len(y), self.audio_format)
@@ -1655,7 +1680,7 @@ class TyperHighlighter(QSyntaxHighlighter):
                     state = G.State_Reference
 
                 # otherwise we check if word' spelling is invalid
-                elif not T.SPELL.word_check(y):
+                if not T.SPELL.word_check(y):
                     # if we reach this point it means the word is incorrect and have some spell suggestions
                     self.setFormat(pos, len(y), self.err_format)
 

@@ -40,7 +40,7 @@ class Regex:
     alpha_characters = r'''A-Za-zÀ-ÿ'''
     full_match_characters = alpha_characters + extra_characters + whitespace
 
-    tokenizer = re.compile(r"""([A-Za-zÀ-ÿ]+')|([A-Za-zÀ-ÿ]+)|([().!?\"«»:…۞,;[\]*\/+@<=>^_{|}°~]+)|([\d\u0621-\u064a\ufe70-\ufefc]+.*?\s)""")
+    tokenizer = re.compile(r"""([A-Za-zÀ-ÿ]+'|-|[A-Za-zÀ-ÿ]+)|([().!?\"«»:…۞,;[\]*\/+@<=>^_{|}°~￼]+)|([\d\u0621-\u064a\ufe70-\ufefc]+.*?\s)""")
     is_title = re.compile(r"^[A-ZÔÎÛÂÊ]").match
     is_digit = re.compile(r'.*?\d+').match
 
@@ -85,6 +85,7 @@ class Regex:
         """
         # TODO: this split regex should be an re.unescape(''.join(G.escape...) ???
         iterator = Regex.tokenizer.finditer(body_text)
+
         x = None
         try:
             y = next(iterator)
@@ -92,17 +93,17 @@ class Regex:
             y = 0
 
         for z in iterator:
-            y1, y2, yd, ya = y.groups()
-            z1, z2, zd, za = z.groups()
+            y1, yd, ya = y.groups()
+            z1, zd, za = z.groups()
             if yd or ya:
                 x = None
                 y = z
                 continue
             index = y.span(0)[0] + 1
-            yield index, x, y1 or y2, z1 or z2
+            yield index, x, y1, z1
             # increments the current text's index
 
-            x = y1 or y2
+            x = y1
             y = z
 
 

@@ -969,7 +969,7 @@ class Settings(QDialog):
             S.GLOBAL.check_grammar = state
 
             def forward_analysis(*args, **kwargs):
-                S.GLOBAL.CORPUS.get_notes(*args, **kwargs)
+                S.GLOBAL.CORPUS.get_solutions(*args, **kwargs)
                 self._win.typer.W_syntaxHighlighter.rehighlight()
                 self._win.typer.update()
 

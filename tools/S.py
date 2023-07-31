@@ -7,6 +7,7 @@ import html
 import tempfile
 import os
 import re
+import math
 from functools import partial
 from html.parser import HTMLParser
 import numpy as np
@@ -462,11 +463,258 @@ class GlobalSettings(_Settings):
 
     class Corpus(QRunnable):
         name = 'Corpus'
-        db_path = G.appdata_path(r"D:\Script\sketches\corpus\corpus_V3_realigned_v2.db")
+        db_path = G.appdata_path(r"corpus.db")
         loaded = False
 
-        size = 198
-        level = 3
+        morphs = [
+            "",
+            "ADJ|",
+            "ADJ|Gender=Fem|NumType=Ord|Number=Plur",
+            "ADJ|Gender=Fem|NumType=Ord|Number=Sing",
+            "ADJ|Gender=Fem|Number=Plur",
+            "ADJ|Gender=Fem|Number=Sing",
+            "ADJ|Gender=Masc",
+            "ADJ|Gender=Masc|NumType=Ord|Number=Plur",
+            "ADJ|Gender=Masc|NumType=Ord|Number=Sing",
+            "ADJ|Gender=Masc|Number=Plur",
+            "ADJ|Gender=Masc|Number=Sing",
+            "ADJ|NumType=Ord",
+            "ADJ|NumType=Ord|Number=Sing",
+            "ADJ|Number=Plur",
+            "ADJ|Number=Sing",
+            "ADP|",
+            "ADP|Definite=Def|Gender=Masc|Number=Sing|PronType=Art",
+            "ADP|Definite=Def|Number=Plur|PronType=Art",
+            "ADV|",
+            "ADV|Polarity=Neg",
+            "ADV|PronType=Int",
+            "AUX|Gender=Masc|Number=Sing|Tense=Past|VerbForm=Part",
+            "AUX|Mood=Cnd|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin",
+            "AUX|Mood=Cnd|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin",
+            "AUX|Mood=Cnd|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin",
+            "AUX|Mood=Ind|Number=Plur|Person=1|Tense=Fut|VerbForm=Fin",
+            "AUX|Mood=Ind|Number=Plur|Person=1|Tense=Imp|VerbForm=Fin",
+            "AUX|Mood=Ind|Number=Plur|Person=1|Tense=Pres|VerbForm=Fin",
+            "AUX|Mood=Ind|Number=Plur|Person=2|Tense=Pres|VerbForm=Fin",
+            "AUX|Mood=Ind|Number=Plur|Person=3|Tense=Fut|VerbForm=Fin",
+            "AUX|Mood=Ind|Number=Plur|Person=3|Tense=Imp|VerbForm=Fin",
+            "AUX|Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin",
+            "AUX|Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin",
+            "AUX|Mood=Ind|Number=Sing|Person=1|Tense=Imp|VerbForm=Fin",
+            "AUX|Mood=Ind|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin",
+            "AUX|Mood=Ind|Number=Sing|Person=2|Tense=Imp|VerbForm=Fin",
+            "AUX|Mood=Ind|Number=Sing|Person=3|Tense=Fut|VerbForm=Fin",
+            "AUX|Mood=Ind|Number=Sing|Person=3|Tense=Imp|VerbForm=Fin",
+            "AUX|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin",
+            "AUX|Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin",
+            "AUX|Mood=Sub|Number=Plur|Person=1|Tense=Pres|VerbForm=Fin",
+            "AUX|Mood=Sub|Number=Plur|Person=2|Tense=Pres|VerbForm=Fin",
+            "AUX|Mood=Sub|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin",
+            "AUX|Mood=Sub|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin",
+            "AUX|Mood=Sub|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin",
+            "AUX|Tense=Past|VerbForm=Part",
+            "AUX|Tense=Pres|VerbForm=Part",
+            "AUX|VerbForm=Inf",
+            "CCONJ|",
+            "DET|",
+            "DET|Definite=Def|Gender=Fem|Number=Sing|PronType=Art",
+            "DET|Definite=Def|Gender=Masc|Number=Sing|PronType=Art",
+            "DET|Definite=Def|Number=Plur|PronType=Art",
+            "DET|Definite=Def|Number=Sing|PronType=Art",
+            "DET|Definite=Ind|Gender=Fem|Number=Plur|PronType=Art",
+            "DET|Definite=Ind|Gender=Fem|Number=Sing|PronType=Art",
+            "DET|Definite=Ind|Gender=Masc|Number=Plur|PronType=Art",
+            "DET|Definite=Ind|Gender=Masc|Number=Sing|PronType=Art",
+            "DET|Definite=Ind|Number=Plur|PronType=Art",
+            "DET|Definite=Ind|Number=Sing|PronType=Art",
+            "DET|Gender=Fem|Number=Plur",
+            "DET|Gender=Fem|Number=Plur|PronType=Int",
+            "DET|Gender=Fem|Number=Sing",
+            "DET|Gender=Fem|Number=Sing|Poss=Yes",
+            "DET|Gender=Fem|Number=Sing|PronType=Dem",
+            "DET|Gender=Fem|Number=Sing|PronType=Int",
+            "DET|Gender=Masc|Number=Plur",
+            "DET|Gender=Masc|Number=Sing",
+            "DET|Gender=Masc|Number=Sing|PronType=Dem",
+            "DET|Gender=Masc|Number=Sing|PronType=Int",
+            "DET|Number=Plur",
+            "DET|Number=Plur|Poss=Yes",
+            "DET|Number=Plur|PronType=Dem",
+            "DET|Number=Sing",
+            "DET|Number=Sing|Poss=Yes",
+            "INTJ|",
+            "NOUN|",
+            "NOUN|Gender=Fem",
+            "NOUN|Gender=Fem|Number=Plur",
+            "NOUN|Gender=Fem|Number=Sing",
+            "NOUN|Gender=Masc",
+            "NOUN|Gender=Masc|NumType=Card|Number=Plur",
+            "NOUN|Gender=Masc|NumType=Card|Number=Sing",
+            "NOUN|Gender=Masc|Number=Plur",
+            "NOUN|Gender=Masc|Number=Sing",
+            "NOUN|NumType=Card",
+            "NOUN|Number=Plur",
+            "NOUN|Number=Sing",
+            "NUM|",
+            "NUM|Gender=Masc|NumType=Card",
+            "NUM|NumType=Card",
+            "PRON|",
+            "PRON|Gender=Fem",
+            "PRON|Gender=Fem|Number=Plur",
+            "PRON|Gender=Fem|Number=Plur|Person=3",
+            "PRON|Gender=Fem|Number=Plur|Person=3|PronType=Prs",
+            "PRON|Gender=Fem|Number=Plur|PronType=Dem",
+            "PRON|Gender=Fem|Number=Plur|PronType=Rel",
+            "PRON|Gender=Fem|Number=Sing",
+            "PRON|Gender=Fem|Number=Sing|Person=3",
+            "PRON|Gender=Fem|Number=Sing|Person=3|PronType=Prs",
+            "PRON|Gender=Fem|Number=Sing|PronType=Dem",
+            "PRON|Gender=Fem|Number=Sing|PronType=Rel",
+            "PRON|Gender=Masc",
+            "PRON|Gender=Masc|Number=Plur",
+            "PRON|Gender=Masc|Number=Plur|Person=3",
+            "PRON|Gender=Masc|Number=Plur|Person=3|PronType=Prs",
+            "PRON|Gender=Masc|Number=Plur|PronType=Dem",
+            "PRON|Gender=Masc|Number=Plur|PronType=Rel",
+            "PRON|Gender=Masc|Number=Sing",
+            "PRON|Gender=Masc|Number=Sing|Person=3",
+            "PRON|Gender=Masc|Number=Sing|Person=3|PronType=Dem",
+            "PRON|Gender=Masc|Number=Sing|Person=3|PronType=Prs",
+            "PRON|Gender=Masc|Number=Sing|PronType=Dem",
+            "PRON|Gender=Masc|Number=Sing|PronType=Rel",
+            "PRON|NumType=Card",
+            "PRON|Number=Plur",
+            "PRON|Number=Plur|Person=1",
+            "PRON|Number=Plur|Person=1|PronType=Prs",
+            "PRON|Number=Plur|Person=1|Reflex=Yes",
+            "PRON|Number=Plur|Person=2",
+            "PRON|Number=Plur|Person=2|PronType=Prs",
+            "PRON|Number=Plur|Person=2|Reflex=Yes",
+            "PRON|Number=Plur|Person=3",
+            "PRON|Number=Sing",
+            "PRON|Number=Sing|Person=1",
+            "PRON|Number=Sing|Person=1|PronType=Prs",
+            "PRON|Number=Sing|Person=1|Reflex=Yes",
+            "PRON|Number=Sing|Person=2|PronType=Prs",
+            "PRON|Number=Sing|Person=3",
+            "PRON|Number=Sing|PronType=Dem",
+            "PRON|Person=3",
+            "PRON|Person=3|Reflex=Yes",
+            "PRON|PronType=Int",
+            "PRON|PronType=Rel",
+            "PROPN|",
+            "PROPN|Gender=Fem|Number=Plur",
+            "PROPN|Gender=Fem|Number=Sing",
+            "PROPN|Gender=Masc",
+            "PROPN|Gender=Masc|Number=Plur",
+            "PROPN|Gender=Masc|Number=Sing",
+            "PROPN|Number=Plur",
+            "PROPN|Number=Sing",
+            "PUNCT|",
+            "SCONJ|",
+            "SPACE|",
+            "SYM|",
+            "VERB|Gender=Fem|Number=Plur|Tense=Past|VerbForm=Part",
+            "VERB|Gender=Fem|Number=Plur|Tense=Past|VerbForm=Part|Voice=Pass",
+            "VERB|Gender=Fem|Number=Sing|Tense=Past|VerbForm=Part",
+            "VERB|Gender=Fem|Number=Sing|Tense=Past|VerbForm=Part|Voice=Pass",
+            "VERB|Gender=Masc|Number=Plur|Tense=Past|VerbForm=Part",
+            "VERB|Gender=Masc|Number=Plur|Tense=Past|VerbForm=Part|Voice=Pass",
+            "VERB|Gender=Masc|Number=Sing|Tense=Past|VerbForm=Part",
+            "VERB|Gender=Masc|Number=Sing|Tense=Past|VerbForm=Part|Voice=Pass",
+            "VERB|Gender=Masc|Tense=Past|VerbForm=Part",
+            "VERB|Gender=Masc|Tense=Past|VerbForm=Part|Voice=Pass",
+            "VERB|Mood=Cnd|Number=Plur|Person=1|Tense=Pres|VerbForm=Fin",
+            "VERB|Mood=Cnd|Number=Plur|Person=2|Tense=Pres|VerbForm=Fin",
+            "VERB|Mood=Cnd|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin",
+            "VERB|Mood=Cnd|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin",
+            "VERB|Mood=Cnd|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin",
+            "VERB|Mood=Imp|Number=Plur|Person=1|Tense=Pres|VerbForm=Fin",
+            "VERB|Mood=Imp|Number=Plur|Person=2|Tense=Pres|VerbForm=Fin",
+            "VERB|Mood=Imp|Tense=Pres|VerbForm=Fin",
+            "VERB|Mood=Ind|Number=Plur|Person=1|Tense=Fut|VerbForm=Fin",
+            "VERB|Mood=Ind|Number=Plur|Person=1|Tense=Imp|VerbForm=Fin",
+            "VERB|Mood=Ind|Number=Plur|Person=1|Tense=Pres|VerbForm=Fin",
+            "VERB|Mood=Ind|Number=Plur|Person=2|Tense=Fut|VerbForm=Fin",
+            "VERB|Mood=Ind|Number=Plur|Person=2|Tense=Imp|VerbForm=Fin",
+            "VERB|Mood=Ind|Number=Plur|Person=2|Tense=Pres|VerbForm=Fin",
+            "VERB|Mood=Ind|Number=Plur|Person=3|Tense=Fut|VerbForm=Fin",
+            "VERB|Mood=Ind|Number=Plur|Person=3|Tense=Imp|VerbForm=Fin",
+            "VERB|Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin",
+            "VERB|Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin",
+            "VERB|Mood=Ind|Number=Sing|Person=1|Tense=Fut|VerbForm=Fin",
+            "VERB|Mood=Ind|Number=Sing|Person=1|Tense=Imp|VerbForm=Fin",
+            "VERB|Mood=Ind|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin",
+            "VERB|Mood=Ind|Number=Sing|Person=3|Tense=Fut|VerbForm=Fin",
+            "VERB|Mood=Ind|Number=Sing|Person=3|Tense=Imp|VerbForm=Fin",
+            "VERB|Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin",
+            "VERB|Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin",
+            "VERB|Mood=Ind|Person=3|Tense=Pres|VerbForm=Fin",
+            "VERB|Mood=Ind|Person=3|VerbForm=Fin",
+            "VERB|Mood=Ind|VerbForm=Fin",
+            "VERB|Mood=Sub|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin",
+            "VERB|Mood=Sub|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin",
+            "VERB|Mood=Sub|Number=Sing|Person=3|Tense=Past|VerbForm=Fin",
+            "VERB|Mood=Sub|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin",
+            "VERB|Number=Plur|Tense=Past|VerbForm=Part",
+            "VERB|Number=Plur|Tense=Past|VerbForm=Part|Voice=Pass",
+            "VERB|Number=Sing|Tense=Past|VerbForm=Part",
+            "VERB|Number=Sing|Tense=Past|VerbForm=Part|Voice=Pass",
+            "VERB|Tense=Past|VerbForm=Part",
+            "VERB|Tense=Past|VerbForm=Part|Voice=Pass",
+            "VERB|Tense=Pres|VerbForm=Part",
+            "VERB|VerbForm=Inf",
+            "X|"
+        ]
+
+        size = len(morphs)
+        level = 5
+
+        class Solution:
+            def __init__(self, word='', score=.0, role=0, pos=0, x1=0, x2=0, z=0):
+                self.word = word
+                self.score = score
+                self.role = role
+                self.position = pos
+                self.x1 = x1
+                self.x2 = x2
+                self.z = z
+
+                try:
+                    self.id = GLOBAL.CORPUS.words_id[word][GLOBAL.CORPUS.roles[word].index(role)]
+                    self.lemma = GLOBAL.CORPUS.words[self.id][2]
+                except (ValueError, KeyError):
+                    self.id, self.lemma = 0, ''
+
+            def __repr__(self):
+                ret = f'{self.word} ({GLOBAL.CORPUS.renote(self.score * 100)}) [{self.position}] :: '
+                if isinstance(self.x1, GlobalSettings.Corpus.Solution):
+                    ret += f'{self.x1.role} '
+                else:
+                    ret += f'{self.x1} '
+                if isinstance(self.x2, GlobalSettings.Corpus.Solution):
+                    ret += f'{self.x2.role} '
+                else:
+                    ret += f'{self.x2} '
+                ret += f'{self.role}'
+                if isinstance(self.z, GlobalSettings.Corpus.Solution):
+                    ret += f' {self.z.role} '
+                else:
+                    ret += f' {self.z} '
+                return ret
+
+            def normalized_score(self):
+                score = int(GLOBAL.CORPUS.renote(self.score * 100))
+                if score in range(0, 16):
+                    return 4
+                elif score in range(16, 50):
+                    return 3
+                elif score in range(50, 80):
+                    return 2
+                elif score in range(80, 95):
+                    return 1
+                else:
+                    return 0
 
         class Analyze(QRunnable):
             name = 'Analyze'
@@ -479,89 +727,109 @@ class GlobalSettings(_Settings):
 
                 super().__init__()
 
+            @staticmethod
+            def log_compare(a, b):
+                return math.log10(a) / math.log10(b)
+
             def run(self):
-                if not GLOBAL.check_grammar:
+                if not GLOBAL.check_grammar or not GLOBAL.CORPUS.loaded:
                     self.done(self.name)
                     return
 
                 recorded = {}
+                solutions = {}
                 previous_word = None
-                for a1, a2, word, n in self.iterator:
+                i = 0
+                for pos, a2, word, n in self.iterator:
                     try:
-                        recorded[(a1, a2, word, n)]
+                        recorded[(previous_word, a2, word, n)]
                         continue
                     except KeyError:
                         pass
 
+                    if not a2 and previous_word:
+                        previous_word = None
+
                     if (T.Regex.is_title(word) and word not in self.root.words_id) or T.Regex.is_digit(word):
                         continue
 
-                    note, result = 0, []
-
                     y, word_ids = self.root.get_word_infos(word)
+                    x1, w1 = self.root.get_word_infos(previous_word)
+                    x2o, w2o = x2, w2 = self.root.get_word_infos(a2)
+                    if i > 0:
+                        try:
+                            x2, w2 = zip(*filter(lambda a: a[0] in [s.role for s in solutions[i - 1]],
+                                                 zip(x2, w2)))
+                        except ValueError:
+                            pass
 
-                    x2, w2 = self.root.get_word_infos(a2)
-                    x1, w1 = self.root.get_word_infos(a1)
                     z, wz = self.root.get_word_infos(n)
 
-                    results = []
-                    scores = []
-                    weights = []
+                    solutions[i] = [self.root.Solution(word, pos=i, role=y[-1])]
+                    fail = True
 
                     for a in x1:
                         for b in x2:
+
                             for d in z:
-                                best_suggestion_score = np.argsort(self.root.grammar[a, b, :, d])[::-1][0]
+                                best_suggestion_idx = np.argsort(self.root.grammar[a, b, :, d])[::-1][0]
+                                best_suggestion_score = self.root.grammar[a, b, best_suggestion_idx, d]
                                 best_current_score = 0
 
                                 for c in y:
                                     best_current_score = max(self.root.grammar[a, b, c, d], best_current_score)
+                                    if self.root.grammar[a, b, c, d]:
+                                        if best_suggestion_score:
+                                            note = self.log_compare(self.root.grammar[a, b, c, d], best_suggestion_score)
+                                            if note > solutions[i][-1].score:
+                                                solutions[i].append(self.root.Solution(
+                                                    word, score=note, role=c,
+                                                    pos=i, x1=a, x2=b, z=d
+                                                ))
+                                            if note == 1:
+                                                fail = False
+                                    else:
+                                        fail = True
 
-                                if self.root.grammar[a, b, best_suggestion_score, d]:
-                                    perc = best_current_score / self.root.grammar[a, b, best_suggestion_score, d] * 100
-                                    scores.append(best_suggestion_score)
-                                    results.append(perc)
-                                    weights.append(self.root.grammar[a, b, best_suggestion_score, d])
+                    progress_factor = 1.5
+                    degress_factor = 0.95
+                    if fail:
+                        # print(f'{word} : FALLBACK...')
+                        for d in z:
+                            for b in x2o:
+                                for c in y:
+                                    u, j = np.amax(self.root.grammar[:, b, c, d]), np.amax(self.root.grammar[:, b, :, d], axis=(0, 1))
+                                    if j:
+                                        if u:
+                                            res = self.log_compare(u, j)
+                                            if res > solutions[i][-1].score:
+                                                solutions[i].append(self.root.Solution(
+                                                    word, score=res, role=c,
+                                                    pos=i, x1=np.argmax(self.root.grammar[:, b, c, d]), x2=b, z=d
+                                                ))
+                        for sc in word_ids:
+                            for sb in w2o:
+                                if (sb, sc) in self.root.predict_ancestors:
+                                    # print('found', word)
+                                    solutions[i][-1].score = min(solutions[i][-1].score * progress_factor, 1)
+                                elif sb in w2:
+                                    solutions[i][-1].score *= degress_factor
+                                    break
+                            else:
+                                continue
+                            break
 
-                    if len(results):
-                        middle = sum(results) / len(results)
+                    if i > 0:
+                        solutions[i][-1].x2 = solutions[i - 1][-1]
+                        solutions[i - 1][-1].z = solutions[i][-1]
+                        if i > 1:
+                            solutions[i][-1].x1 = solutions[i - 2][-1]
 
-                        if middle < 50:
-                            corrections = []
-
-                            wanted_lemmas = set()
-                            for wd, role, lemma, weight in [self.root.words[wid] for wid in word_ids]:
-                                nice_lemma = self.root.words[lemma][0] if lemma and lemma in self.root.words else wd
-                                wanted_lemmas.add(nice_lemma)
-
-                            for lemma in wanted_lemmas:
-                                for wanted_role, current_weight in [(a[0], a[2]) for a in
-                                                                    sorted(zip(scores, results, weights), reverse=True,
-                                                                           key=lambda x: x[1])]:
-
-                                    try:
-                                        suggestion = self.root.unique_words[self.root.lemmas[lemma][wanted_role]]
-                                    except KeyError:
-                                        suggestion = False
-
-                                    if suggestion and suggestion not in corrections:
-                                        corrections.append(suggestion)
-
-                            if middle == 0:
-                                note = 6
-                            elif word in corrections and middle <= 2:
-                                note = 2
-                            elif word in corrections and middle <= 5:
-                                note = 1
-                            elif middle <= 5:
-                                note = 5
-                            elif middle <= 10:
-                                note = 4
-                            elif word in corrections and len(corrections) > 1:
-                                note = 1
-
-                    recorded[(previous_word, a2, word, n)] = note
+                    bests = [t for t in sorted(solutions[i], key=lambda x: x.score, reverse=True)]
+                    recorded[(previous_word, a2, word, n)] = bests[0]
                     previous_word = a2
+
+                    i += 1
 
                 self.cb(recorded)
                 self.done(self.name)
@@ -578,6 +846,7 @@ class GlobalSettings(_Settings):
 
             self.predict = {}
             self.predict_ancestors = {}
+            self.predict_after = {}
             self.predict_roles = {}
 
             self.recorded = {}
@@ -594,13 +863,10 @@ class GlobalSettings(_Settings):
             self.words.update({word_id: (word, role, lemma, weight) for word_id, word, role, lemma, weight in all_words_request})
             for word_id, word, role, lemma, weight in all_words_request:
                 try:
-                    assert lemma in self.words
                     new_lemma = word if lemma in ('', 0) else (lemma if isinstance(lemma, str) else self.words[lemma][0])
                     self.lemmas[new_lemma][role] = word_id
                 except KeyError:
                     self.lemmas[new_lemma] = {role: word_id}
-                except AssertionError:
-                    self.lemmas[lemma] = {role: word_id}
 
                 try:
                     self.roles[word].append(role)
@@ -615,11 +881,17 @@ class GlobalSettings(_Settings):
             for x1, x2, y, z, w in cursor.execute(f'SELECT * FROM grammar WHERE w>{self.level}').fetchall():
                 self.grammar[x1, x2, y, z] = w
 
-            self.predict_ancestors.update({
-                (x1, x2): word_id
-                for x1, x2, word_id, w
-                in cursor.execute(f'SELECT * FROM predikt WHERE w>{self.level} ORDER BY w ASC').fetchall()
-            })
+            for x1, x2, word_id, w in cursor.execute(f'SELECT * FROM predikt WHERE w>{self.level} ORDER BY w ASC').fetchall():
+                try:
+                    self.predict_ancestors[(x1, x2)].append(word_id)
+                except KeyError:
+                    self.predict_ancestors[(x1, x2)] = [word_id]
+
+            for x1, x2, word_id, w in cursor.execute(f'SELECT * FROM predikt WHERE w>{self.level} ORDER BY w ASC').fetchall():
+                try:
+                    self.predict_after[(x1, self.words[word_id][1])].append(x2)
+                except KeyError:
+                    self.predict_after[(x1, self.words[word_id][1])] = [x2]
 
             self.predict_roles.update({
                 (x1, x2, self.words[word_id][1]): word_id
@@ -627,6 +899,8 @@ class GlobalSettings(_Settings):
                 in cursor.execute(f'SELECT * FROM predikt WHERE w>{self.level} ORDER BY w ASC').fetchall()
             })
             connector.close()
+
+            self.recorded.clear()
 
             self.loaded = True
             self.done(self.name)
@@ -639,114 +913,139 @@ class GlobalSettings(_Settings):
                 x, w = [0], [0]
             return x, w
 
-        def get_notes(self, record):
+        def get_solutions(self, record):
             self.recorded.update(record)
 
-        def get_note(self, a1, a2, word, n):
+        def get_solution(self, a1, a2, word, n) -> Solution:
             try:
                 assert GLOBAL.check_grammar
                 return self.recorded[(a1, a2, word, n)]
             except (KeyError, AssertionError):
                 pass
 
-        def analyze(self, a1, a2, word, n):
-            if (T.Regex.is_title(word) and word not in self.words_id) or T.Regex.is_digit(word):
+        def upvote_grammar(self, x1, x2, y, z):
+            self.grammar[x1, x2, y, z] += np.amax(self.grammar[x1, x2, :, z])
+            connector = sqlite3.connect(self.db_path)
+            cursor = connector.cursor()
+            cursor.execute('UPDATE grammar SET w=? WHERE x1=? AND x2=? AND y=? AND z=?',
+                           (int(self.grammar[x1, x2, y, z]), x1, x2, y, z))
+            connector.commit()
+            connector.close()
+
+        @staticmethod
+        def renote(n):
+            ramp = 1.75
+            return (pow(n, ramp) / (pow(100, ramp) / 100)) * (1 - n / 100) + \
+                (1 - math.cos(pow(n, pow(n, .5) / 10) / (100 / math.pi))) * 50 * (n / 100)
+
+        def solve(self, x1, x2, y, z):
+            s = self.get_solution(x1, x2, y, z)
+
+            if not s:
                 return
 
-            note, result = 0, []
-            corrections = {'best': [], 'roles': [], 'anc': [], 'weights': []}
+            scale = 3
+            lemma = self.words[s.lemma][0]
+            if lemma:
+                lemmas = self.lemmas[lemma]
+            else:
+                lemmas = {}
 
-            y, word_ids = self.get_word_infos(word)
+            candidates = {
+                'lemma': [],
+                'roles': [],
+                'ancestors': []
+            }
 
-            x2, w2 = self.get_word_infos(a2)
-            x1, w1 = self.get_word_infos(a1)
-            z, wz = self.get_word_infos(n)
+            x1 = s.x1 if isinstance(s.x1, self.Solution) else self.Solution(role=s.x1)
+            x2 = s.x2 if isinstance(s.x2, self.Solution) else self.Solution(role=s.x2)
+            z = s.z if isinstance(s.z, self.Solution) else self.Solution(role=s.z)
 
-            # print(word, x1, x2, y, z)
-            results = []
-            scores = []
-            weights = []
+            lems = set()
+            try:
+                for word_id in self.words_id[s.word]:
+                    lems.add(self.words[self.words[word_id][2]][0])
+            except KeyError:
+                pass
+            if 0 in lems:
+                lems.remove(0)
+                lems.add(s.word)
+            for lem in lems:
+                try:
+                    lemmas.update(self.lemmas[lem])
+                except KeyError:
+                    pass
 
-            for a in x1:
-                for b in x2:
-                    for d in z:
-                        best_suggestion_score = np.argsort(self.grammar[a, b, :, d])[::-1][0]
-                        best_current_score = 0
+            suggestions = [s.word]
 
-                        for c in y:
-                            best_current_score = max(self.grammar[a, b, c, d], best_current_score)
+            cnt = 1
+            for alt in filter(lambda x: self.grammar[x1.role, x2.role, x, z.role],
+                              reversed(np.argsort(self.grammar[x1.role, x2.role, :, z.role]))):
+                if alt in lemmas:
+                    if cnt > 3:
+                        break
+                    word = self.words[lemmas[alt]][0].lower()
+                    if word not in suggestions:
+                        candidates['lemma'].append(word)
+                        suggestions.append(word)
+                        cnt += 1
 
-                        if self.grammar[a, b, best_suggestion_score, d]:
-                            perc = best_current_score / self.grammar[a, b, best_suggestion_score, d] * 100
+            try:
+                w1 = self.words_id[x1.word][self.roles[x1.word].index(x1.role)]
+            except (ValueError, KeyError):
+                w1 = ''
+            try:
+                w2 = self.words_id[x2.word][self.roles[x2.word].index(x2.role)]
+            except (ValueError, KeyError):
+                w2 = ''
 
-                            scores.append(best_suggestion_score)
-                            results.append(perc)
-                            weights.append(self.grammar[a, b, best_suggestion_score, d])
+            cnt = 1
+            for alt in filter(lambda x: x, reversed(np.argsort(self.grammar[x1.role, x2.role, :, z.role]))):
+                if (w1, w2, alt) in self.predict_roles:
+                    if cnt > scale:
+                        break
+                    word = self.words[self.predict_roles[(w1, w2, alt)]][0].lower()
+                    if word not in suggestions:
+                        candidates['roles'].append(word)
+                        suggestions.append(word)
+                        cnt += 1
 
-            if len(results):
-                middle = sum(results) / len(results)
+            ancestors = []
 
-                if middle < 50:
-                    wanted_lemmas = set()
-                    for wd, role, lemma, weight in [self.words[wid] for wid in word_ids]:
-                        nice_lemma = self.words[lemma][0] if lemma and lemma in self.words else wd
-                        wanted_lemmas.add(nice_lemma)
+            try:
+                if (w1, w2) in self.predict_ancestors:
+                    for alt in reversed(self.predict_ancestors[(w1, w2)]):
+                        word = self.words[alt][0].lower()
+                        if word not in suggestions:
+                            ancestors.append(word)
+            except KeyError:
+                pass
 
-                    for lemma in wanted_lemmas:
-                        for wanted_role, current_weight in [(a[0], a[2]) for a in
-                                                            sorted(zip(scores, results, weights), reverse=True,
-                                                                   key=lambda x: x[1])]:
+            successors = []
+            valids = set([alt for alt in filter(lambda x: self.grammar[x1.role, x2.role, x, z.role], reversed(np.argsort(self.grammar[x1.role, x2.role, :, z.role])))])
+            try:
+                if (w2, z.role) in self.predict_after:
+                    for pre in sorted(self.predict_after[(w2, z.role)], key=lambda x: self.words[x][3], reverse=True):
+                        if self.words[pre][1] in valids:
+                            word = self.words[pre][0]
+                            if word not in suggestions:
+                                successors.append(word)
+            except KeyError:
+                pass
 
-                            try:
-                                suggestion = self.unique_words[self.lemmas[lemma][wanted_role]]
-                            except KeyError:
-                                suggestion = False
+            matching = []
+            for a in ancestors:
+                if a in successors:
+                    matching.append(a)
+                    if a not in suggestions:
+                        suggestions.append(a)
 
-                            if suggestion and suggestion not in corrections['best']:
-                                corrections['best'].append(suggestion)
-                                corrections['weights'].append(current_weight)
+            candidates['ancestors'] = matching[:scale]
 
-                    # print('   = PREDIKTION BY ROLE')
-                    for a in w1:
-                        for b in w2:
-                            for c in y:
-                                try:
-                                    best_id = self.words[self.predict_roles[(a, b, c)]][0]
-                                    if best_id not in corrections['roles']:
-                                        corrections['roles'].append(best_id)
-                                except KeyError:
-                                    pass
+            if not len(candidates['lemma']) and not len(candidates['roles']) and not len(candidates['ancestors']):
+                return None
 
-                    # print('   = PREDIKTION BY ANCESTORS')
-                    for a in w1:
-                        for b in w2:
-                            try:
-                                best_id = self.words[self.predict_ancestors[(a, b)]][0]
-                                if best_id not in corrections['anc']:
-                                    corrections['anc'].append(best_id)
-                            except KeyError:
-                                pass
-
-                    if len(corrections['best']) + len(corrections['roles']) + len(corrections['anc']):
-                        if middle == 0:
-                            note = 6
-                            # print(' /!\\  ', end="", flush=True)
-                        elif word in corrections['best'] and middle <= 2:
-                            note = 5
-                            # print(' ! ', end="", flush=True)
-                        elif word in corrections['best'] and middle <= 5:
-                            note = 3
-                            # print(' ? ', end="", flush=True)
-                        elif middle <= 5:
-                            note = 4
-                            # print(' ??  ', end="", flush=True)
-                        elif middle <= 10:
-                            note = 2
-                            # print(' .. ', end="", flush=True)
-                        elif word in corrections['best'] and len(corrections['best']) > 1:
-                            note = 1
-
-            return note, corrections
+            return candidates
 
     class Predikt(QRunnable):
         name = 'Predikt'
@@ -1031,9 +1330,9 @@ class GlobalSettings(_Settings):
             try:
                 candidates = self.wide_range[word]
                 # sort_by_tense(candidates)
-                results = filter_by_tail(candidates)
+                results = filter(lambda x: x.tail.endswith(tail), candidates)
 
-                if not len(results):
+                if not any(results):
                     results = [candidates[0]]
 
             except KeyError:
@@ -1043,7 +1342,7 @@ class GlobalSettings(_Settings):
                 try:
                     candidates = self.words_tail_last_word[target.last_ancestor]
                     # sort_by_tense(candidates)
-                    results = filter_by_head(candidates)
+                    results = filter(lambda x: x.word.startswith(word), candidates)
 
                 except (IndexError, KeyError):
                     go_tail = True
@@ -1057,7 +1356,7 @@ class GlobalSettings(_Settings):
                     # print("=== CANT FIND WORD TAIL")
                     try:
                         candidates = self.words_tail_last_letter[tail[-1]]
-                        results = filter_by_tail(candidates)
+                        results = filter(lambda x: x.tail.endswith(tail), candidates)
                         # sort_by_tense(results)
 
                     except IndexError:
@@ -1068,11 +1367,12 @@ class GlobalSettings(_Settings):
                         # print("==== CANT FIND WORD LAST LETTER")
                         pass
 
-            if len(results):
-                # print(results)
-                return results[0].word
-            else:
+            try:
+                return next(results).word
+            except StopIteration:
                 return ''
+            except TypeError:
+                return results[0].word
 
         def digest(self, text=''):
             POOL.start(self.Digester(text, self.apply_to_db))
