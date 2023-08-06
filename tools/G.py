@@ -4,6 +4,7 @@ the main tool function defining core functions used in the whole script
 and reference variables
 and the logging system
 """
+import sys
 import time as tm
 import os
 import logging
@@ -19,21 +20,25 @@ from PyQt6.QtGui import QPixmap, QFont, QIcon, QKeySequence, QAction, QShortcut
 from PyQt6.QtCore import Qt
 from PyQt6.QtSql import QSqlDatabase
 
-
 # The application's core settings
-__app__ = 'Typer'   # name
-__ver__ = 2.0       # version
-__ext__ = '786'     # extension
+__app__ = 'Typer'  # name
+__ver__ = 2.0  # version
+__ext__ = '786'  # extension
 __debug_level__ = logging.ERROR
 
 # the font(s) used by the app
 __la_font__ = 'Arial'
 __ar_font__ = 'Arial'
+
+
 def get_font_size(size: float = 1.2):
     return int(int(size * 12 * 10) / 10.0)
+
+
 __font_size__ = 12
 __additional_fonts__ = ['Microsoft Uighur Bold', 'AGA Arabesque', 'ThanaaWaMadh']
 __additional_fonts__.insert(0, __la_font__)
+
 
 # the file extension of the app
 
@@ -168,7 +173,7 @@ def icon(name: str) -> QIcon:
     return QIcon(f'icons:{name}.png')
 
 
-def get_steps(length: int, maximum = 100):
+def get_steps(length: int, maximum=100):
     return max(1, length / maximum)
 
 
@@ -179,6 +184,7 @@ class SQLConnection(object):
     or
         with SQLConnection(rsc('quran.db')) as db:
     """
+
     def __init__(self, c: QSqlDatabase | str):
         # we try to retrieve the db correct path if arg is string
         if isinstance(c, str):
@@ -234,7 +240,7 @@ def get_audio_inputs():
 
     filtered_devices = filter(lambda x: x['hostApi'] == max_api and x['maxInputChannels'] != 0, devices)
 
-    return {d['name']:{
+    return {d['name']: {
         'id': d['index'],
         'channels': d['maxInputChannels'],
         'sample': d['defaultSampleRate']
@@ -291,7 +297,8 @@ SHORTCUT = Shortcut_Bank()
 SHORTCUT.add(shortcut='Ctrl+N', name='new', hint='New project...', icon_name='Page')
 SHORTCUT.add(shortcut='Ctrl+O', name='open', hint='Open project...', icon_name='Open-Folder')
 SHORTCUT.add(shortcut='Ctrl+S', name='save', hint='Save project...', icon_name='Page-Save', default_state=False)
-SHORTCUT.add(shortcut='Ctrl+Shift+S', name='saveas', hint='Save as project...', icon_name='Save-As', default_state=False)
+SHORTCUT.add(shortcut='Ctrl+Shift+S', name='saveas', hint='Save as project...', icon_name='Save-As',
+             default_state=False)
 SHORTCUT.add(shortcut='Ctrl+R', name='ref', hint='Load reference...', icon_name='Book-Link')
 SHORTCUT.add(shortcut='Ctrl+Shift+D', name='digest', hint="Learn file's words...", icon_name='Agp')
 SHORTCUT.add(shortcut='Ctrl+F', name='find', hint='Search...', icon_name='Search-Plus')
@@ -323,7 +330,6 @@ SHORTCUT.add(shortcut='', name='acenter', hint='acenter', icon_name="Text-Align-
 SHORTCUT.add(shortcut='Ctrl+Shift+R', name='aright', hint='aright', icon_name="Text-Align-Right")
 SHORTCUT.add(shortcut='Ctrl+Shift+J', name='ajustify', hint='ajustify', icon_name="Text-Align-Justify")
 
-
 # LOGGING ROUTINES
 
 logger = logging.getLogger(__name__)
@@ -335,10 +341,14 @@ with open(log_file, 'wb') as lf:
     lf.flush()
 
 log_handler = logging.FileHandler(log_file)
+stream_handler = logging.StreamHandler()
 log_handler.setFormatter(logging.Formatter("%(asctime)s - [%(levelname)s] : %(message)s"))
+stream_handler.setFormatter(logging.Formatter("%(asctime)s - [%(levelname)s] : %(message)s"))
 
 # Add handlers to the logger
 logger.addHandler(log_handler)
+logger.addHandler(stream_handler)
+
 
 def function_info(func, *args, **kwargs):
     """
@@ -355,10 +365,12 @@ def function_info(func, *args, **kwargs):
 
     return f'{func.__name__} in [{func.__module__}] :: {formatted_args}'
 
+
 def log(func):
     """
     a wrapper in log level
     """
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         logger.info(function_info(func, *args, **kwargs))
@@ -367,10 +379,12 @@ def log(func):
 
     return wrapper
 
+
 def debug(func):
     """
     a wrapper in debug level
     """
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         logger.debug(function_info(func, *args, **kwargs))
@@ -379,17 +393,21 @@ def debug(func):
 
     return wrapper
 
+
 def warning(*msgs):
     logger.warning(" ".join(map(repr, msgs)))
 
+
 def error(*msgs):
     logger.error(" ".join(map(repr, msgs)))
+
 
 def exception(e: Exception):
     """
     a function to display an exception in debug level, may be implemented in every try / except
     """
     logger.warning(f'Exception ({e.__class__.__name__}) with context : "{e}"')
+
 
 def error_exception(e, tb):
     """
@@ -399,10 +417,12 @@ def error_exception(e, tb):
     """
     logger.error(''.join(traceback.format_tb(tb)) + repr(e))
 
+
 def time(func):
     """
     a wrapper in log level
     """
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         s = tm.time()

@@ -1720,7 +1720,7 @@ class LocalSettings(_Settings):
 
             @property
             def name(self):
-                return f'كتاب {self._name}'
+                return self._name
 
             def getBab(self, bid: int):
                 """
@@ -1755,7 +1755,7 @@ class LocalSettings(_Settings):
 
             @property
             def name(self):
-                return f'باب {self._name}'
+                return self._name
 
             def getHadith(self, hid: int):
                 """

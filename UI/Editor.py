@@ -498,7 +498,7 @@ class Typer(QTextEdit):
             reset_style = '<span style=""> </span>'
 
             if isinstance(obj, S.LocalSettings.BookMap.Kitab):
-                self.insertHtml(f'<span style="color:#267dff; font-weight:600;">كتاب {obj.name}</span>{reset_style}')
+                self.insertHtml(f'<span style="color:#267dff; font-weight:600;">{obj.name}</span>{reset_style}')
 
             elif isinstance(obj, S.LocalSettings.BookMap.Bab):
                 self.insertHtml(f'<span style="color:#73c3ff;">({obj.id}) {obj.name}</span>{reset_style}')
@@ -790,6 +790,7 @@ class Typer(QTextEdit):
         else:
             super().mouseReleaseEvent(e)
 
+    @G.log
     def keyPressEvent(self, e: QKeyEvent) -> None:
         """
         The main function, handle every thing when a letter is typed
@@ -959,6 +960,7 @@ class Typer(QTextEdit):
 
         # resetting timing if backspace pressed for more accurate ratio
         if key == Qt.Key.Key_Backspace and len(previous_character):
+
             if T.TEXT.is_audio_tag(previous_character):
                 super().keyPressEvent(e)
 
@@ -1638,7 +1640,7 @@ class TyperHighlighter(QSyntaxHighlighter):
         """
         Overridden QSyntaxHighlighter method to apply the highlight
         """
-        if not T.SPELL.loaded:
+        if not T.SPELL.loaded or not len(text):
             return
 
         # we define a default BlockUser State data scanning the words
