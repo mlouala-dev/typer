@@ -2,6 +2,8 @@
 """
 The Settings manager
 """
+import copy
+import functools
 import sqlite3
 import html
 import tempfile
@@ -464,7 +466,8 @@ class GlobalSettings(_Settings):
     class Corpus(QRunnable):
         name = 'Corpus'
         db_path = G.appdata_path(r"corpus.db")
-        loaded = False
+        grammar_loaded = False
+        predikt_loaded = False
 
         morphs = [
             "",
@@ -716,6 +719,45 @@ class GlobalSettings(_Settings):
                 else:
                     return 0
 
+        class Word:
+            def __init__(self, word, ancestors=('', ''), tag='', _weight=1):
+                self.word = str(word)
+                self.tag = tag
+                self._ancestors = []
+                self.tail = ''
+
+                self.weight = _weight
+
+                self.first_ancestor = ''
+                self.last_ancestor = ''
+
+                self.ancestors = list(ancestors)
+
+            @property
+            def ancestors(self):
+                return self._ancestors
+
+            @ancestors.setter
+            def ancestors(self, value: [str]):
+                self._ancestors = value
+                self.first_ancestor, self.last_ancestor = value
+                self.tail = ' '.join(value)
+
+            def __repr__(self):
+                res = f'"{self.word}" ({self.weight}) [{", ".join(map(str, self.ancestors))}]'
+                res += f' #{hash(self)}'
+
+                return res
+
+            def __hash__(self):
+                return hash(' '.join(self.ancestors) + self.word)
+
+            def __eq__(self, other):
+                if isinstance(other, GlobalSettings.Corpus.Word):
+                    return (' '.join(self.ancestors) + self.word) == (' '.join(other.ancestors) + other.word)
+
+                return False
+
         class Analyze(QRunnable):
             name = 'Analyze'
 
@@ -732,7 +774,7 @@ class GlobalSettings(_Settings):
                 return math.log10(a) / math.log10(b)
 
             def run(self):
-                if not GLOBAL.check_grammar or not GLOBAL.CORPUS.loaded:
+                if not GLOBAL.check_grammar or not GLOBAL.CORPUS.grammar_loaded:
                     self.done(self.name)
                     return
 
@@ -834,8 +876,156 @@ class GlobalSettings(_Settings):
                 self.cb(recorded)
                 self.done(self.name)
 
+        class Loader:
+            class Words(QRunnable):
+                name = 'CorpusLoaderWords'
+
+                def __init__(self, semaphore, db_path, callback):
+                    self.semaphore = semaphore
+                    self.db_path = db_path
+                    self.cb = callback
+
+                    super().__init__()
+
+                def run(self):
+                    self.semaphore.acquire()
+                    connector = sqlite3.connect(self.db_path)
+                    cursor = connector.cursor()
+
+                    data = cursor.execute(f'SELECT * FROM dict ORDER BY weight ASC').fetchall()
+                    predikt_data = cursor.execute(f'SELECT * FROM predikt WHERE w>{GlobalSettings.Corpus.level} ORDER BY w ASC').fetchall()
+                    connector.close()
+                    self.semaphore.release()
+
+                    words = {'': (0, 0, '', 0)}
+                    lemmas = {}
+                    roles = {}
+                    words_id = {}
+
+                    words.update({word_id: (word, role, lemma, weight) for word_id, word, role, lemma, weight in data})
+                    for word_id, word, role, lemma, weight in data:
+                        try:
+                            new_lemma = word if lemma in ('', 0) else (lemma if isinstance(lemma, str) else words[lemma][0])
+                            lemmas[new_lemma][role] = word_id
+                        except KeyError:
+                            lemmas[new_lemma] = {role: word_id}
+
+                        try:
+                            roles[word].append(role)
+                            words_id[word].append(word_id)
+                        except KeyError:
+                            roles[word] = [role]
+                            words_id[word] = [word_id]
+
+                    self.cb(predikt_data, words, lemmas, roles, words_id,
+                            {word_id: word for word_id, word, role, lemma, weight in data})
+
+                    self.done(self.name)
+
+            class Grammar(QRunnable):
+                name = 'CorpusLoaderGrammar'
+
+                def __init__(self, semaphore, db_path, grammar, callback):
+                    self.semaphore = semaphore
+                    self.db_path = db_path
+                    self.grammar = grammar
+                    self.cb = callback
+
+                    super().__init__()
+
+                def run(self):
+                    self.semaphore.acquire()
+                    connector = sqlite3.connect(self.db_path)
+                    cursor = connector.cursor()
+
+                    data = cursor.execute(f'SELECT * FROM grammar WHERE w>{GlobalSettings.Corpus.level}').fetchall()
+                    connector.close()
+                    self.semaphore.release()
+
+                    for x1, x2, y, z, w in data:
+                        self.grammar[x1, x2, y, z] = w
+
+                    self.done(self.name)
+
+            class PrediktAncestor(QRunnable):
+                name = 'CorpusLoaderPrediktAncestor'
+
+                def __init__(self, semaphore, db_path, callback):
+                    self.semaphore = semaphore
+                    self.db_path = db_path
+                    self.cb = callback
+
+                    super().__init__()
+
+                def run(self):
+                    self.semaphore.acquire()
+                    connector = sqlite3.connect(self.db_path)
+                    cursor = connector.cursor()
+
+                    data = cursor.execute(f'SELECT * FROM predikt WHERE w>{GlobalSettings.Corpus.level} ORDER BY w ASC').fetchall()
+                    connector.close()
+                    self.semaphore.release()
+
+                    res = {}
+
+                    for x1, x2, word_id, w in data:
+                        try:
+                            res[(x1, x2)].append(word_id)
+                        except KeyError:
+                            res[(x1, x2)] = [word_id]
+
+                    self.cb(res)
+                    self.done(self.name)
+
+            class Predikt(QRunnable):
+                name = 'CorpusLoaderPredikt'
+
+                def __init__(self, predikt_data, words, callback):
+                    self.predikt_data = predikt_data
+                    self.words = words
+                    self.cb = callback
+
+                    super().__init__()
+
+                def run(self):
+                    words_tail_last_word = {}
+                    wide_range = {}
+
+                    for x1, x2, word_id, w in self.predikt_data:
+                        try:
+                            w1, w2, y = self.words[x1][0], self.words[x2][0], self.words[word_id][0]
+                            word = GlobalSettings.Corpus.Word(y, ancestors=[w1, w2], _weight=w)
+                        except KeyError:
+                            continue
+
+                        try:
+                            if word.last_ancestor in words_tail_last_word:
+                                words_tail_last_word[word.last_ancestor].append(word)
+                            else:
+                                words_tail_last_word[word.last_ancestor] = [word]
+
+                        except IndexError:
+                            # no ancestor
+                            pass
+
+                        try:
+                            if len(word.word) <= 2:
+                                raise IndexError
+
+                            for chr in range(1, len(word.word)):
+                                if word.word[:chr] in wide_range:
+                                    wide_range[word.word[:chr]].append(word)
+                                else:
+                                    wide_range[word.word[:chr]] = [word]
+
+                        except IndexError:
+                            pass
+
+                    self.cb(words_tail_last_word, wide_range)
+                    self.done(self.name)
+
         def __init__(self):
-            self.words = {'': (0, 0, '', 0)}
+            self.words = {}
             self.lemmas = {}
             self.roles = {}
             self.words_id = {}
@@ -844,66 +1034,90 @@ class GlobalSettings(_Settings):
 
             self.grammar = np.zeros(shape=(self.size, self.size, self.size, self.size), dtype=np.int32)
 
-            self.predict = {}
             self.predict_ancestors = {}
             self.predict_after = {}
             self.predict_roles = {}
+
+            self.predikt_words_tail = {}
+            self.predikt_wide = {}
 
             self.recorded = {}
 
             super().__init__()
             self.setAutoDelete(False)
 
-        def run(self):
-            connector = sqlite3.connect(self.db_path)
-            cursor = connector.cursor()
+        def get_words_data(self, predikt_data, words, lemmas, roles, words_id, unique_words):
+            self.words.update(words)
+            self.lemmas.update(lemmas)
+            self.roles.update(roles)
+            self.words_id.update(words_id)
+            self.unique_words.update(unique_words)
 
-            all_words_request = cursor.execute(f'SELECT * FROM dict ORDER BY weight ASC').fetchall()
+            self.predict_roles.update({
+                (x1, x2, self.words[word_id][1]): word_id
+                for x1, x2, word_id, w in predikt_data
+            })
 
-            self.words.update({word_id: (word, role, lemma, weight) for word_id, word, role, lemma, weight in all_words_request})
-            for word_id, word, role, lemma, weight in all_words_request:
-                try:
-                    new_lemma = word if lemma in ('', 0) else (lemma if isinstance(lemma, str) else self.words[lemma][0])
-                    self.lemmas[new_lemma][role] = word_id
-                except KeyError:
-                    self.lemmas[new_lemma] = {role: word_id}
-
-                try:
-                    self.roles[word].append(role)
-                    self.words_id[word].append(word_id)
-                except KeyError:
-                    self.roles[word] = [role]
-                    self.words_id[word] = [word_id]
-
-            self.unique_words = {word_id: word for word_id, word, role, lemma, weight in all_words_request}
-            del all_words_request
-
-            for x1, x2, y, z, w in cursor.execute(f'SELECT * FROM grammar WHERE w>{self.level}').fetchall():
-                self.grammar[x1, x2, y, z] = w
-
-            for x1, x2, word_id, w in cursor.execute(f'SELECT * FROM predikt WHERE w>{self.level} ORDER BY w ASC').fetchall():
-                try:
-                    self.predict_ancestors[(x1, x2)].append(word_id)
-                except KeyError:
-                    self.predict_ancestors[(x1, x2)] = [word_id]
-
-            for x1, x2, word_id, w in cursor.execute(f'SELECT * FROM predikt WHERE w>{self.level} ORDER BY w ASC').fetchall():
+            for x1, x2, word_id, w in predikt_data:
                 try:
                     self.predict_after[(x1, self.words[word_id][1])].append(x2)
                 except KeyError:
                     self.predict_after[(x1, self.words[word_id][1])] = [x2]
 
-            self.predict_roles.update({
-                (x1, x2, self.words[word_id][1]): word_id
-                for x1, x2, word_id, w
-                in cursor.execute(f'SELECT * FROM predikt WHERE w>{self.level} ORDER BY w ASC').fetchall()
-            })
-            connector.close()
+            POOL.start(
+                self.Loader.Predikt(
+                    predikt_data[::-1],
+                    words,
+                    self.get_predikt_data
+                ),
+                priority=5
+            )
 
             self.recorded.clear()
+            self.grammar_loaded = True
 
-            self.loaded = True
-            self.done(self.name)
+        def get_grammar_data(self, data):
+            self.grammar = data
+
+        def get_predikt_ancestors_data(self, data):
+            self.predict_ancestors.update(data)
+
+        def get_predikt_data(self, words_tail, wide_range):
+            self.predikt_words_tail.update(words_tail)
+            self.predikt_wide.update(wide_range)
+
+            self.predikt_loaded = True
+
+        def init(self):
+            semaphore = QSemaphore(1)
+
+            POOL.start(
+                self.Loader.Words(
+                    semaphore,
+                    self.db_path,
+                    self.get_words_data
+                ),
+                priority=5
+            )
+
+            POOL.start(
+                self.Loader.Grammar(
+                    semaphore,
+                    self.db_path,
+                    self.grammar,
+                    self.get_grammar_data
+                ),
+                priority=5
+            )
+
+            POOL.start(
+                self.Loader.PrediktAncestor(
+                    semaphore,
+                    self.db_path,
+                    self.get_predikt_ancestors_data
+                ),
+                priority=5
+            )
 
         def get_word_infos(self, word):
             try:
@@ -1047,363 +1261,49 @@ class GlobalSettings(_Settings):
 
             return candidates
 
-    class Predikt(QRunnable):
-        name = 'Predikt'
-        db_path = G.appdata_path('predikt_data.db')
-        loaded = False
-        chunk_size = 1000000
-
-        class Word:
-            def __init__(self, word, ancestors=('', ''), tag='', tense=0, _weight=1):
-                self.word = str(word)
-                self.tag = tag
-                self._ancestors = []
-                self.tail = ''
-                self.tense = tense
-
-                self.weight = _weight
-
-                self.first_ancestor = ''
-                self.last_ancestor = ''
-
-                self.ancestors = list(ancestors)
-
-            @property
-            def ancestors(self):
-                return self._ancestors
-
-            @ancestors.setter
-            def ancestors(self, value: [str]):
-                self._ancestors = value
-                self.first_ancestor, self.last_ancestor = value
-                self.tail = ' '.join(value)
-
-            def __repr__(self):
-                res = f'"{self.word}" ({self.weight}) [{", ".join(map(str, self.ancestors))}]'
-
-                if self.tense != "000":
-                    res += f' = {self.tense}'
-
-                res += f' #{hash(self)}'
-
-                return res
-
-            def __hash__(self):
-                return hash(' '.join(self.ancestors) + self.word)
-
-            def __eq__(self, other):
-                if isinstance(other, GlobalSettings.Predikt.Word):
-                    return (' '.join(self.ancestors) + self.word) == (' '.join(other.ancestors) + other.word)
-
-                return False
-
-        class Loader(QRunnable):
-            name = 'PrediktLoader'
-
-            def __init__(self, semaphore, cb, offset=0):
-                self.callback = cb
-                self.offset = offset
-                self.semaphore = semaphore
-                super().__init__()
-
-            def run(self):
-                self.semaphore.acquire()
-
-                db = sqlite3.connect(GlobalSettings.Predikt.db_path)
-                database = db.execute(f'SELECT * FROM tokens WHERE weight>1 ORDER BY weight DESC LIMIT {GlobalSettings.Predikt.chunk_size} OFFSET {self.offset}').fetchall()
-                # database = db.execute(f'SELECT * FROM tokens ORDER BY weight DESC LIMIT {GlobalSettings.Predikt.chunk_size} OFFSET {self.offset}').fetchall()
-                db.close()
-
-                self.semaphore.release()
-
-                self.callback([GlobalSettings.Predikt.Word(word, ancestors=[t1, t2], _weight=weight) for
-                               word, weight, t1, t2 in database])
-                self.done(self.name)
-
-        class Digester(QRunnable):
-            name = 'PrediktDigester'
-            lower_exceptions = ('Prophète', 'Muhammad', 'Abû', 'Allah', 'Dieu', 'Coran')
-
-            cleanups = [
-                ('[\n\r]', ' '),
-                ('“', '"'),
-                ('[ḤḢḦ]', 'H'),
-                ('[ḥḣḧ]', 'h'),
-                ('[ḊḌḎḐḒ]', 'D'),
-                ('[ḋḍḏḑḓ]', 'd'),
-                ('[ṠṢṨ]', 'S'),
-                ('[ṡṣṩ]', 's'),
-                ('[ṪṬṮṰ]', 'T'),
-                ('[ṫṭṯṱ]', 't'),
-                (fr'''([{T.Regex.extra_characters}]){{2,}}''', r'\1'),
-                ('œ', 'oe'),
-                ("'’ʽ`", "'"),
-                ('–', '-')
-            ]
-
-            R_cleanups = [re.compile(a) for a, b in cleanups]
-
-            def cleanup(self, text=''):
-                for seq, eqs in zip(self.R_cleanups, self.cleanups):
-                    text = seq.sub(eqs[1], text)
-
-                return text
-
-            def __init__(self, sample, cb):
-                self.sample = sample
-                self.callback = cb
-                super().__init__()
-
-            def run(self):
-                # print(f'reading book ... {len(self.sample)}')
-                cleanup = self.cleanup(self.sample)
-
-                elements = set()
-
-                for text_block in T.Regex.Predikt_full_match.findall(cleanup):
-                    sentences = []
-
-                    for sentence in T.Regex.Predikt_hard_split.split(text_block):
-                        sentence = sentence.strip(' -')
-
-                        if len(sentence) <= 3:
-                            continue
-
-                        for exception in self.lower_exceptions:
-                            if sentence.startswith(exception):
-                                break
-                        else:
-                            sentences.append(sentence[0].lower() + sentence[1:])
-
-                    for sentence in sentences:
-                        # print(f'== {sentence}')
-
-                        words = list(filter(lambda x: len(x), T.Regex.Predikt_soft_split.split(sentence)))
-
-                        for i, word in enumerate(words):
-                            if (T.Regex.proper_nouns.match(word)
-                                or not T.Regex.Predikt_ignore_for_dictionnary.match(word)) \
-                                    and word not in T.SPELL.flat_dictionary\
-                                    or T.Regex.bad_uppercase.match(word):
-
-                                replace = ' '.join(words[i + 1:])
-
-                                sentences.append(replace)
-
-                                break
-
-                            ancestor_1, ancestor_2 = (('', '',) + tuple(words[max(0, i - 2):i]))[-2:]
-                            # print(ancestor_1, ancestor_2, word)
-
-                            obj = GlobalSettings.Predikt.Word(word, (ancestor_1, ancestor_2))
-
-                            if obj in elements:
-                                for e in elements:
-                                    if hash(obj) == hash(e):
-                                        e.weight += 1
-                                        break
-                            else:
-                                elements.add(obj)
-
-                self.callback(elements)
-                self.done(self.name)
-
-        def __init__(self):
-            self.db = sqlite3.connect(self.db_path)
-
-            self.nlp = None
-
-            self.database = []
-            self.wanted = 0
-
-            self.raw = []
-            self.words_tail_last_letter = {}
-            self.words_tail = {}
-            self.words_tail_last_word = {}
-
-            self.wide_range = {}
-            self.words = set()
-
-            super().__init__()
-
-            self.setAutoDelete(False)
-            self.preload()
-
-        def preload(self):
-            length = self.db.execute('SELECT COUNT(*) FROM tokens WHERE weight>1').fetchone()[0]
-            # length = self.db.execute('SELECT COUNT(*) FROM tokens').fetchone()[0]
-            semaphore = QSemaphore(1)
-
-            self.db.close()
-
-            for i in range(0, length, self.chunk_size):
-                POOL.start(self.Loader(semaphore, self.core_loaded, offset=i), priority=5)
-                self.wanted += 1
-
-        def core_loaded(self, database):
-            self.database.extend(database)
-            self.wanted -= 1
-
-            if not self.wanted:
-                POOL.start(self, uniq=256, priority=5)
-
-        def analyze(self, sample=''):
-            if not self.nlp or not self.loaded:
-                return
-
-        def nlp_loaded(self, nlp):
-            self.nlp = nlp
-
-        def run(self):
-            word: GlobalSettings.Predikt.Word
-
-            for word in self.database:
-                try:
-                    if word.tail[-1] in self.words_tail_last_letter:
-                        self.words_tail_last_letter[word.tail[-1]].append(word)
-                    else:
-                        self.words_tail_last_letter[word.tail[-1]] = [word]
-
-                    if word.last_ancestor in self.words_tail_last_word:
-                        self.words_tail_last_word[word.last_ancestor].append(word)
-                    else:
-                        self.words_tail_last_word[word.last_ancestor] = [word]
-
-                except IndexError:
-                    # no ancestor
-                    pass
-
-                try:
-                    if len(word.word) <= 2:
-                        raise IndexError
-
-                    for chr in range(1, len(word.word)):
-                        if word.word[:chr] in self.wide_range:
-                            self.wide_range[word.word[:chr]].append(word)
-                        else:
-                            self.wide_range[word.word[:chr]] = [word]
-
-                except IndexError:
-                    pass
-
-                if word.tail in self.words_tail:
-                    self.words_tail[word.tail].append(word)
-                else:
-                    self.words_tail[word.tail] = [word]
-
-            self.database.clear()
-            self.loaded = True
-
-            self.done(self.name)
-
-        def predict(self, ancestor_1, ancestor_2, word, tense=None):
-            if not self.loaded:
+        def predict(self, w1, w2, word, greedy=True):
+            if not self.predikt_loaded:
                 return ''
 
-            def sort_by_tense(elements):
-                if tense:
-                    elements.sort(key=lambda x: x.tense != tense)
+            res = ''
+            tail = ' '.join((w1, w2,))
 
-            tail = ' '.join((ancestor_1, ancestor_2,))
-
-            def filter_by_tail(elements):
-                for element in elements:
-                    if element.tail.endswith(tail):
-                        return [element]
-
-                return []
-
-            def filter_by_head(elements):
-                for element in elements:
-                    if element.word.startswith(word):
-                        return [element]
-
-                return []
-
-            # print(f'trying to predict... "{tail}"..."{word}"', f' (preferring {tense} tense)' if tense else '')
-
-            results = []
-            target = self.Word(word, (ancestor_1, ancestor_2))
-
-            go_tail = False
+            # print(f'trying to predict... "{tail}"..."{word}"')
 
             try:
-                candidates = self.wide_range[word]
+                candidates = self.predikt_wide[word]
                 # sort_by_tense(candidates)
                 results = filter(lambda x: x.tail.endswith(tail), candidates)
 
-                if not any(results):
-                    results = [candidates[0]]
+                try:
+                    res = next(results).word
+
+                except StopIteration:
+                    if not greedy:
+                        raise KeyError
 
             except KeyError:
                 # print("= CANT FIND WORD AND TAIL")
                 # both word first letter and tail can't be found
 
                 try:
-                    candidates = self.words_tail_last_word[target.last_ancestor]
+                    target = self.Word(word, (w1, w2))
+                    candidates = self.predikt_words_tail[target.last_ancestor]
                     # sort_by_tense(candidates)
                     results = filter(lambda x: x.word.startswith(word), candidates)
 
+                    try:
+                        res = next(results).word
+
+                    except StopIteration:
+                        res = self.predikt_wide[word][0].word
+                        raise KeyError
+
                 except (IndexError, KeyError):
-                    go_tail = True
+                    pass
                     # print('CANT FIND LAST ANCESTOR ONLY')
 
-            if go_tail:
-                try:
-                    results = self.words_tail[tail]
-
-                except KeyError:
-                    # print("=== CANT FIND WORD TAIL")
-                    try:
-                        candidates = self.words_tail_last_letter[tail[-1]]
-                        results = filter(lambda x: x.tail.endswith(tail), candidates)
-                        # sort_by_tense(results)
-
-                    except IndexError:
-                        # print('==== NO TAIL LENGTH')
-                        pass
-
-                    except KeyError:
-                        # print("==== CANT FIND WORD LAST LETTER")
-                        pass
-
-            try:
-                return next(results).word
-            except StopIteration:
-                return ''
-            except TypeError:
-                return results[0].word
-
-        def digest(self, text=''):
-            POOL.start(self.Digester(text, self.apply_to_db))
-
-        def apply_to_db(self, elements):
-            db = sqlite3.connect(self.db_path)
-            cursor = db.cursor()
-
-            news, updates = 0, 0
-
-            for element in elements:
-                try:
-                    cursor.execute('INSERT INTO tokens (word, weight, ancestor_1, ancestor_2) VALUES (?, ?, ?, ?)',
-                                   (element.word, element.weight, element.first_ancestor, element.last_ancestor))
-                    news += 1
-
-                except sqlite3.IntegrityError:
-                    res = cursor.execute('SELECT weight FROM tokens WHERE word=? AND ancestor_1=? AND ancestor_2=?',
-                                         (element.word, element.first_ancestor, element.last_ancestor))
-                    element.weight += res.fetchone()[0]
-                    cursor.execute('UPDATE tokens SET weight=? WHERE word=? AND ancestor_1=? AND ancestor_2=?',
-                                   (element.weight, element.word, element.first_ancestor, element.last_ancestor))
-                    updates += 1
-
-                except sqlite3.OperationalError:
-                    return self.apply_to_db(elements)
-
-            db.commit()
-            db.close()
-
-            self.core_loaded(elements)
+            return res
 
     themes = {
         'dark': Dark(),
@@ -1432,10 +1332,9 @@ class GlobalSettings(_Settings):
     step = pyqtSignal(int, str)
     loaded = pyqtSignal()
 
-    def __init__(self, PREDIKT):
+    def __init__(self):
         self.QURAN = GlobalSettings.Quran()
         self.LEXICON = None
-        self.PREDIKT = PREDIKT
         self.CORPUS = GlobalSettings.Corpus()
 
         super().__init__()
@@ -1491,7 +1390,6 @@ class GlobalSettings(_Settings):
             self.AUDIOMAP = Audio.AudioMap(self.audio_record_path)
 
     def loadSettings(self):
-        POOL.start(self.CORPUS)
         settings = self.loadCoreSettings()
         # closing file if other instance needs it
         self.db.close()
@@ -1527,6 +1425,7 @@ class GlobalSettings(_Settings):
         self.font_size = int(settings['font_size'])
         G.__font_size__ = self.font_size
 
+        self.CORPUS.init()
         self.check_grammar = bool(settings['check_grammar'])
 
         self.loaded.emit()
@@ -2379,9 +2278,9 @@ class LocalSettings(_Settings):
         return bool(self.PDF)
 
 
-PREDIKT = GlobalSettings.Predikt()
-GLOBAL = GlobalSettings(PREDIKT)
+GLOBAL = GlobalSettings()
 LOCAL = LocalSettings()
+
 
 if __name__ == "__main__":
     d = LOCAL.Dict()

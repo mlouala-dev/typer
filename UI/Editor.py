@@ -83,9 +83,15 @@ class Typer(QTextEdit):
             border-bottom-right-radius:3px;
         }
         """)
-        graph = QGraphicsOpacityEffect(self)
-        graph.setOpacity(0.9)
-        self.WL_autoComplete.setGraphicsEffect(graph)
+
+        def opacity_effect(opacity=1.0):
+            effect = QGraphicsOpacityEffect(self)
+            effect.setOpacity(opacity)
+            return effect
+
+        self.WL_autoComplete_effect = partial(opacity_effect, .9)
+        self.WL_autoComplete_lighteffect = partial(opacity_effect, .3)
+        self.WL_autoComplete.setGraphicsEffect(self.WL_autoComplete_effect())
 
         # we should never need a horizontal scrollbar since the text is wrapped
         self.horizontalScrollBar().setDisabled(True)
@@ -562,6 +568,58 @@ class Typer(QTextEdit):
         # insert the new char
         self.textCursor().insertHtml(res)
 
+    def displayPrediction(self):
+        tc = self.textCursor()
+        tc.select(tc.SelectionType.WordUnderCursor)
+        self.word = tc.selectedText()
+
+        # print('CURRENT WORD', self.word)
+        tc = self.textCursor()
+        tc.movePosition(tc.MoveOperation.StartOfBlock, tc.MoveMode.KeepAnchor, 1)
+        # print('PREVIOUS 2 WORDS', tc.selectedText())
+        # previous two words
+        last_words = tc.selectedText()
+
+        try:
+            hard_split = T.Regex.Predikt_hard_split.split(last_words)[-1]
+            hard_split = hard_split[0].lower() + hard_split[1:]
+            words = T.Regex.Predikt_soft_split.split(hard_split)
+            words_tuple = (('', '',) + tuple(words))[-3:]
+            tail, word = words_tuple[:-1] + ('', '',), words_tuple[-1]
+
+            assert (not T.Regex.Predikt_ignore_token.match(''.join(tail + (word,))))
+            candidate = S.GLOBAL.CORPUS.predict(*tail[:2], word, not len(self.word))
+
+        except (AssertionError, IndexError):
+            candidate, word = None, self.word
+
+        if word in self.prophet_match:
+            candidate = f'{word} ﷺ'
+        elif word in self.Allah_match:
+            candidate = f'{word} ﷻ'
+
+        # if there is a candidate, we draw the autocomplete_label
+        # we also require that the next character is a new word character (' ' or ", etc...)
+        # OR that the cursor is at the end of the line
+        if candidate:
+            rect = self.cursorRect(self.textCursor())
+            res = candidate[len(word):]
+
+            # placing the label where the textCursor is
+            self.WL_autoComplete.setFont(tc.charFormat().font())
+            fm = QFontMetrics(self.WL_autoComplete.font())
+            w = fm.boundingRect(res).width() + 10
+
+            rect.setWidth(w)
+            rect.translate(2, 0)
+            self.WL_autoComplete.setGeometry(rect)
+            self.WL_autoComplete.setText(res)
+            self.WL_autoComplete.show()
+
+        # if no candidate, hiding
+        else:
+            self.WL_autoComplete.hide()
+
     @staticmethod
     def correctWord(action: QAction):
         """
@@ -717,7 +775,7 @@ class Typer(QTextEdit):
         # looping through items
         for solution in terms:
             action = QAction(solution, menu)
-            action.triggered.connect(self.correctWord)
+            action.triggered.connect(partial(self.correctWord, action))
             # adding the cursor as a userData
             action.setData((cursor, solution))
             menu.addAction(action)
@@ -985,7 +1043,7 @@ class Typer(QTextEdit):
                 #     # and imports all word to our frequency list
                 #     # we split the paragraph in phrase, so the previous word suggestion will be coherent
                 #     S.LOCAL.DICT.digest(tc.selectedText().replace("\u2029", ""))
-                S.GLOBAL.PREDIKT.digest(tc.selectedText().replace("\u2029", ""))
+                # S.GLOBAL.PREDIKT.digest(tc.selectedText().replace("\u2029", ""))
 
                 # forward to superclass
                 tc = self.textCursor()
@@ -1191,59 +1249,8 @@ class Typer(QTextEdit):
             super().keyPressEvent(e)
 
         if self.auto_complete_available:
-            tc = self.textCursor()
-            tc.select(tc.SelectionType.WordUnderCursor)
-            self.word = tc.selectedText()
-
-            # print('CURRENT WORD', self.word)
-            tc = self.textCursor()
-            tc.movePosition(tc.MoveOperation.StartOfBlock, tc.MoveMode.KeepAnchor, 1)
-            # print('PREVIOUS 2 WORDS', tc.selectedText())
-            # previous two words
-            last_words = tc.selectedText()
-
-            try:
-                hard_split = T.Regex.Predikt_hard_split.split(last_words)[-1]
-                hard_split = hard_split[0].lower() + hard_split[1:]
-                words = T.Regex.Predikt_soft_split.split(hard_split)
-                words_tuple = (('', '',) + tuple(words))[-3:]
-                tail, word = words_tuple[:-1] + ('', '',), words_tuple[-1]
-
-                assert (len(self.word))
-                assert (not T.Regex.Predikt_ignore_token.match(''.join(tail + (word,))))
-                candidate = S.GLOBAL.PREDIKT.predict(*tail[:2], word)
-
-            except (AssertionError, IndexError):
-                candidate, word = None, self.word
-
-            # print(candidate)
-
-            if word in self.prophet_match:
-                candidate = f'{word} ﷺ'
-            elif word in self.Allah_match:
-                candidate = f'{word} ﷻ'
-
-            # if there is a candidate, we draw the autocomplete_label
-            # we also require that the next character is a new word character (' ' or ", etc...)
-            # OR that the cursor is at the end of the line
-            if candidate:
-                rect = self.cursorRect(self.textCursor())
-                res = candidate[len(word):]
-
-                # placing the label where the textCursor is
-                self.WL_autoComplete.setFont(tc.charFormat().font())
-                fm = QFontMetrics(self.WL_autoComplete.font())
-                w = fm.boundingRect(res).width() + 10
-
-                rect.setWidth(w)
-                rect.translate(2, 0)
-                self.WL_autoComplete.setGeometry(rect)
-                self.WL_autoComplete.setText(res)
-                self.WL_autoComplete.show()
-
-            # if no candidate, hiding
-            else:
-                self.WL_autoComplete.hide()
+            self.WL_autoComplete.setGraphicsEffect(self.WL_autoComplete_effect())
+            self.displayPrediction()
 
         # finally, if Tab was pressed and there is an auto complete suggestion active
         if key == Qt.Key.Key_Tab and self.auto_complete_available and self.WL_autoComplete.isVisible():
@@ -1251,8 +1258,8 @@ class Typer(QTextEdit):
             self.insertPlainText(self.WL_autoComplete.text())
 
             # resetting the auto_complete label
-            self.WL_autoComplete.setText('')
-            self.WL_autoComplete.hide()
+            # self.WL_autoComplete.setText('')
+            # self.WL_autoComplete.hide()
             self.word = ""
 
             # update cursor
@@ -1267,6 +1274,8 @@ class Typer(QTextEdit):
                 self.insertPlainText(" ")
 
             self.new_word = True
+            self.WL_autoComplete.setGraphicsEffect(self.WL_autoComplete_lighteffect())
+            self.displayPrediction()
             # self.guessTense()
 
         # if there is a character we update the changed state

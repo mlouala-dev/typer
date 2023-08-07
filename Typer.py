@@ -865,7 +865,7 @@ class TyperWIN(QMainWindow):
                         if T.SPELL.block_check(line):
                             content.append(line)
 
-                    S.LOCAL.DICT.digest('\n'.join(content))
+                    # S.LOCAL.DICT.digest('\n'.join(content))
 
             self.updateStatus(90, 'Saving')
 
