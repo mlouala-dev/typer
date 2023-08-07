@@ -1366,6 +1366,8 @@ class Typer(QTextEdit):
             if block_audio > -1:
                 paragraph_realtime = T.HTML.paragraphTime(html_block)
                 A_openAudioAtTime = QAction(f"Open audio at time", M_main)
+                A_openAudioAtTime.setIcon(G.icon('Sound'))
+
                 A_openAudioAtTime.triggered.connect(partial(S.GLOBAL.AUDIOMAP.play, block_audio, paragraph_realtime))
                 M_main.insertAction(M_main.actions()[0], A_openAudioAtTime)
 
@@ -1374,6 +1376,7 @@ class Typer(QTextEdit):
             paragraph_time = strftime('%Y-%m-%d %H:%M:%S', localtime(paragraph_realtime))
 
             A_editDateTime = QAction('Edit datetime anchor', M_main)
+            A_editDateTime.setIcon(G.icon('Calendar-Edit'))
 
             def edit_paragraph_time():
                 epoch, ok = DateTimePickerDialog.getDateTime(t=paragraph_realtime)
@@ -1393,13 +1396,11 @@ class Typer(QTextEdit):
 
             A_editDateTime.triggered.connect(edit_paragraph_time)
             M_main.insertAction(M_main.actions()[0], A_editDateTime)
-
-            A_dateTime = QAction(f"Datetime : {paragraph_time}", M_main)
-            A_dateTime.setDisabled(True)
-            M_main.insertAction(M_main.actions()[0], A_dateTime)
+            M_main.insertSection(M_main.actions()[0], f"Datetime : {paragraph_time}")
 
         else:
             A_setDateTime = QAction('Set datetime anchor', M_main)
+            A_setDateTime.setIcon(G.icon('Calendar-Add'))
 
             def edit_paragraph_time():
                 epoch, ok = DateTimePickerDialog.getDateTime()
@@ -1455,6 +1456,8 @@ class Typer(QTextEdit):
 
             # adding the remove audio menu
             A_removeAudio = QAction('Remove audio', M_main)
+            A_removeAudio.setIcon(G.icon('Sound-Delete'))
+
             A_removeAudio.triggered.connect(partial(removeAudio, audio_path, pos))
             M_main.insertAction(M_main.actions()[0], A_removeAudio)
 
@@ -1465,12 +1468,11 @@ class Typer(QTextEdit):
                 real_time = S.GLOBAL.audio_record_epoch + int(audio_file)
             time_str = strftime('%Y-%m-%d %H:%M:%S', localtime(real_time))
             A_openAudio = QAction(f'Open audio ({time_str})', M_main)
+            A_openAudio.setIcon(G.icon('Speakers'))
+
             A_openAudio.triggered.connect(lambda: os.startfile(audio_path))
             M_main.insertAction(M_main.actions()[0], A_openAudio)
-
-            AS_audioRecord = QAction('Audio Record', M_main)
-            AS_audioRecord.setDisabled(True)
-            M_main.insertAction(M_main.actions()[0], AS_audioRecord)
+            M_main.insertSection(M_main.actions()[0], 'Audio Record')
 
         checked = T.SPELL.word_check(text)
 
@@ -1481,10 +1483,12 @@ class Typer(QTextEdit):
         if block.userData().state == G.State_Correction and not checked:
             # we add suggestions for the given word
             M_suggestions = QMenu(f'Suggestions for "{text}"', M_main)
+            M_suggestions.setIcon(G.icon('List'))
             cnt = self.buildSpellMenu(text, tc, M_suggestions)
 
             # add the word to the dictionary if it's not (flagged as incorrect means its not in the dictionary
             A_addWord = QAction(f'Add "{text}" to dictionary', M_main)
+            A_addWord.setIcon(G.icon('Textfield-Add'))
             A_addWord.setData(text)
             M_main.insertAction(M_main.actions()[0], A_addWord)
             A_addWord.triggered.connect(partial(T.SPELL.add, text))
@@ -1507,6 +1511,7 @@ class Typer(QTextEdit):
                 original_tc.select(QTextCursor.SelectionType.WordUnderCursor)
 
                 M_grammar = QMenu(f'Grammar for "{text}"', M_main)
+                M_grammar.setIcon(G.icon('Text-Letter-Omega'))
 
                 if len(solutions['lemma']):
                     M_grammar.addSeparator()
@@ -1533,6 +1538,7 @@ class Typer(QTextEdit):
                     )
 
                 A_upvote_grammar = QAction('Upvote grammar')
+                A_upvote_grammar.setIcon(G.icon('Thumb-Up'))
                 A_upvote_grammar.triggered.connect(partial(
                     self.upvoteGrammar,
                     S.GLOBAL.CORPUS.get_solution(x1, x2, y, z),
@@ -1545,6 +1551,7 @@ class Typer(QTextEdit):
         if checked:
             # adding synonyms suggestions
             M_synonyms = QMenu(f'Synonyms for "{text}"', M_main)
+            M_synonyms.setIcon(G.icon('Text-Letterspacing'))
             cnt = self.buildSynMenu(text, tc, M_synonyms)
 
             # if we got some synonyms
@@ -1559,14 +1566,12 @@ class Typer(QTextEdit):
             # if selection is a verb, display the menu...
             if is_verb:
                 A_conjugate = QAction('Conjugate...', M_main)
+                A_conjugate.setIcon(G.icon('Table-Sum'))
                 A_conjugate.triggered.connect(partial(self.openConjugate, tc, is_verb[0]))
                 M_main.insertAction(M_main.actions()[0], A_conjugate)
 
         # adding a section "Edit" for suggestion, dictionary ops
-        M_main.insertSeparator(M_main.actions()[0])
-        AS_audioRecord = QAction('Lang', M_main)
-        AS_audioRecord.setDisabled(True)
-        M_main.insertAction(M_main.actions()[0], AS_audioRecord)
+        M_main.insertSection(M_main.actions()[0], 'Lang')
 
         # displaying the final popup menu
         M_main.exec(global_pos)
