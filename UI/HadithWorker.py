@@ -239,7 +239,6 @@ class HadithSearch(QDialog):
         self.sub_layout.addWidget(self.result_view)
         self.result_view.setColumnCount(4)
         # self.result_view.header().cascadingSectionResizes()
-        self.setMinimumWidth(800)
 
         self.progress = QProgressBar()
         self.progress.setFixedHeight(5)
@@ -267,11 +266,6 @@ class HadithSearch(QDialog):
         hadith_model = HtmlModelItem(font=self.arabic_font)
         latin_model = AyatModelItem(font=self.latin_font)
         self.result_view.applyModels((latin_model, latin_model, hadith_model, arabic_model))
-
-        self.result_view.setColumnWidth(0, 50)
-        self.result_view.setColumnWidth(1, 40)
-        self.result_view.setColumnWidth(2, self.result_view.width() - 200)
-        self.result_view.setColumnWidth(3, 110)
 
     def itemClicked(self, item: QTreeWidgetItem, column: int):
         hadith: Hadith
@@ -307,11 +301,6 @@ class HadithSearch(QDialog):
 
     def searchResults(self):
         hadiths = self.hadiths
-
-        self.result_view.setColumnWidth(0, 50)
-        self.result_view.setColumnWidth(1, 40)
-        self.result_view.setColumnWidth(2, self.result_view.width() - 200)
-        self.result_view.setColumnWidth(3, 110)
 
         if self.filters[-1]:
             hadiths = filter(lambda x: x.book == self.filters[-1], hadiths)
@@ -378,13 +367,22 @@ class HadithSearch(QDialog):
     def closeEvent(self, a0: QCloseEvent) -> None:
         self.search_field.setText('')
         self.result_label.setText('')
+        self.WC_book_filter.setCurrentIndex(0)
+        self.WC_person_filter.setCurrentIndex(0)
+        self.WC_location_filter.setCurrentIndex(0)
+        self.WC_event_filter.setCurrentIndex(0)
         self.result_view.clear()
 
-        super(HadithSearch, self).closeEvent(a0)
+        super().closeEvent(a0)
 
     def show(self):
-        super(HadithSearch, self).show()
+        super().show()
         self.search_field.setFocus()
+
+        self.result_view.setColumnWidth(0, 50)
+        self.result_view.setColumnWidth(1, 40)
+        self.result_view.setColumnWidth(2, self.result_view.width() - 200)
+        self.result_view.setColumnWidth(3, 110)
 
 
 if __name__ == "__main__":
