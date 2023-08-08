@@ -3,6 +3,7 @@ from transformers import AutoModelForTokenClassification, AutoTokenizer
 from transformers import pipeline
 from hadith_ner_helper import split_sentences
 import sqlite3
+import re
 
 # Load the model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -10,6 +11,21 @@ tokenizer = AutoTokenizer.from_pretrained("hatmimoha/arabic-ner")
 model = AutoModelForTokenClassification.from_pretrained("hatmimoha/arabic-ner")
 
 nlp = pipeline("ner", model=model, tokenizer=tokenizer)
+
+arabic_harakat = re.compile(r"[ًٌٍَُِْ~ّ]")
+arabic_hamzas = re.compile(r'[أإآ]')
+
+
+def clean_harakats(text):
+    return arabic_harakat.sub('', text)
+
+
+def reformat_hamza(text):
+    return arabic_hamzas.sub('ا', text).replace('ٓ', '')
+
+
+def clean(text):
+    return clean_harakats(reformat_hamza(text))
 
 
 book = 'mishkat'
@@ -36,8 +52,22 @@ entities = [Entity(i, n, d) for i, n, d in d_cursor.execute('SELECT * FROM entit
 print('PRELOADED', len(entities))
 
 
+replace_list = [
+    ('^بن ', 'ابن '),
+    (' بن ', ' ابن '),
+    ('^ابي ', 'ابو '),
+    ('^لابي ', 'ابو '),
+    ('^ابا ', 'ابو '),
+]
+
+
 def add_entity(entity: Entity):
+    entity.name = entity.name.replace('##', '')
+
     if len(entity.name):
+        for rep in replace_list:
+            entity.name = re.sub(*rep, entity.name)
+
         if entity not in entities:
             entities.append(entity)
         else:
@@ -77,8 +107,9 @@ book_id = d_cursor.execute('SELECT id FROM books WHERE name=?', (book,)).fetchon
 
 hadiths = cursor.execute('SELECT id, hadith, grade FROM bm_ahadith').fetchall()
 
+
 for idx, text, grade in hadiths:
-    sentences = split_sentences(text)
+    sentences = split_sentences(clean(text))
     try:
         annotations = nlp(sentences)
     except RuntimeError:
@@ -98,7 +129,7 @@ for idx, text, grade in hadiths:
     current_entity = Entity()
 
     for token in tokens:
-        if token['word'] in ('ﷺ', 'ﷻ'):
+        if 'ﷺ' in token['word'] or 'ﷻ' in token['word']:
             continue
 
         if token['entity'].startswith('B-'):

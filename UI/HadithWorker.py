@@ -352,7 +352,7 @@ class HadithSearch(QDialog):
                )
 
                 # h_ar = math.floor(.8 * fm_ar.horizontalAdvance(hadith_ar) / self.result_view.columnWidth(0))
-                item.setData(0, Qt.ItemDataRole.UserRole, hid)
+                item.setData(0, Qt.ItemDataRole.UserRole, self.hadiths.index(hadith))
                 item.setSizeHint(2, QSize(self.result_view.columnWidth(2), rect.height() + fm_ar.height()))
                 result_count += 1
 
