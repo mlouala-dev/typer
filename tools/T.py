@@ -28,6 +28,9 @@ class Regex:
     arabic_aliflam = re.compile(r"^ال")
     arabic_harakat = re.compile(r"[ًٌٍَُِْ~ّ]")
     arabic_hamzas = re.compile(r'[أإآ]')
+    simple_quotes = re.compile(r"[’ʽ]")
+    double_quotes = re.compile(r"[«»]")
+    match_SAWS = re.compile(r"\s?-?صلى الله عليه وسلم-?\s?")
 
     uppercases = "".join([chr(i) for i in range(sys.maxunicode) if chr(i).isupper()])
     proper_nouns = re.compile('^[{}]'.format(uppercases))
@@ -425,13 +428,20 @@ class ArabicOperator:
     hurufs = frozenset('ذضصثقفغعهخحجدشسيبلاتنمكطئءؤرىةوزظإأـ')
     digits = list("٠١٢٣٤٥٦٧٨٩")
 
-    def clean_harakats(self, text):
+    @staticmethod
+    def clean_harakats(text):
         return Regex.arabic_harakat.sub('', text)
 
-    def reformat_hamza(self, text):
+    @staticmethod
+    def reformat_hamza(text):
         return Regex.arabic_hamzas.sub('ا', text).replace('ٓ', '')
 
-    def clean_alif_lam(self, text):
+    @staticmethod
+    def clean(text):
+        return ArabicOperator.clean_harakats(ArabicOperator.reformat_hamza(text))
+
+    @staticmethod
+    def clean_alif_lam(text):
         return Regex.arabic_aliflam.sub('', text)
 
     def wide_arabic_pattern(self, needle):

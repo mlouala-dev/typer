@@ -5,7 +5,7 @@ Some very basic elements used by the UI
 import win32api
 
 from PyQt6.QtCore import *
-from PyQt6.QtGui import QColor, QTextOption, QFont, QPainter, QKeyEvent, QFontMetrics, QFocusEvent
+from PyQt6.QtGui import QColor, QTextOption, QFont, QPainter, QKeyEvent, QFontMetrics, QFocusEvent, QTextDocument
 from PyQt6.QtWidgets import *
 
 
@@ -39,6 +39,7 @@ class AyatModelItem(QStyledItemDelegate):
 
     to = QTextOption()
     to.setTextDirection(Qt.LayoutDirection.RightToLeft)
+    to.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
     to.setWrapMode(to.WrapMode.WordWrap)
 
     def __init__(self, parent=None, font=QFont()):
@@ -56,8 +57,7 @@ class AyatModelItem(QStyledItemDelegate):
         painter.setPen(self.color)
         newrect = QRectF(option.rect)
         newrect.setY(newrect.y() + self.font.pointSize() - 10)
-        newrect.translate(10, 0)
-        newrect.setWidth(newrect.width() - 20)
+        newrect.setWidth(newrect.width())
 
         painter.drawText(newrect, index.data(), option=self.to)
 
@@ -146,6 +146,35 @@ class NumberModelItem(QStyledItemDelegate):
         # apply QPainter
         painter.save()
 
+
+class HtmlModelItem(QStyledItemDelegate):
+    def __init__(self, parent=None, font=QFont()):
+        super().__init__(parent)
+        self.font = font
+
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex):
+        # getting the row alternate background color
+        bg = get_item_color(index.row(), option.state)
+        td = QTextDocument()
+        td.setDefaultFont(self.font)
+        td.setHtml(index.data())
+
+        # drawing with QPainter
+        painter.fillRect(option.rect, bg)
+        painter.setFont(self.font)
+
+        newrect = QRectF(option.rect)
+        newrect.setY(newrect.y() + self.font.pointSize() - 10)
+        newrect.translate(10, 0)
+        # newrect.setWidth(newrect.width() - 20)
+        painter.translate(option.rect.topLeft())
+        td.setPageSize(newrect.size())
+        # painter.drawText(newrect, index.data(), option=self.to)
+        td.drawContents(painter)
+
+        # apply QPainter
+        painter.translate(-option.rect.topLeft())
+        painter.save()
 
 class LineLayout(QHBoxLayout):
     """
@@ -270,8 +299,11 @@ class ArabicField(SearchField):
 
     def focusInEvent(self, a0: QFocusEvent) -> None:
         win32api.LoadKeyboardLayout('00000401', 1)
+        a0.accept()
         super().focusInEvent(a0)
 
     def focusOutEvent(self, a0: QFocusEvent) -> None:
         win32api.LoadKeyboardLayout('0000040c', 1)
+        a0.accept()
         super().focusOutEvent(a0)
+

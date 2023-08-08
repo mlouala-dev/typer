@@ -1,93 +1,134 @@
 # بسم الله الرحمان الرحيم
 import math
-import win32api
 import sqlite3
 import re
+from functools import partial
 
 from PyQt6.QtSql import QSqlDatabase
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
 from PyQt6.QtCore import *
 
-from UI.BasicElements import ListWidget, ArabicField, LineLayout, AyatModelItem, MultiLineModelItem
+from UI.BasicElements import (
+    ListWidget, ArabicField, LineLayout,
+    AyatModelItem, MultiLineModelItem, NumberModelItem, HtmlModelItem
+)
 from tools import G, S, T
 
 
+class Book:
+    def __init__(self, idx: int = 0, name: str = ''):
+        self.id = idx
+        self.name = name
+
+    def __lt__(self, other):
+        return self.name < other.name
+
+    def __gt__(self, other):
+        return self.name > other.name
+
+
+class Entity:
+    def __init__(self, idx: int = 0, name: str = '', type: int = -1):
+        self.id = idx
+        self.name = name
+        self.type = type
+
+    def __hash__(self):
+        return hash(self.name)
+
+    def __lt__(self, other):
+        return self.name < other.name
+
+    def __gt__(self, other):
+        return self.name > other.name
+
+
 class Hadith:
-    def __init__(self, hid: int = 0, hadith: str = '', rawi: str = '', grade: str = ''):
+    def __init__(self, hid: int, hadith: str, grade: str, book: Book, entities: set):
         self.id = hid
+
         self.hadith = self.clean(hadith)
-        self.light_hadith = self.clean(T.Arabic.clean_harakats(hadith))
-        self.rawi = rawi
+        self.light = T.Arabic.clean(self.hadith)
+        self.html = self.light
+
         self.grade = grade
+        self.book = book
 
-        # the translated version
-        self.hadith_trad = ''
-        self.rawi_trad = ''
-        self.grade_trad = ''
-
-    def addTranslation(self, hadith: str = '', rawi: str = '', grade: str = ''):
-        self.hadith_trad = self.cleanTranslation(hadith) if hadith else ''
-        self.rawi_trad = self.cleanTranslation(rawi) if rawi else ''
-        self.grade_trad = grade if grade else ''
-
-    def clean(self, text: str):
-        hadith = text.replace("’", "'")
-        hadith = hadith.replace("ʽ", "'")
-        hadith = hadith.replace("-صلى الله عليه وسلم-", "ﷺ")
-        return hadith
-
-    def cleanTranslation(self, text: str):
-        hadith = re.sub(r"[Ḥḥ]", "H", self.clean(text))
-        hadith = re.sub(r"[Ḍḍ]", "D", hadith)
-        hadith = re.sub(r"[Ṭṭ]", "T", hadith)
-        hadith = re.sub(r"[Ẓẓ]", "Z", hadith)
-        hadith = re.sub(r"[Ṣṣ]", "S", hadith)
-        hadith = hadith.replace("(sur lui la paix et le salut)", "ﷺ")
-        return hadith
-
-    def _source(self):
-        return self.hadith, f'رواه {self.rawi}', self.grade
-
-    def _translation(self):
-        return self.hadith_trad, f'Rapporté par {self.rawi_trad}' if len(self.rawi_trad) else '', self.grade_trad
+        self.entities = entities
 
     @staticmethod
-    def formatPlainText(h, r, g):
-        return f'{h} {r} ({g})'
+    def clean(text: str):
+        hadith = T.Regex.simple_quotes.sub("'", text)
+        hadith = T.Regex.double_quotes.sub('"', hadith)
+        hadith = T.Regex.match_SAWS.sub(" ﷺ ", hadith)
 
-    @staticmethod
-    def formatHtml(h, r, g):
-        h = re.sub(r"« (.*?) »", r'<b>"\1"</b>', h)
-        h = re.sub(r"\{ (.*) \}", r'''<span style="font-weight:600; color:#169b4c;">﴾ \1 ﴿</span>''', h)
-        h = re.sub(r"\{\( (.*) \)\}", r'''<span style="font-weight:600; color:#169b4c;">﴾ \1 ﴿</span>''', h)
-        return f'''{h} {r} <i>({g})</i>'''
+        return hadith
 
     def toPlainText(self):
-        return Hadith.formatPlainText(*self._source())
-
-    def toTranslatedPlainText(self):
-        return Hadith.formatPlainText(*self._translation())
+        return f'{self.hadith} ({self.grade})'
 
     def toHtml(self):
-        return Hadith.formatHtml(*self._source())
+        return f'{self.html}<i>({self.grade})</i>'
 
-    def toTranslatedHtml(self):
-        return Hadith.formatHtml(*self._translation())
+    def hasEntity(self, entity: Entity):
+        return entity in self.entities
 
     def __contains__(self, item):
         # we check first character, if arabic we search in the source text,
         # otherwise the translation
-        if item[0] in T.Arabic.hurufs:
-            return T.Arabic.clean_harakats(item) in self.light_hadith
-        else:
-            return item in self.hadith_trad
+        return T.Arabic.clean(item) in self.light
 
-    def hasRawi(self, needle):
-        if needle[0] in T.Arabic.hurufs:
-            return T.Arabic.clean_harakats(needle) in self.rawi
+
+class EntityFilter(QComboBox):
+    entitySelected = pyqtSignal(int, int)
+    filterCleared = pyqtSignal(int)
+
+    def __init__(self, arabic: bool = True, type: int = -1):
+        self.type = type
+        self.filter_active = False
+
+        super().__init__()
+        self.addItem('')
+
+        self.setEditable(True)
+        self.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+
+        if arabic:
+            edit = ArabicField()
+            self.setLineEdit(edit)
+            edit.setCompleter(self.completer())
         else:
-            return needle in self.rawi_trad
+            self.lineEdit().setTextMargins(20, 0, 0, 0)
+
+        self.completer().setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+
+        self.reset = QPushButton(self)
+        self.reset.setIcon(G.icon('Cross'))
+        self.reset.setVisible(False)
+        self.reset.clicked.connect(self.setCurrentIndex)
+
+        self.editTextChanged.connect(self.reset_visibility)
+        self.currentIndexChanged.connect(self.entitySelectionChanged)
+
+    def reset_visibility(self, text: str):
+        self.filter_active = bool(len(text))
+        self.reset.setVisible(self.filter_active)
+        self.setStyleSheet('border: 2px solid #45ACEF;' if self.filter_active else '')
+
+        if not self.filter_active:
+            self.filterCleared.emit(self.type)
+
+    def addEntities(self, entities: [Entity]):
+        for entity in sorted(entities):
+            self.addItem(entity.name, entity.id)
+
+    def entitySelectionChanged(self, idx):
+        if idx:
+            self.entitySelected.emit(
+                self.itemData(idx, Qt.ItemDataRole.UserRole),
+                self.type
+            )
 
 
 class HadithSearch(QDialog):
@@ -97,36 +138,46 @@ class HadithSearch(QDialog):
     result_click = pyqtSignal(str)
     goto = pyqtSignal(int)
 
-    class Worker(QRunnable):
-        name = 'HadithSearch'
+    class Loader(QRunnable):
+        name = 'LoaderHadith'
 
-        def __init__(self, callback_fn, start=0, end=0):
+        def __init__(self, cb):
             super().__init__()
-
-            self.bounds = (start, end)
-
-            self.callback_fn = callback_fn
-            self.hadiths = []
+            self.cb = cb
 
         def run(self):
+            hadiths = []
+
             db = sqlite3.connect(G.rsc_path('hadith.db'))
             cursor = db.cursor()
 
-            req = cursor.execute(f'SELECT * FROM hadiths WHERE id BETWEEN ? AND ?', self.bounds).fetchall()
-            db.close()
+            books = {i: Book(idx=i, name=n) for i, n in cursor.execute('SELECT * FROM books')}
+            entities = {i: Entity(idx=i, name=n, type=t) for i, n, t in cursor.execute('SELECT * FROM entities')}
 
-            for i, hadith, grade, rawi, hadith_fr, grade_fr, rawi_fr in req:
-                if hadith is not None:
-                    h = Hadith(hid=i, hadith=hadith, grade=grade, rawi=rawi)
-                    h.addTranslation(hadith_fr, rawi_fr, grade_fr)
+            for idx, bid, book, hadith, grade, hadith_entities in \
+                    cursor.execute(f'SELECT * FROM hadiths').fetchall():
 
-                    self.hadiths.append(h)
+                if len(hadith_entities):
+                    hadith_entities = {entities[i] for i in map(int, hadith_entities.split(';'))}
+                else:
+                    hadith_entities = set()
 
-            self.callback_fn(self.hadiths)
+                h = Hadith(
+                    bid,
+                    hadith=hadith,
+                    grade=grade,
+                    book=books[book],
+                    entities=hadith_entities
+                )
 
+                hadiths.append(h)
+
+            self.cb(books, entities, hadiths)
             self.done(self.name)
 
     def __init__(self, parent=None):
+        self.books = {}
+        self.entities = {}
         self.hadiths = []
 
         super().__init__(parent)
@@ -141,29 +192,55 @@ class HadithSearch(QDialog):
         self.sub_layout = QVBoxLayout(self)
 
         self.search_field = ArabicField(self)
-        self.search_field.keyPressed.connect(self.preview)
 
-        self.search = QPushButton("Search")
-        self.search.clicked.connect(self.preview)
+        self.WB_search = QPushButton("Search")
+        self.WB_search.clicked.connect(self.searchResults)
 
-        self.sub_layout.addLayout(LineLayout(self, self.search_field, self.search))
+        self.sub_layout.addLayout(LineLayout(self, self.search_field, self.WB_search))
+
+        self.WC_book_filter = EntityFilter(arabic=False, type=-1)
+        self.WC_book_filter.entitySelected.connect(self.applyFilter)
+        self.WC_book_filter.filterCleared.connect(self.removeFilter)
+        self.WC_person_filter = EntityFilter(type=0)
+        self.WC_person_filter.entitySelected.connect(self.applyFilter)
+        self.WC_person_filter.filterCleared.connect(self.removeFilter)
+        self.WC_location_filter = EntityFilter(type=1)
+        self.WC_location_filter.entitySelected.connect(self.applyFilter)
+        self.WC_location_filter.filterCleared.connect(self.removeFilter)
+        self.WC_event_filter = EntityFilter(type=2)
+        self.WC_event_filter.entitySelected.connect(self.applyFilter)
+        self.WC_event_filter.filterCleared.connect(self.removeFilter)
+
+        self.sub_layout.addLayout(
+            LineLayout(self,
+                       'Book :', self.WC_book_filter,
+                       'Person :', self.WC_person_filter,
+                       'Location :', self.WC_location_filter,
+                       'Event :', self.WC_event_filter,
+                       )
+        )
+
+        self.filters = {
+            -1: None,
+            0: None,
+            1: None,
+            2: None
+        }
 
         self.result_label = QLabel(self)
         self.sub_layout.addWidget(self.result_label)
 
         self.arabic_font = G.get_font(1.5)
-        self.translation_font = G.get_font(1.3)
+        self.latin_font = G.get_font(2)
         self.result_view = ListWidget(self)
-        self.result_view.setHeaderLabels(['hadith', 'hadith_arabic'])
-        self.result_view.setContentsMargins(3, 3, 3, 3)
+        self.result_view.setHeaderLabels(['book', 'num', 'hadith', 'grade'])
         self.result_view.itemClicked.connect(self.itemClicked)
 
         self.sub_layout.addWidget(self.result_view)
-        self.result_view.setColumnCount(2)
+        self.result_view.setColumnCount(4)
+        # self.result_view.header().cascadingSectionResizes()
         self.setFixedHeight(800)
         self.setMinimumWidth(800)
-        self.result_view.setColumnWidth(0, 400)
-        self.result_view.setColumnWidth(1, 400)
 
         self.progress = QProgressBar()
         self.progress.setFixedHeight(5)
@@ -172,92 +249,128 @@ class HadithSearch(QDialog):
         main_layout.addLayout(self.sub_layout, 1)
         main_layout.addWidget(self.progress, 0)
 
-        db = sqlite3.connect(G.rsc_path('hadith.db'))
-        cursor = db.cursor()
-        cnt = cursor.execute('SELECT COUNT(id) FROM hadiths').fetchone()[0]
-        db.close()
-
-        prev, step = 0, cnt // S.POOL.maxThreadCount()
-
-        for i in range(step, cnt, step):
-            worker = self.Worker(self.updateHadith, start=prev, end=i)
-            S.POOL.start(worker)
-            prev = i
+        S.POOL.start(self.Loader(self.refresh))
 
         self.propagateFont()
+        self.show()
 
     def propagateFont(self):
         self.search_field.setFont(G.get_font(2))
+        self.WB_search.setFont(G.get_font())
+        self.WC_book_filter.setFont(G.get_font())
+        self.WC_event_filter.setFont(G.get_font())
+        self.WC_location_filter.setFont(G.get_font())
+        self.WC_person_filter.setFont(G.get_font())
 
         self.arabic_font = G.get_font(1.5)
-        self.translation_font = G.get_font(1.3)
-        ayat_model_ar = AyatModelItem(font=self.arabic_font)
-        ayat_model_fr = MultiLineModelItem(font=self.translation_font)
-        self.result_view.applyModels((ayat_model_ar, ayat_model_fr))
+        self.latin_font = G.get_font()
+
+        arabic_model = AyatModelItem(font=self.arabic_font)
+        hadith_model = HtmlModelItem(font=self.arabic_font)
+        latin_model = AyatModelItem(font=self.latin_font)
+        self.result_view.applyModels((latin_model, latin_model, hadith_model, arabic_model))
+
+        self.result_view.setColumnWidth(0, 50)
+        self.result_view.setColumnWidth(1, 40)
+        self.result_view.setColumnWidth(2, self.result_view.width() - 200)
+        self.result_view.setColumnWidth(3, 110)
 
     def itemClicked(self, item: QTreeWidgetItem, column: int):
         hadith: Hadith
-        domain = item.data(0, Qt.ItemDataRole.UserRole)
-        hid = item.data(1, Qt.ItemDataRole.UserRole)
 
-        hadith = self.hadiths[hid] if domain == 'hadith' else S.LOCAL.BOOKMAP.datas[hid]
-        content = hadith.toHtml() if column == 0 or domain == 'bookmap' else hadith.toTranslatedHtml()
+        hid = item.data(0, Qt.ItemDataRole.UserRole)
+        hadith = self.hadiths[hid]
 
-        if QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier and domain == 'bookmap':
-            self.goto.emit(S.LOCAL.BOOKMAP.getHadithPage(hid).page)
-        else:
-            self.result_click.emit(content)
-
+        self.result_click.emit(hadith.toPlainText())
         self.close()
 
-    def updateHadith(self, hadiths):
+    def refresh(self, books: dict, entities: dict, hadiths: list):
+        self.books.update(books)
+        self.entities.update(entities)
         self.hadiths.extend(hadiths)
 
-    def preview(self, e: QKeyEvent):
-        if isinstance(e, QKeyEvent):
+        for b in sorted(books.values()):
+            self.WC_book_filter.addItem(b.name.capitalize(), b.id)
+
+        self.WC_person_filter.addEntities([e for e in entities.values() if e.type == 0])
+        self.WC_location_filter.addEntities([e for e in entities.values() if e.type == 1])
+        self.WC_event_filter.addEntities([e for e in entities.values() if e.type == 2])
+
+    def applyFilter(self, idx: int, type: int):
+        if type == -1:
+            self.filters[type] = self.books[idx]
+        else:
+            self.filters[type] = self.entities[idx]
+        self.searchResults()
+
+    def removeFilter(self, type: int):
+        self.filters[type] = None
+        self.searchResults()
+
+    def searchResults(self):
+        hadiths = self.hadiths
+
+        if self.filters[-1]:
+            hadiths = filter(lambda x: x.book == self.filters[-1], hadiths)
+
+        def apply_filter(f: Entity, hadiths):
+            for hadith in hadiths:
+                if f in hadith.entities:
+                    hadith.html = hadith.html.replace(
+                        f.name,
+                        f'<b><font style="color:#39EF7C"> {f.name} </font></b>'
+                    )
+                    yield hadith
+
+        for filt in (self.filters[0], self.filters[1], self.filters[2]):
+            if filt is not None:
+                hadiths = apply_filter(filt, hadiths)
+
+        hadiths = [h for h in hadiths]
+
+        self.result_view.clear()
+        needle = T.Arabic.clean(self.search_field.text())
+
+        if len(hadiths) == len(self.hadiths) and not len(needle) or not len(hadiths):
             return
 
-        if (e is False or e.key() == Qt.Key.Key_Return) and len(self.search_field.text()):
-            needle = self.search_field.text()
+        result_count = 0
+        s = 100 / (len(hadiths))
 
-            result_count = 0
-            s = 100 / (len(self.hadiths) + len(S.LOCAL.BOOKMAP.datas))
+        for hid, hadith in enumerate(hadiths):
+            hadith: Hadith
 
-            self.result_view.clear()
+            if needle in hadith:
+                if len(needle):
+                    hadith.html = hadith.html.replace(
+                        needle,
+                        f'<b><font style="color:#3979FF"> {needle} </font></b>'
+                    )
+                fm_ar = QFontMetrics(self.arabic_font)
 
-            self.result_label.setText(f'<i>Searching...</i>')
+                rect = fm_ar.boundingRect(
+                    0, 0, self.result_view.columnWidth(2), 1000,
+                    Qt.TextFlag.TextWordWrap | Qt.AlignmentFlag.AlignRight,
+                    hadith.toPlainText()
+                )
 
-            for domain_name, domain in (('hadith', self.hadiths), ('bookmap', S.LOCAL.BOOKMAP.datas)):
-                for hid, hadith in enumerate(domain):
-                    if needle in hadith:
-                        fm_ar = QFontMetrics(self.arabic_font)
+                item = QTreeWidgetItem(
+                    self.result_view,
+                    [hadith.book.name, str(hadith.id), hadith.toHtml(), hadith.grade]
+               )
 
-                        if domain_name == 'hadith':
-                            fm_fr = QFontMetrics(self.translation_font)
-                            hadith_ar = hadith.toPlainText()
-                            hadith_fr = hadith.toTranslatedPlainText()
-                            h_fr = math.ceil(.8 * fm_fr.horizontalAdvance(hadith_fr) / self.result_view.columnWidth(1))
-                            h_fr *= fm_fr.height()
-                        else:
-                            hadith_ar = hadith.content
-                            hadith_fr = ''
-                            h_fr = 1
+                # h_ar = math.floor(.8 * fm_ar.horizontalAdvance(hadith_ar) / self.result_view.columnWidth(0))
+                item.setData(0, Qt.ItemDataRole.UserRole, hid)
+                item.setSizeHint(2, QSize(self.result_view.columnWidth(2), rect.height() + fm_ar.height()))
+                result_count += 1
 
-                        item = QTreeWidgetItem(self.result_view, [hadith_ar, hadith_fr])
+                result_count += 1
 
-                        h_ar = math.floor(.8 * fm_ar.horizontalAdvance(hadith_ar) / self.result_view.columnWidth(0))
+            c = int(s * hid)
+            if c % 2 == 0:
+                self.progress.setValue(c)
 
-                        item.setData(0, Qt.ItemDataRole.UserRole, domain_name)
-                        item.setData(1, Qt.ItemDataRole.UserRole, hid)
-                        item.setSizeHint(0, QSize(self.result_view.columnWidth(0), h_ar * fm_ar.height()))
-                        item.setSizeHint(1, QSize(self.result_view.columnWidth(1), h_fr))
-                        result_count += 1
-
-                    c = int(s * hid)
-                    if c % 2 == 0:
-                        self.progress.setValue(c)
-
-            self.result_label.setText(f'{result_count} occurences found')
+        self.result_label.setText(f'{result_count} hadiths found.')
 
     def closeEvent(self, a0: QCloseEvent) -> None:
         self.search_field.setText('')
