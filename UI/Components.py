@@ -582,6 +582,7 @@ class BreadCrumbs(QWidget):
 
             super().__init__('', parent)
             self.setContentsMargins(10, 3, 25, 1)
+            self.setMaximumWidth(200)
             self.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
             self.setMouseTracking(True)
 

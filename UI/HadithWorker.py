@@ -198,7 +198,7 @@ class HadithSearch(QDialog):
 
         self.sub_layout.addLayout(LineLayout(self, self.search_field, self.WB_search))
 
-        self.WC_book_filter = EntityFilter(arabic=False, type=-1)
+        self.WC_book_filter = EntityFilter(arabic=False, type=-2)
         self.WC_book_filter.entitySelected.connect(self.applyFilter)
         self.WC_book_filter.filterCleared.connect(self.removeFilter)
         self.WC_person_filter = EntityFilter(type=0)
@@ -210,6 +210,9 @@ class HadithSearch(QDialog):
         self.WC_event_filter = EntityFilter(type=2)
         self.WC_event_filter.entitySelected.connect(self.applyFilter)
         self.WC_event_filter.filterCleared.connect(self.removeFilter)
+        self.WC_other_filter = EntityFilter(type=-1)
+        self.WC_other_filter.entitySelected.connect(self.applyFilter)
+        self.WC_other_filter.filterCleared.connect(self.removeFilter)
 
         self.sub_layout.addLayout(
             LineLayout(self,
@@ -217,10 +220,12 @@ class HadithSearch(QDialog):
                        'Person :', self.WC_person_filter,
                        'Location :', self.WC_location_filter,
                        'Event :', self.WC_event_filter,
+                       'Other :', self.WC_other_filter,
                        )
         )
 
         self.filters = {
+            -2: None,
             -1: None,
             0: None,
             1: None,
@@ -258,6 +263,7 @@ class HadithSearch(QDialog):
         self.WC_event_filter.setFont(G.get_font())
         self.WC_location_filter.setFont(G.get_font())
         self.WC_person_filter.setFont(G.get_font())
+        self.WC_other_filter.setFont(G.get_font())
 
         self.arabic_font = G.get_font(1.5)
         self.latin_font = G.get_font()
@@ -287,9 +293,10 @@ class HadithSearch(QDialog):
         self.WC_person_filter.addEntities([e for e in entities.values() if e.type == 0])
         self.WC_location_filter.addEntities([e for e in entities.values() if e.type == 1])
         self.WC_event_filter.addEntities([e for e in entities.values() if e.type == 2])
+        self.WC_other_filter.addEntities([e for e in entities.values() if e.type == -1])
 
     def applyFilter(self, idx: int, type: int):
-        if type == -1:
+        if type == -2:
             self.filters[type] = self.books[idx]
         else:
             self.filters[type] = self.entities[idx]
@@ -302,8 +309,8 @@ class HadithSearch(QDialog):
     def searchResults(self):
         hadiths = self.hadiths
 
-        if self.filters[-1]:
-            hadiths = filter(lambda x: x.book == self.filters[-1], hadiths)
+        if self.filters[-2]:
+            hadiths = filter(lambda x: x.book == self.filters[-2], hadiths)
 
         def apply_filter(f: Entity, hadiths):
             for hadith in hadiths:
@@ -314,7 +321,7 @@ class HadithSearch(QDialog):
                     )
                     yield hadith
 
-        for filt in (self.filters[0], self.filters[1], self.filters[2]):
+        for filt in (self.filters[-1], self.filters[0], self.filters[1], self.filters[2]):
             if filt is not None:
                 hadiths = apply_filter(filt, hadiths)
 
@@ -371,6 +378,7 @@ class HadithSearch(QDialog):
         self.WC_person_filter.setCurrentIndex(0)
         self.WC_location_filter.setCurrentIndex(0)
         self.WC_event_filter.setCurrentIndex(0)
+        self.WC_other_filter.setCurrentIndex(0)
         self.result_view.clear()
 
         super().closeEvent(a0)

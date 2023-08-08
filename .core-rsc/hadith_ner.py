@@ -28,7 +28,7 @@ def clean(text):
     return clean_harakats(reformat_hamza(text))
 
 
-book = 'mishkat'
+book = 'bukhari'
 source = sqlite3.connect(fr"D:\Script\_rsc\ilm\{book}\{book}.786")
 cursor = source.cursor()
 

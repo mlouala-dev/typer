@@ -1912,9 +1912,8 @@ class LocalSettings(_Settings):
                         grade=grade
                     )
 
-                    self.BOOKMAP.kutub[hadith.kid].ahadith.append(hadith)
-
                     try:
+                        self.BOOKMAP.kutub[hadith.kid].ahadith.append(hadith)
                         self.BOOKMAP.kutub[hadith.kid].getBab(hadith.bid).ahadith.append(hadith)
 
                     except KeyError:
