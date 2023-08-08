@@ -252,7 +252,6 @@ class HadithSearch(QDialog):
         S.POOL.start(self.Loader(self.refresh))
 
         self.propagateFont()
-        self.show()
 
     def propagateFont(self):
         self.search_field.setFont(G.get_font(2))
