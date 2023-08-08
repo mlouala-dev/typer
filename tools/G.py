@@ -310,13 +310,13 @@ SHORTCUT.add(shortcut='Alt+V', name='html', hint="Export to HTML...", icon_name=
 SHORTCUT.add(shortcut='F2', name='viewer', hint="Display viewer...", icon_name="Book-Picture", default_state=False)
 SHORTCUT.add(shortcut='F3', name='settings', hint="Settings...", icon_name="Setting-Tools")
 SHORTCUT.add(shortcut='F4', name='lexicon', hint="Lane's Lexicon", icon_name="Application-View-Columns")
-SHORTCUT.add(shortcut='F5', name='bookmark', hint="Summary panel...", icon_name="Application-Side-List")
+SHORTCUT.add(shortcut='F6', name='bookmark', hint="Summary panel...", icon_name="Application-Side-List")
 
 SHORTCUT.add(shortcut='Ctrl+Alt+C', name='quran_search', hint='Search in Quran...', icon_name='Book')
 SHORTCUT.add(shortcut='Alt+C', name='quran_insert', hint='Insert from / Jump to Quran...', icon_name='Book-Go')
 SHORTCUT.add(shortcut='Ctrl+Alt+S', name='book_search', hint='Search in Source...', icon_name='Book-Spelling')
 SHORTCUT.add(shortcut='Alt+S', name='book_jumper', hint='Insert from / Jump to Source', icon_name='Book-Spelling')
-SHORTCUT.add(shortcut='Ctlr+Alt+S', name='hadith_search', hint='Search in hadith database...', icon_name='Book-Keeping')
+SHORTCUT.add(shortcut='F5', name='hadith_search', hint='Search in hadith database...', icon_name='Book-Keeping')
 
 SHORTCUT.add(shortcut='Ctrl+Shift+B', name='bold', hint='bold', icon_name="Text-Bold")
 SHORTCUT.add(shortcut='Ctrl+Shift+I', name='italic', hint='italic', icon_name="Text-Italic")

@@ -239,7 +239,6 @@ class HadithSearch(QDialog):
         self.sub_layout.addWidget(self.result_view)
         self.result_view.setColumnCount(4)
         # self.result_view.header().cascadingSectionResizes()
-        self.setFixedHeight(800)
         self.setMinimumWidth(800)
 
         self.progress = QProgressBar()
@@ -308,6 +307,11 @@ class HadithSearch(QDialog):
 
     def searchResults(self):
         hadiths = self.hadiths
+
+        self.result_view.setColumnWidth(0, 50)
+        self.result_view.setColumnWidth(1, 40)
+        self.result_view.setColumnWidth(2, self.result_view.width() - 200)
+        self.result_view.setColumnWidth(3, 110)
 
         if self.filters[-1]:
             hadiths = filter(lambda x: x.book == self.filters[-1], hadiths)
