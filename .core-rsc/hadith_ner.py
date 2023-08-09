@@ -103,8 +103,8 @@ try:
     dest.commit()
 except sqlite3.IntegrityError:
     pass
-book_id = d_cursor.execute('SELECT id FROM books WHERE name=?', (book,)).fetchone()[0]
 
+book_id = d_cursor.execute('SELECT id FROM books WHERE name=?', (book,)).fetchone()[0]
 hadiths = cursor.execute('SELECT id, hadith, grade FROM bm_ahadith').fetchall()
 
 

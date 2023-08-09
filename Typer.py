@@ -96,7 +96,7 @@ class TyperWIN(QMainWindow):
 
         _splash.progress(15, "Loading Hadith Database...")
         self.hadith_dialog = HadithSearch(self)
-        G.SHORTCUT['hadith_search'].register(self, self.hadith_dialog.show)
+        G.SHORTCUT['hadith_search'].register(self, self.hadithDialog)
 
         _splash.progress(45, "Loading QuranQuote...")
         self.quran_quote = QuranWorker.QuranQuote(self)
@@ -928,11 +928,17 @@ class TyperWIN(QMainWindow):
     def lexiconDialog(self):
         sel = self.typer.textCursor().selectedText()
         if len(sel):
-            sel = T.Arabic.reformat_hamza(sel)
-            sel = T.Arabic.clean_harakats(sel)
-            self.lexicon.search(sel)
+            self.lexicon.search(T.Arabic.clean(sel))
 
         self.lexicon.show()
+
+    def hadithDialog(self):
+        sel = self.typer.textCursor().selectedText()
+        if len(sel):
+            self.hadith_dialog.search_field.setText(T.Arabic.clean(sel))
+            self.hadith_dialog.searchResults()
+
+        self.hadith_dialog.show()
 
     def QuranDialog(self):
         """
