@@ -355,7 +355,12 @@ class HadithSearch(QDialog):
 
                 item = QTreeWidgetItem(
                     self.result_view,
-                    [hadith.book.name, str(hadith.id), hadith.toHtml(), hadith.grade]
+                    [
+                        hadith.book.name,
+                        str(hadith.id) if hadith.id != -1 else '',
+                        hadith.toHtml(),
+                        hadith.grade
+                    ]
                )
 
                 # h_ar = math.floor(.8 * fm_ar.horizontalAdvance(hadith_ar) / self.result_view.columnWidth(0))
