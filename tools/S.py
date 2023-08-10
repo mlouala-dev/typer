@@ -384,7 +384,7 @@ class GlobalSettings(_Settings):
                 return res
 
         def __init__(self):
-            self.db = sqlite3.connect(G.rsc_path(f'lexicon_{GLOBAL.lang}.db'))
+            self.db = sqlite3.connect(G.rsc_path(f'lexicon.db'))
             self.cursor = self.db.cursor()
 
             self.barewords = self.fetchall_results('SELECT bareword FROM entry')

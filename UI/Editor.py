@@ -99,7 +99,6 @@ class Typer(QTextEdit):
 
         # this is the current word
         self._word = ''
-        self.tense = None
         # we measure time spent to type a word
         self.word_time = time()
 
@@ -171,18 +170,6 @@ class Typer(QTextEdit):
     @property
     def previous_word(self, *args) -> str:
         return self.textOperation(*args, operation=QTextCursor.MoveOperation.PreviousWord)
-
-    def guessTense(self):
-        tc = self.textCursor()
-        tc.movePosition(tc.MoveOperation.StartOfBlock, tc.MoveMode.KeepAnchor, 1)
-        hard_split = T.Regex.Predikt_hard_split.split(tc.selectedText())[-1]
-        words = T.Regex.Predikt_soft_split.split(hard_split)
-        sentence = ' '.join((('',) + tuple(words))[-2:])
-
-        S.GLOBAL.PREDIKT.analyze(sentence)
-
-    def applyTense(self, tense):
-        self.tense = tense if tense else None
 
     def loadPage(self, page: int = 0):
         try:
@@ -590,6 +577,8 @@ class Typer(QTextEdit):
             assert (not T.Regex.Predikt_ignore_token.match(''.join(tail + (word,))))
             candidate = S.GLOBAL.CORPUS.predict(*tail[:2], word, not len(self.word))
 
+            print(tail[:2], candidate)
+
         except (AssertionError, IndexError):
             candidate, word = None, self.word
 
@@ -859,7 +848,7 @@ class Typer(QTextEdit):
         next_character = self.next_character
         previous_character = self.previous_character
 
-        self.auto_complete_available = bool(not len(next_character.strip()))
+        self.auto_complete_available = bool(not len(next_character.strip())) or previous_character == "'"
         if not self.auto_complete_available:
             self.WL_autoComplete.hide()
 
@@ -973,7 +962,6 @@ class Typer(QTextEdit):
                     tc_prev.select(tc.SelectionType.WordUnderCursor)
 
                     self.new_word = True
-                    # self.guessTense()
 
         if key == Qt.Key.Key_twosuperior and modifiers == Qt.KeyboardModifier.NoModifier:
             tc = self.textCursor()
@@ -1271,12 +1259,12 @@ class Typer(QTextEdit):
                     tc.selectedText() not in self.Allah_match:
                 # adding a space since the previous word should be complete
                 # if the next character is in the new word characters, we skip the space after
-                self.insertPlainText(" ")
+                if not self.WL_autoComplete.text().endswith("'"):
+                    self.insertPlainText(" ")
 
             self.new_word = True
             self.WL_autoComplete.setGraphicsEffect(self.WL_autoComplete_lighteffect())
             self.displayPrediction()
-            # self.guessTense()
 
         # if there is a character we update the changed state
         if len(current_text):

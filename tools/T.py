@@ -50,7 +50,7 @@ class Regex:
     Predikt_hard_split = re.compile(f'''[{hard_break_characters}]''')
     Predikt_hard_soft_split = re.compile(f'''[{hard_break_characters}{soft_break_characters}]''')
     Predikt_hard_soft_w_split = re.compile(f'''[{hard_break_characters}{soft_break_characters}{whitespace}]|(?<=')''')
-    Predikt_soft_split = re.compile(f'''[{soft_break_characters}{whitespace}]''')
+    Predikt_soft_split = re.compile(f'''[{soft_break_characters}{whitespace}]|(?<=')''')
     Predikt_full_match = re.compile(f'''([{full_match_characters}]{{3,}})''')
 
     Predikt_ignore_token = re.compile(r'.*?[\d\u0621-\u064a\ufe70-\ufefc]')
