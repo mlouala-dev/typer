@@ -577,8 +577,6 @@ class Typer(QTextEdit):
             assert (not T.Regex.Predikt_ignore_token.match(''.join(tail + (word,))))
             candidate = S.GLOBAL.CORPUS.predict(*tail[:2], word, not len(self.word))
 
-            print(tail[:2], candidate)
-
         except (AssertionError, IndexError):
             candidate, word = None, self.word
 
