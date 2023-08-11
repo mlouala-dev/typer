@@ -1653,7 +1653,8 @@ class TyperHighlighter(QSyntaxHighlighter):
                 S.GLOBAL.CORPUS,
                 S.GLOBAL.CORPUS.get_solutions
             ),
-            uniq='grammar_note'
+            uniq='grammar_note',
+            weight=0
         )
 
         for pos, x, y, z in T.Regex.tokenize(text):
