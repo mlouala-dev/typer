@@ -505,6 +505,9 @@ class GlobalSettings(_Settings):
                     ret += f' {self.z} '
                 return ret
 
+            def to_notify(self):
+                return GLOBAL.CORPUS.renote(self.score * 100) < 30
+
             def normalized_score(self):
                 score = int(GLOBAL.CORPUS.renote(self.score * 100))
                 if score in range(0, 16):

@@ -90,7 +90,7 @@ class Typer(QTextEdit):
             return effect
 
         self.WL_autoComplete_effect = partial(opacity_effect, .9)
-        self.WL_autoComplete_lighteffect = partial(opacity_effect, .3)
+        self.WL_autoComplete_lighteffect = partial(opacity_effect, .6)
         self.WL_autoComplete.setGraphicsEffect(self.WL_autoComplete_effect())
 
         # we should never need a horizontal scrollbar since the text is wrapped
@@ -1619,18 +1619,10 @@ class TyperHighlighter(QSyntaxHighlighter):
     ref_format.setForeground(QColor(255, 35, 45))
     ref_format.setFontWeight(800)
 
-    grammar_format = {}
-    grammar_colors = [
-        QColor(6, 24, 38),
-        QColor(31, 48, 17),
-        QColor(51, 37, 15),
-        QColor(72, 12, 35)
-    ]
-    for n in range(1, 5):
-        grammar_format[n] = QTextCharFormat()
-        grammar_format[n].setBackground(grammar_colors[n - 1])
-        # grammar_format[n].setUnderlineColor(grammar_colors[n - 1].lighter(300))
-        # grammar_format[n].setUnderlineStyle(QTextCharFormat.UnderlineStyle.WaveUnderline)
+    # defining some formats
+    grammar_format = QTextCharFormat()
+    grammar_format.setUnderlineColor(QColor(53, 135, 255))
+    grammar_format.setUnderlineStyle(QTextCharFormat.UnderlineStyle.WaveUnderline)
 
     def __init__(self, parent=None, *args):
         self.typer = parent
@@ -1671,8 +1663,8 @@ class TyperHighlighter(QSyntaxHighlighter):
 
                 solution = S.GLOBAL.CORPUS.get_solution(previous_word, x, y, z)
                 # grammar_note = 0
-                if solution and solution.normalized_score():
-                    self.setFormat(pos, len(y), self.grammar_format[solution.normalized_score()])
+                if solution and solution.to_notify():
+                    self.setFormat(pos, len(y), self.grammar_format)
 
                 elif [*map(ord, y)] == [9834, T.TEXT.audio_char]:
                     self.setFormat(pos, len(y), self.audio_format)
