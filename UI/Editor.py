@@ -538,12 +538,8 @@ class Typer(QTextEdit):
         if quote == '"':
 
             # we try to uppercase the first char after the ending of an HTML tag, it'll return 1 to the var "n"
-            # if it matche something
-            res, n = re.subn(r">(\w)", lambda x: x.group().upper(), html, count=1)
-
-            # otherwise (means we don't have HTML tags at the beggining of our fragment), we uppercase the first char
-            if not n:
-                res = html.capitalize()
+            # if it matches something
+            res = re.sub(r"(>|^)(\w)", lambda x: x.group().upper(), html, count=1)
 
             # italic everything inside the selection
             res = re.sub(r"^(<span.*?>)?(.*?)(</span>)?$", r'<i>\1"\2"</span></i>', res)
