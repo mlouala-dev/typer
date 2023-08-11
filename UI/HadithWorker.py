@@ -50,12 +50,19 @@ class Hadith:
 
         self.hadith = self.clean(hadith)
         self.light = T.Arabic.clean(self.hadith)
-        self.html = self.light
+        self.base_html = self.light
+        self.html = self.base_html
+
+        self.entities = entities
+
+        for entity in self.entities:
+            self.html = self.html.replace(
+                entity.name,
+                f'<font style="color:#75CFFF">{entity.name}</font>'
+            )
 
         self.grade = grade
         self.book = book
-
-        self.entities = entities
 
     @staticmethod
     def clean(text: str):
