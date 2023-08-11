@@ -95,7 +95,7 @@ class TyperWIN(QMainWindow):
         G.SHORTCUT['viewer'].register(self, partial(self.toggleWidgetDisplay, self.viewer_frame))
 
         _splash.progress(15, "Loading Hadith Database...")
-        self.hadith_dialog = HadithSearch(self)
+        self.hadith_dialog = HadithSearch()
         G.SHORTCUT['hadith_search'].register(self, self.hadithDialog)
 
         _splash.progress(45, "Loading QuranQuote...")

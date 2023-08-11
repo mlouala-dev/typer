@@ -131,7 +131,7 @@ class EntityFilter(QComboBox):
             )
 
 
-class HadithSearch(QDialog):
+class HadithSearch(QWidget):
     db: QSqlDatabase
     hadiths: [Hadith]
     loading_step = pyqtSignal(int, int)
@@ -175,23 +175,24 @@ class HadithSearch(QDialog):
             self.cb(books, entities, hadiths)
             self.done(self.name)
 
-    def __init__(self, parent=None):
+    def __init__(self):
         self.books = {}
         self.entities = {}
         self.hadiths = []
 
-        super().__init__(parent)
+        super().__init__()
 
-        self.setWindowTitle('Search in hadith database')
-        self.setWindowIcon(G.icon('Book-Keeping'))
+        self.setWindowTitle(G.SHORTCUT['hadith_search'].hint)
+        self.setWindowIcon(G.icon(G.SHORTCUT['hadith_search'].icon_name))
 
-        self._win = parent
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
+
         self.setLayout(main_layout)
         self.sub_layout = QVBoxLayout(self)
 
         self.search_field = ArabicField(self)
+        self.search_field.enterPressed.connect(self.searchResults)
 
         self.WB_search = QPushButton("Search")
         self.WB_search.clicked.connect(self.searchResults)
@@ -224,13 +225,7 @@ class HadithSearch(QDialog):
                        )
         )
 
-        self.filters = {
-            -2: None,
-            -1: None,
-            0: None,
-            1: None,
-            2: None
-        }
+        self.filters = {i: None for i in range(-2, 3)}
 
         self.result_label = QLabel(self)
         self.sub_layout.addWidget(self.result_label)
@@ -361,7 +356,7 @@ class HadithSearch(QDialog):
                         hadith.toHtml(),
                         hadith.grade
                     ]
-               )
+                )
 
                 # h_ar = math.floor(.8 * fm_ar.horizontalAdvance(hadith_ar) / self.result_view.columnWidth(0))
                 item.setData(0, Qt.ItemDataRole.UserRole, self.hadiths.index(hadith))
@@ -389,14 +384,21 @@ class HadithSearch(QDialog):
 
         super().closeEvent(a0)
 
-    def show(self):
-        super().show()
-        self.search_field.setFocus()
-
+    def updateColumns(self):
         self.result_view.setColumnWidth(0, 50)
         self.result_view.setColumnWidth(1, 40)
         self.result_view.setColumnWidth(2, self.result_view.width() - 200)
         self.result_view.setColumnWidth(3, 110)
+
+    def resizeEvent(self, a0):
+        super().resizeEvent(a0)
+        self.updateColumns()
+
+    def show(self):
+        super().show()
+
+        self.search_field.setFocus()
+        self.updateColumns()
 
 
 if __name__ == "__main__":

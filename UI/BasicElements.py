@@ -239,6 +239,7 @@ class SearchField(QLineEdit):
     A simple line edit to trigger the keypress event
     """
     keyPressed = pyqtSignal(QKeyEvent)
+    enterPressed = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -246,6 +247,9 @@ class SearchField(QLineEdit):
     def keyPressEvent(self, e: QKeyEvent) -> None:
         super().keyPressEvent(e)
         self.keyPressed.emit(e)
+
+        if e.key() == Qt.Key.Key_Return:
+            self.enterPressed.emit()
 
 
 class RadioGroupBox(QGroupBox):
