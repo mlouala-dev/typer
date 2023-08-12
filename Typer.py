@@ -1138,7 +1138,6 @@ class TyperWIN(QMainWindow):
         if S.LOCAL.viewer_external:
             self.viewer_frame.close()
 
-        self.updateStatus(50, 'Closing elements...')
         if S.LOCAL.PDF:
             try:
                 self.viewer.doc.close()
@@ -1147,9 +1146,11 @@ class TyperWIN(QMainWindow):
             finally:
                 os.unlink(S.LOCAL.PDF)
 
-        self.updateStatus(65, 'Closing elements...')
         if self.lexicon.isVisible():
             self.lexicon.close()
+
+        if self.hadith_dialog.isVisible():
+            self.hadith_dialog.close()
 
         self.updateStatus(80, 'Abording tasks...')
         S.POOL.clear()
